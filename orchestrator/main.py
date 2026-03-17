@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from .agents import Implementer, PlannerReviewer
+from .agents import Implementer, Planner, Reviewer
 from .roadmap import mark_done, parse_roadmap
 
 MAX_REVIEW_ITERATIONS = 3
@@ -49,8 +49,9 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int) -> Non
     print(f"MILESTONE: {milestone.title}")
     print(f"{'='*60}")
 
-    # Create agents — each lives for the entire milestone
-    planner = PlannerReviewer(project_dir)
+    # Create agents
+    planner = Planner(project_dir)
+    reviewer = Reviewer(project_dir)
     implementer = Implementer(project_dir)
     milestone_start = time.monotonic()
 
@@ -68,8 +69,9 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int) -> Non
         implementer.implement(plan_path, patches_dir)
 
         print(f"\n>>> REVIEWING (iteration {iteration})...")
+        subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
         patch_path = patches_dir / f"{seq}-{milestone.slug}-review-{iteration}.md"
-        passed = planner.review(plan_path, patch_path)
+        passed = reviewer.review(plan_path, patch_path)
 
         if passed:
             print(">>> REVIEW PASSED")

@@ -6,6 +6,7 @@ import json
 import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
@@ -46,14 +47,27 @@ def _run_claude(
         cmd.extend(["--system-prompt", system_prompt])
 
     print(f"\n--- Claude agent ({cwd}) ---")
-    proc = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, text=True)
-    try:
-        stdout, _ = proc.communicate()
-    except KeyboardInterrupt:
-        proc.send_signal(signal.SIGTERM)
+    start = time.monotonic()
+    proc = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, text=True,
+                            start_new_session=True)
+
+    # Ctrl+C kills the child and exits cleanly
+    original_handler = signal.getsignal(signal.SIGINT)
+
+    def _handle_sigint(signum, frame):
+        proc.kill()
         proc.wait()
         print("\n>>> Interrupted by user")
         sys.exit(130)
+
+    signal.signal(signal.SIGINT, _handle_sigint)
+    try:
+        stdout, _ = proc.communicate()
+    finally:
+        signal.signal(signal.SIGINT, original_handler)
+
+    elapsed = int(time.monotonic() - start)
+    mins, secs = divmod(elapsed, 60)
 
     if proc.returncode != 0:
         raise RuntimeError(f"Claude CLI failed with exit code {proc.returncode}")
@@ -62,28 +76,26 @@ def _run_claude(
     output_text = parsed.get("result", "")
     sid = parsed.get("session_id", "")
 
-    print(output_text[:500] + ("..." if len(output_text) > 500 else ""))
+    summary = output_text[:500] + ("..." if len(output_text) > 500 else "")
+    print(f"{summary}\n  [{mins}m {secs}s]")
 
     return output_text, sid
 
 
-class PlannerReviewer:
-    """Agent 2 — plans a milestone, then reviews implementation. Same session."""
+class Planner:
+    """Plans a milestone. Stateless — fresh session each call."""
 
     def __init__(
         self,
         project_dir: Path,
         model: str = "opus",
-        plan_effort: str = "high",
-        review_effort: str = "medium",
+        effort: str = "high",
     ):
         self.project_dir = project_dir
-        self.system_prompt = _load_prompt("planner") + "\n\n" + _load_prompt("reviewer")
-        self.session_id: str | None = None
+        self.system_prompt = _load_prompt("planner")
         self.tools = ["Read", "Write", "Glob", "Grep", "Bash"]
         self.model = model
-        self.plan_effort = plan_effort
-        self.review_effort = review_effort
+        self.effort = effort
 
     def plan(self, milestone_title: str, milestone_description: str, plan_path: Path) -> None:
         prompt = (
@@ -93,30 +105,47 @@ class PlannerReviewer:
             f"Write the plan to: {plan_path}\n"
         )
 
-        _, self.session_id = _run_claude(
+        _run_claude(
             prompt=prompt,
             cwd=str(self.project_dir),
             system_prompt=self.system_prompt,
             allowed_tools=self.tools,
             model=self.model,
-            effort=self.plan_effort,
+            effort=self.effort,
         )
+
+
+class Reviewer:
+    """Reviews implementation against the plan. Fresh session — no shared context with planner."""
+
+    def __init__(
+        self,
+        project_dir: Path,
+        model: str = "opus",
+        effort: str = "medium",
+    ):
+        self.project_dir = project_dir
+        self.system_prompt = _load_prompt("reviewer")
+        self.tools = ["Read", "Write", "Glob", "Grep", "Bash"]
+        self.model = model
+        self.effort = effort
 
     def review(self, plan_path: Path, patch_path: Path) -> bool:
         prompt = (
-            f"Now review the implementation against your plan at: {plan_path}\n"
-            f"Run `git diff` to see changes.\n"
+            f"Review the implementation against the plan at: {plan_path}\n"
+            f"Run `git diff HEAD` and `git status` to see ALL changes (staged, unstaged, and new files).\n"
+            f"Read each changed/new file to verify correctness — don't just look at the diff.\n"
             f"If issues found, write feedback to: {patch_path}\n"
             f"If everything looks good, respond with REVIEW_PASS\n"
         )
 
-        output, self.session_id = _run_claude(
+        output, _ = _run_claude(
             prompt=prompt,
             cwd=str(self.project_dir),
-            session_id=self.session_id,
+            system_prompt=self.system_prompt,
             allowed_tools=self.tools,
             model=self.model,
-            effort=self.review_effort,
+            effort=self.effort,
         )
 
         return "REVIEW_PASS" in output
