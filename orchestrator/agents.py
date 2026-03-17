@@ -78,8 +78,8 @@ def _run_claude(
     return output_text, sid
 
 
-class Planner:
-    """Plans a milestone. Stateless — fresh session each call."""
+class PlannerReviewer:
+    """Plans and reviews milestones. Same session — reviewer has planner's context."""
 
     def __init__(
         self,
@@ -88,7 +88,10 @@ class Planner:
         effort: str = "high",
     ):
         self.project_dir = project_dir
-        self.system_prompt = _load_prompt("planner")
+        self.planner_prompt = _load_prompt("planner")
+        self.reviewer_prompt = _load_prompt("reviewer")
+        self.system_prompt = self.planner_prompt + "\n\n---\n\n" + self.reviewer_prompt
+        self.session_id: str | None = None
         self.tools = ["Read", "Write", "Glob", "Grep", "Bash"]
         self.model = model
         self.effort = effort
@@ -101,7 +104,7 @@ class Planner:
             f"Write the plan to: {plan_path}\n"
         )
 
-        _run_claude(
+        _, self.session_id = _run_claude(
             prompt=prompt,
             cwd=str(self.project_dir),
             system_prompt=self.system_prompt,
@@ -109,43 +112,9 @@ class Planner:
             model=self.model,
             effort=self.effort,
         )
-
-    def patch(self, review_path: Path, patch_path: Path) -> None:
-        """Read a review and create a detailed patch for the implementer."""
-        prompt = (
-            f"Read the review at: {review_path}\n"
-            f"Create a detailed implementation patch that describes exactly what needs to be fixed.\n"
-            f"For each issue, specify the file, the problem, and the exact fix.\n"
-            f"Write the patch to: {patch_path}\n"
-        )
-
-        _run_claude(
-            prompt=prompt,
-            cwd=str(self.project_dir),
-            system_prompt=self.system_prompt,
-            allowed_tools=self.tools,
-            model=self.model,
-            effort=self.effort,
-        )
-
-
-class Reviewer:
-    """Reviews implementation against the plan. Fresh session — no shared context with planner."""
-
-    def __init__(
-        self,
-        project_dir: Path,
-        model: str = "opus",
-        effort: str = "medium",
-    ):
-        self.project_dir = project_dir
-        self.system_prompt = _load_prompt("reviewer")
-        self.tools = ["Read", "Write", "Glob", "Grep", "Bash"]
-        self.model = model
-        self.effort = effort
 
     def review(self, plan_path: Path, review_path: Path) -> bool:
-        """Review implementation against the plan. Always writes findings to review_path."""
+        """Review code changes. Uses same session as planner for deep context."""
         prompt = (
             f"The plan for context is at: {plan_path}\n"
             f"Review the CODE CHANGES for bugs, security issues, and correctness problems.\n"
@@ -156,10 +125,11 @@ class Reviewer:
             f"If no critical issues found, end the review file with REVIEW_PASS on its own line.\n"
         )
 
-        output, _ = _run_claude(
+        output, self.session_id = _run_claude(
             prompt=prompt,
             cwd=str(self.project_dir),
-            system_prompt=self.system_prompt,
+            system_prompt=self.system_prompt if not self.session_id else None,
+            session_id=self.session_id,
             allowed_tools=self.tools,
             model=self.model,
             effort=self.effort,
@@ -167,9 +137,28 @@ class Reviewer:
 
         return "REVIEW_PASS" in output
 
+    def patch(self, review_path: Path, patch_path: Path) -> None:
+        """Read a review and create a detailed patch for the implementer."""
+        prompt = (
+            f"Read the review at: {review_path}\n"
+            f"Create a detailed implementation patch that describes exactly what needs to be fixed.\n"
+            f"For each issue, specify the file, the problem, and the exact fix.\n"
+            f"Write the patch to: {patch_path}\n"
+        )
+
+        _, self.session_id = _run_claude(
+            prompt=prompt,
+            cwd=str(self.project_dir),
+            system_prompt=self.system_prompt if not self.session_id else None,
+            session_id=self.session_id,
+            allowed_tools=self.tools,
+            model=self.model,
+            effort=self.effort,
+        )
+
 
 class Implementer:
-    """Agent 3 — implements the plan, then applies fixes from patches. Same session."""
+    """Implements the plan, then applies fixes from patches. Same session."""
 
     def __init__(
         self,

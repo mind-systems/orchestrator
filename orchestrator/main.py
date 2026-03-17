@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from .agents import Implementer, Planner, Reviewer
+from .agents import Implementer, PlannerReviewer
 from .roadmap import mark_done, parse_roadmap
 
 MAX_REVIEW_ITERATIONS = 3
@@ -52,14 +52,13 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int) -> Non
     print(f"{'='*60}")
 
     # Create agents
-    planner = Planner(project_dir)
-    reviewer = Reviewer(project_dir)
+    planner_reviewer = PlannerReviewer(project_dir)
     implementer = Implementer(project_dir)
     milestone_start = time.monotonic()
 
     # Step 1: Plan
     print("\n>>> PLANNING...")
-    planner.plan(milestone.title, milestone.description, plan_path)
+    planner_reviewer.plan(milestone.title, milestone.description, plan_path)
 
     if not plan_path.exists():
         print(f"ERROR: Plan file not created at {plan_path}")
@@ -73,7 +72,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int) -> Non
         print(f"\n>>> REVIEWING (iteration {iteration})...")
         subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
         review_path = reviews_dir / f"{seq}-{milestone.slug}-review-{iteration}.md"
-        passed = reviewer.review(plan_path, review_path)
+        passed = planner_reviewer.review(plan_path, review_path)
 
         if passed:
             print(f">>> REVIEW PASSED — see {review_path}")
@@ -106,8 +105,7 @@ def review_plan(project_dir: Path, plan_path: Path) -> None:
     print(f"REVIEWING PLAN: {plan_path.name}")
     print(f"{'='*60}")
 
-    planner = Planner(project_dir)
-    reviewer = Reviewer(project_dir)
+    planner_reviewer = PlannerReviewer(project_dir)
     implementer = Implementer(project_dir)
     plan_start = time.monotonic()
 
@@ -115,7 +113,7 @@ def review_plan(project_dir: Path, plan_path: Path) -> None:
         print(f"\n>>> REVIEWING (iteration {iteration})...")
         subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
         review_path = reviews_dir / f"{slug}-review-{iteration}.md"
-        passed = reviewer.review(plan_path, review_path)
+        passed = planner_reviewer.review(plan_path, review_path)
 
         if passed:
             print(f">>> REVIEW PASSED — see {review_path}")
@@ -130,7 +128,7 @@ def review_plan(project_dir: Path, plan_path: Path) -> None:
         # Planner creates a detailed patch from the review
         print(f"\n>>> PATCHING (iteration {iteration})...")
         patch_path = patches_dir / f"{slug}-patch-{iteration}.md"
-        planner.patch(review_path, patch_path)
+        planner_reviewer.patch(review_path, patch_path)
 
         # Implementer applies the patch
         print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
