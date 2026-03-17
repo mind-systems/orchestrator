@@ -147,11 +147,13 @@ class Reviewer:
     def review(self, plan_path: Path, review_path: Path) -> bool:
         """Review implementation against the plan. Always writes findings to review_path."""
         prompt = (
-            f"Review the implementation against the plan at: {plan_path}\n"
-            f"Run `git diff HEAD` and `git status` to see ALL changes (staged, unstaged, and new files).\n"
-            f"Read each changed/new file to verify correctness — don't just look at the diff.\n"
+            f"The plan for context is at: {plan_path}\n"
+            f"Review the CODE CHANGES for bugs, security issues, and correctness problems.\n"
+            f"Run `git diff HEAD` and `git status` to see ALL changes.\n"
+            f"Read each changed/new file IN FULL — understand the surrounding code, not just the diff.\n"
+            f"Think about what will break at runtime: missing migrations, type mismatches, race conditions, etc.\n"
             f"Write your full review to: {review_path}\n"
-            f"If no issues found, end the review file with REVIEW_PASS on its own line.\n"
+            f"If no critical issues found, end the review file with REVIEW_PASS on its own line.\n"
         )
 
         output, _ = _run_claude(
