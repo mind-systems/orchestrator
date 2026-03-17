@@ -4,24 +4,39 @@ Generic AI agent orchestrator that autonomously plans, implements, and reviews t
 
 ## How it works
 
+### Implement mode (default)
+
 Three agents work in a loop over each milestone in your `.ai-factory/ROADMAP.md`:
 
 ```
-Agent 1 (orchestrator) — picks next unchecked milestone
+Orchestrator — picks next unchecked milestone
   │
-  ├── Agent 2 (planner) — analyzes codebase, writes plan to .ai-factory/plans/
+  ├── Planner — analyzes codebase, writes plan to .ai-factory/plans/
   │
-  ├── Agent 3 (implementer) — reads plan + patches, writes code
+  ├── Implementer — reads plan + patches, writes code
   │
-  ├── Agent 2 (reviewer) — reviews changes against plan
-  │     if issues → writes patch to .ai-factory/patches/
-  │     Agent 3 re-implements (max 3 iterations)
+  ├── Reviewer — reviews changes, writes findings to .ai-factory/reviews/
+  │     if issues → Implementer fixes (max 3 iterations)
   │
   ├── git commit
   └── mark milestone done in ROADMAP.md
 ```
 
-Agents communicate through files, not shared context. Each agent starts fresh with only what it needs.
+### Review mode
+
+Audits all existing plans against the current codebase:
+
+```
+Orchestrator — iterates over all files in .ai-factory/plans/
+  │
+  ├── Reviewer — reviews code against plan, writes findings to .ai-factory/reviews/
+  │     if issues:
+  │       ├── Planner — creates detailed patch from review findings
+  │       ├── Implementer — applies the patch
+  │       └── Reviewer — re-reviews (max 3 iterations)
+  │
+  └── git commit
+```
 
 ## Setup
 
@@ -35,10 +50,13 @@ Requires `claude` CLI installed and authenticated (Claude Code).
 ## Usage
 
 ```bash
-# Run on a project directory
-uv run orchestrator /path/to/project
+# Implement milestones from roadmap
+uv run orchestrator implement /path/to/project
 
-# Run on current directory
+# Review all existing plans against current codebase
+uv run orchestrator review /path/to/project
+
+# Default (implement) on current directory
 uv run orchestrator
 ```
 
@@ -54,24 +72,21 @@ The target project must have `.ai-factory/ROADMAP.md` with milestones in this fo
 ```
 orchestrator/
 ├── __init__.py
-├── main.py          # Agent 1 — milestone loop, git commits
-├── agents.py        # Agent 2/3 runners via Claude Code CLI
+├── main.py          # Orchestrator loop, git commits, CLI
+├── agents.py        # Planner/Reviewer/Implementer via Claude Code CLI
 ├── roadmap.py       # Parse/update ROADMAP.md checkboxes
 └── prompts/
-    ├── planner.md   # System prompt — create implementation plan
-    ├── implementer.md  # System prompt — implement tasks from plan
-    └── reviewer.md  # System prompt — review implementation
+    ├── planner.md
+    ├── implementer.md
+    └── reviewer.md
 ```
 
 ## File conventions
 
-Plans and patches use sequential numbering:
-
 ```
 .ai-factory/plans/01-milestone-slug.md
-.ai-factory/plans/02-milestone-slug.md
-.ai-factory/patches/01-milestone-slug-review-1.md
-.ai-factory/patches/01-milestone-slug-review-2.md
+.ai-factory/reviews/01-milestone-slug-review-1.md
+.ai-factory/patches/01-milestone-slug-patch-1.md
 ```
 
 ## Prerequisites
@@ -90,12 +105,13 @@ Plans and patches use sequential numbering:
 
 | Agent | Model | Effort | Notes |
 |---|---|---|---|
-| Planner | `opus` | `high` | Same session as reviewer |
-| Reviewer | `opus` | `medium` | Same session as planner, effort changes per call |
-| Implementer | `sonnet` | `high` | Separate session |
+| Planner | `opus` | `high` | Fresh session each call |
+| Reviewer | `opus` | `medium` | Fresh session, no shared context |
+| Implementer | `sonnet` | `high` | Session persists across fix iterations |
 
-Override in `main.py` when creating agents:
+Override when creating agents:
 ```python
-planner = PlannerReviewer(project_dir, model="opus", plan_effort="high", review_effort="medium")
+planner = Planner(project_dir, model="opus", effort="high")
+reviewer = Reviewer(project_dir, model="opus", effort="medium")
 implementer = Implementer(project_dir, model="sonnet", effort="high")
 ```

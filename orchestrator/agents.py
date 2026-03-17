@@ -114,6 +114,24 @@ class Planner:
             effort=self.effort,
         )
 
+    def patch(self, review_path: Path, patch_path: Path) -> None:
+        """Read a review and create a detailed patch for the implementer."""
+        prompt = (
+            f"Read the review at: {review_path}\n"
+            f"Create a detailed implementation patch that describes exactly what needs to be fixed.\n"
+            f"For each issue, specify the file, the problem, and the exact fix.\n"
+            f"Write the patch to: {patch_path}\n"
+        )
+
+        _run_claude(
+            prompt=prompt,
+            cwd=str(self.project_dir),
+            system_prompt=self.system_prompt,
+            allowed_tools=self.tools,
+            model=self.model,
+            effort=self.effort,
+        )
+
 
 class Reviewer:
     """Reviews implementation against the plan. Fresh session — no shared context with planner."""
@@ -130,13 +148,14 @@ class Reviewer:
         self.model = model
         self.effort = effort
 
-    def review(self, plan_path: Path, patch_path: Path) -> bool:
+    def review(self, plan_path: Path, review_path: Path) -> bool:
+        """Review implementation against the plan. Always writes findings to review_path."""
         prompt = (
             f"Review the implementation against the plan at: {plan_path}\n"
             f"Run `git diff HEAD` and `git status` to see ALL changes (staged, unstaged, and new files).\n"
             f"Read each changed/new file to verify correctness — don't just look at the diff.\n"
-            f"If issues found, write feedback to: {patch_path}\n"
-            f"If everything looks good, respond with REVIEW_PASS\n"
+            f"Write your full review to: {review_path}\n"
+            f"If no issues found, end the review file with REVIEW_PASS on its own line.\n"
         )
 
         output, _ = _run_claude(

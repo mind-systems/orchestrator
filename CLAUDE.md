@@ -8,10 +8,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install dependencies
 cd orchestrator && uv sync
 
-# Run on a target project
-uv run orchestrator /path/to/project
+# Implement milestones from roadmap
+uv run orchestrator implement /path/to/project
 
-# Run on current directory
+# Review all existing plans against current codebase
+uv run orchestrator review /path/to/project
+
+# Default (implement) on current directory
 uv run orchestrator
 ```
 

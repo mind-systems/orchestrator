@@ -40,8 +40,10 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int) -> Non
     ai_factory = project_dir / ".ai-factory"
     plans_dir = ai_factory / "plans"
     patches_dir = ai_factory / "patches"
+    reviews_dir = ai_factory / "reviews"
     plans_dir.mkdir(parents=True, exist_ok=True)
     patches_dir.mkdir(parents=True, exist_ok=True)
+    reviews_dir.mkdir(parents=True, exist_ok=True)
 
     seq = f"{milestone_index:02d}"
     plan_path = plans_dir / f"{seq}-{milestone.slug}.md"
@@ -70,14 +72,14 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int) -> Non
 
         print(f"\n>>> REVIEWING (iteration {iteration})...")
         subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
-        patch_path = patches_dir / f"{seq}-{milestone.slug}-review-{iteration}.md"
-        passed = reviewer.review(plan_path, patch_path)
+        review_path = reviews_dir / f"{seq}-{milestone.slug}-review-{iteration}.md"
+        passed = reviewer.review(plan_path, review_path)
 
         if passed:
-            print(">>> REVIEW PASSED")
+            print(f">>> REVIEW PASSED — see {review_path}")
             break
         else:
-            print(f">>> Review found issues — see {patch_path}")
+            print(f">>> Review found issues — see {review_path}")
             if iteration == MAX_REVIEW_ITERATIONS:
                 print(f"WARNING: Max review iterations ({MAX_REVIEW_ITERATIONS}) reached. Moving on.")
 
@@ -91,8 +93,74 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int) -> Non
     print(f">>> Milestone done [{mins}m {secs}s]")
 
 
-def run(project_dir: Path) -> None:
-    """Main orchestrator loop."""
+def review_plan(project_dir: Path, plan_path: Path) -> None:
+    """Review → patch → implement → review loop for a single plan."""
+    ai_factory = project_dir / ".ai-factory"
+    patches_dir = ai_factory / "patches"
+    reviews_dir = ai_factory / "reviews"
+    patches_dir.mkdir(parents=True, exist_ok=True)
+    reviews_dir.mkdir(parents=True, exist_ok=True)
+
+    slug = plan_path.stem  # e.g. "01-project-scaffold"
+    print(f"\n{'='*60}")
+    print(f"REVIEWING PLAN: {plan_path.name}")
+    print(f"{'='*60}")
+
+    planner = Planner(project_dir)
+    reviewer = Reviewer(project_dir)
+    implementer = Implementer(project_dir)
+    plan_start = time.monotonic()
+
+    for iteration in range(1, MAX_REVIEW_ITERATIONS + 1):
+        print(f"\n>>> REVIEWING (iteration {iteration})...")
+        subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
+        review_path = reviews_dir / f"{slug}-review-{iteration}.md"
+        passed = reviewer.review(plan_path, review_path)
+
+        if passed:
+            print(f">>> REVIEW PASSED — see {review_path}")
+            break
+
+        print(f">>> Review found issues — see {review_path}")
+
+        if iteration == MAX_REVIEW_ITERATIONS:
+            print(f"WARNING: Max review iterations ({MAX_REVIEW_ITERATIONS}) reached. Moving on.")
+            break
+
+        # Planner creates a detailed patch from the review
+        print(f"\n>>> PATCHING (iteration {iteration})...")
+        patch_path = patches_dir / f"{slug}-patch-{iteration}.md"
+        planner.patch(review_path, patch_path)
+
+        # Implementer applies the patch
+        print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
+        implementer.implement(plan_path, patches_dir)
+
+    _git_commit(project_dir, f"Review fixes: {plan_path.stem}")
+
+    elapsed = int(time.monotonic() - plan_start)
+    mins, secs = divmod(elapsed, 60)
+    print(f">>> Plan review done [{mins}m {secs}s]")
+
+
+def _with_caffeinate(func, *args, **kwargs):
+    """Run a function with macOS sleep prevention."""
+    caffeinate = subprocess.Popen(["caffeinate", "-ims"])
+    start = time.monotonic()
+    try:
+        func(*args, **kwargs)
+    finally:
+        caffeinate.send_signal(signal.SIGTERM)
+        caffeinate.wait()
+
+    elapsed = int(time.monotonic() - start)
+    mins, secs = divmod(elapsed, 60)
+    hours, mins = divmod(mins, 60)
+    return f"{hours}h {mins}m {secs}s" if hours else f"{mins}m {secs}s"
+
+
+def run_implement(project_dir: Path) -> None:
+    """Main orchestrator loop — plan, implement, review from roadmap."""
     roadmap_path = project_dir / ".ai-factory" / "ROADMAP.md"
 
     if not roadmap_path.exists():
@@ -111,39 +179,62 @@ def run(project_dir: Path) -> None:
     plans_dir = project_dir / ".ai-factory" / "plans"
     plans_dir.mkdir(parents=True, exist_ok=True)
 
-    # Prevent macOS from sleeping while orchestrator is running
-    caffeinate = subprocess.Popen(["caffeinate", "-ims"])
-
-    start = time.monotonic()
-    try:
+    def loop():
         for i, milestone in enumerate(pending, start=_next_number(plans_dir)):
             process_milestone(project_dir, milestone, i)
-    finally:
-        caffeinate.send_signal(signal.SIGTERM)
-        caffeinate.wait()
 
-    elapsed = int(time.monotonic() - start)
-    mins, secs = divmod(elapsed, 60)
-    hours, mins = divmod(mins, 60)
-    time_str = f"{hours}h {mins}m {secs}s" if hours else f"{mins}m {secs}s"
+    time_str = _with_caffeinate(loop)
 
     print(f"\n{'='*60}")
     print(f"ALL MILESTONES COMPLETE — {time_str}")
     print(f"{'='*60}")
 
 
+def run_review(project_dir: Path) -> None:
+    """Review all existing plans against the current codebase."""
+    plans_dir = project_dir / ".ai-factory" / "plans"
+
+    if not plans_dir.exists():
+        print(f"ERROR: No plans directory found at {plans_dir}")
+        sys.exit(1)
+
+    plan_files = sorted(plans_dir.glob("*.md"))
+    if not plan_files:
+        print("No plan files found.")
+        return
+
+    print(f"Found {len(plan_files)} plans to review.")
+
+    def loop():
+        for plan_path in plan_files:
+            review_plan(project_dir, plan_path)
+
+    time_str = _with_caffeinate(loop)
+
+    print(f"\n{'='*60}")
+    print(f"ALL PLANS REVIEWED — {time_str}")
+    print(f"{'='*60}")
+
+
 def cli() -> None:
     parser = argparse.ArgumentParser(description="AI orchestrator — plan, implement, review from roadmap")
-    parser.add_argument(
-        "project_dir",
-        nargs="?",
-        default=".",
-        help="Path to the project directory (default: current directory)",
-    )
-    args = parser.parse_args()
+    subparsers = parser.add_subparsers(dest="command", help="Command to run")
 
-    project_dir = Path(args.project_dir).resolve()
-    run(project_dir)
+    # Default: implement
+    impl_parser = subparsers.add_parser("implement", help="Plan, implement, and review milestones from roadmap")
+    impl_parser.add_argument("project_dir", nargs="?", default=".", help="Path to the project directory")
+
+    # Review mode
+    rev_parser = subparsers.add_parser("review", help="Review all existing plans against current codebase")
+    rev_parser.add_argument("project_dir", nargs="?", default=".", help="Path to the project directory")
+
+    args = parser.parse_args()
+    project_dir = Path(args.project_dir).resolve() if hasattr(args, "project_dir") and args.project_dir else Path(".").resolve()
+
+    if args.command == "review":
+        run_review(project_dir)
+    else:
+        run_implement(project_dir)
 
 
 if __name__ == "__main__":

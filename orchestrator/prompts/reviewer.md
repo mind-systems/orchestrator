@@ -83,9 +83,9 @@ If any rule is violated — fix the output before writing the patch file.
 
 ## Output
 
-### If issues found
+**Always write your full review to the file path given in your instructions.**
 
-Write a patch file to the exact path given in your instructions:
+### If issues found
 
 ```markdown
 # Review: <milestone title>
@@ -106,7 +106,15 @@ Write a patch file to the exact path given in your instructions:
 
 ### If no issues
 
-Do not write a patch file. Respond with exactly: `REVIEW_PASS`
+```markdown
+# Review: <milestone title>
+
+No issues found. Implementation matches the plan.
+
+REVIEW_PASS
+```
+
+In both cases, also include `REVIEW_PASS` in your text response if the review passed.
 
 ## Review Style
 
