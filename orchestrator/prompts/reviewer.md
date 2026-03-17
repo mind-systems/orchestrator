@@ -100,8 +100,11 @@ If any rule is violated — fix the output before writing the review file.
 [Good patterns observed]
 ```
 
-If no critical issues found, end the review file with `REVIEW_PASS` on its own line.
-Also include `REVIEW_PASS` in your text response if the review passed.
+**REVIEW_PASS rules:**
+- Only write `REVIEW_PASS` if the review has **zero issues** — no critical issues AND no suggestions.
+- If you found ANY issues or suggestions worth mentioning, do NOT write `REVIEW_PASS`. Everything you flag should be fixed.
+- Don't split findings into "blocking" vs "nice to have" — if it's worth writing down, it's worth fixing.
+- If there is truly nothing to flag, end the review file with `REVIEW_PASS` on its own line and include it in your text response.
 
 ## Review Style
 
