@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import signal
 import subprocess
 import sys
 import time
@@ -48,23 +47,20 @@ def _run_claude(
 
     print(f"\n--- Claude agent ({cwd}) ---")
     start = time.monotonic()
-    proc = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, text=True,
-                            start_new_session=True)
+    proc = subprocess.Popen(
+        cmd, cwd=cwd,
+        stdout=subprocess.PIPE,
+        stdin=subprocess.DEVNULL,
+        text=True,
+    )
 
-    # Ctrl+C kills the child and exits cleanly
-    original_handler = signal.getsignal(signal.SIGINT)
-
-    def _handle_sigint(signum, frame):
+    try:
+        stdout, _ = proc.communicate()
+    except KeyboardInterrupt:
         proc.kill()
         proc.wait()
         print("\n>>> Interrupted by user")
         sys.exit(130)
-
-    signal.signal(signal.SIGINT, _handle_sigint)
-    try:
-        stdout, _ = proc.communicate()
-    finally:
-        signal.signal(signal.SIGINT, original_handler)
 
     elapsed = int(time.monotonic() - start)
     mins, secs = divmod(elapsed, 60)
