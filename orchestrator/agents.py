@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import signal
 import subprocess
+import sys
 from pathlib import Path
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
@@ -44,13 +46,19 @@ def _run_claude(
         cmd.extend(["--system-prompt", system_prompt])
 
     print(f"\n--- Claude agent ({cwd}) ---")
-    result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+    proc = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, text=True)
+    try:
+        stdout, _ = proc.communicate()
+    except KeyboardInterrupt:
+        proc.send_signal(signal.SIGTERM)
+        proc.wait()
+        print("\n>>> Interrupted by user")
+        sys.exit(130)
 
-    if result.returncode != 0:
-        print(f"[stderr] {result.stderr}")
-        raise RuntimeError(f"Claude CLI failed with exit code {result.returncode}")
+    if proc.returncode != 0:
+        raise RuntimeError(f"Claude CLI failed with exit code {proc.returncode}")
 
-    parsed = json.loads(result.stdout)
+    parsed = json.loads(stdout)
     output_text = parsed.get("result", "")
     sid = parsed.get("session_id", "")
 

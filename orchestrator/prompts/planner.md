@@ -131,15 +131,15 @@ mkdir -p <parent-directory-of-plan-path>
 
 ```markdown
 ## Commit Plan
-- **Commit 1** (after tasks 1-3): "feat: add base models and types"
-- **Commit 2** (after tasks 4-6): "feat: implement core service logic"
+- **Commit 1** (after tasks 1-3): "Add base models and types"
+- **Commit 2** (after tasks 4-6): "Implement core service logic"
 ```
 
 **Commit Plan Rules:**
 - **5+ tasks** → add commit checkpoints every 3-5 tasks
 - **Less than 5 tasks** → single commit at the end, no commit plan needed
 - Group logically related tasks into one commit
-- Use conventional commits messages
+- **NO conventional commit prefixes** (no `feat:`, `fix:`, `chore:`, etc.) — just a clear, descriptive sentence starting with a verb
 
 ---
 

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from .agents import Implementer, PlannerReviewer
@@ -28,7 +30,7 @@ def _next_number(directory: Path) -> int:
 def _git_commit(project_dir: Path, milestone_title: str) -> None:
     """Stage all changes and commit after a completed milestone."""
     subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
-    message = f"feat: {milestone_title}\n\nCo-Authored-By: AI Orchestrator <noreply@orchestrator>"
+    message = f"{milestone_title}\n\nCo-Authored-By: AI Orchestrator <noreply@orchestrator>"
     subprocess.run(["git", "commit", "-m", message], cwd=project_dir, check=True)
     print(f">>> COMMITTED: {milestone_title}")
 
@@ -50,6 +52,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int) -> Non
     # Create agents — each lives for the entire milestone
     planner = PlannerReviewer(project_dir)
     implementer = Implementer(project_dir)
+    milestone_start = time.monotonic()
 
     # Step 1: Plan
     print("\n>>> PLANNING...")
@@ -81,6 +84,10 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int) -> Non
     mark_done(roadmap_path, milestone)
     _git_commit(project_dir, milestone.title)
 
+    elapsed = int(time.monotonic() - milestone_start)
+    mins, secs = divmod(elapsed, 60)
+    print(f">>> Milestone done [{mins}m {secs}s]")
+
 
 def run(project_dir: Path) -> None:
     """Main orchestrator loop."""
@@ -102,11 +109,24 @@ def run(project_dir: Path) -> None:
     plans_dir = project_dir / ".ai-factory" / "plans"
     plans_dir.mkdir(parents=True, exist_ok=True)
 
-    for i, milestone in enumerate(pending, start=_next_number(plans_dir)):
-        process_milestone(project_dir, milestone, i)
+    # Prevent macOS from sleeping while orchestrator is running
+    caffeinate = subprocess.Popen(["caffeinate", "-ims"])
+
+    start = time.monotonic()
+    try:
+        for i, milestone in enumerate(pending, start=_next_number(plans_dir)):
+            process_milestone(project_dir, milestone, i)
+    finally:
+        caffeinate.send_signal(signal.SIGTERM)
+        caffeinate.wait()
+
+    elapsed = int(time.monotonic() - start)
+    mins, secs = divmod(elapsed, 60)
+    hours, mins = divmod(mins, 60)
+    time_str = f"{hours}h {mins}m {secs}s" if hours else f"{mins}m {secs}s"
 
     print(f"\n{'='*60}")
-    print("ALL MILESTONES COMPLETE")
+    print(f"ALL MILESTONES COMPLETE — {time_str}")
     print(f"{'='*60}")
 
 
