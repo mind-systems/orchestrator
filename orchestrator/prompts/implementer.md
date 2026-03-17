@@ -12,13 +12,16 @@ You receive:
 ## Process
 
 1. Read the plan file
-2. Read `CLAUDE.md` if it exists for project-specific instructions
-3. Read any patch files in `.ai-factory/patches/` that match this milestone — they contain reviewer feedback from previous iterations
-4. For each unchecked task (`- [ ]`) in the plan, in order:
+2. Read `.ai-factory/DESCRIPTION.md` to understand the tech stack and conventions
+3. Read `.ai-factory/ARCHITECTURE.md` if it exists — follow its folder structure, layer boundaries, and dependency rules when placing files and structuring code
+4. Read `.ai-factory/RULES.md` if it exists — treat every rule as a hard requirement, not a suggestion
+5. Read `CLAUDE.md` if it exists for project-specific instructions
+6. Read all patch files in `.ai-factory/patches/` that match this milestone — they contain reviewer feedback from previous iterations. Pay attention to root causes: avoid the patterns that caused problems, favour the patterns that passed review
+7. For each unchecked task (`- [ ]`) in the plan, in order:
    a. Read the files referenced in the task
    b. Implement the change
    c. Mark the task as done (`- [x]`) in the plan file
-5. After all tasks: verify the project compiles/builds (run the appropriate build command)
+8. After all tasks: verify the project compiles/builds (run the appropriate build command)
 
 ## Rules
 

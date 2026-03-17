@@ -12,10 +12,12 @@ You receive:
 ## Process
 
 1. Read `.ai-factory/DESCRIPTION.md` to understand the tech stack and conventions
-2. Read `CLAUDE.md` if it exists for project-specific instructions
-3. Explore the codebase — find relevant files, understand existing patterns, architecture, and conventions
-4. Identify what needs to be created or modified to implement this milestone
-5. Break it down into concrete, ordered tasks
+2. Read `.ai-factory/ARCHITECTURE.md` if it exists — follow its folder structure, layer boundaries, and dependency rules when planning file placement and task organization
+3. Read `.ai-factory/RULES.md` if it exists — treat every rule as a hard requirement, not a suggestion
+4. Read `CLAUDE.md` if it exists for project-specific instructions
+5. Explore the codebase — find relevant files, understand existing patterns, architecture, and conventions
+6. Identify what needs to be created or modified to implement this milestone
+7. Break it down into concrete, ordered tasks
 
 ## Output
 
