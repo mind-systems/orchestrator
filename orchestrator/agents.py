@@ -50,12 +50,13 @@ def _run_claude(
     proc = subprocess.Popen(
         cmd, cwd=cwd,
         stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         stdin=subprocess.DEVNULL,
         text=True,
     )
 
     try:
-        stdout, _ = proc.communicate()
+        stdout, stderr = proc.communicate()
     except KeyboardInterrupt:
         proc.kill()
         proc.wait()
@@ -66,7 +67,11 @@ def _run_claude(
     mins, secs = divmod(elapsed, 60)
 
     if proc.returncode != 0:
-        raise RuntimeError(f"Claude CLI failed with exit code {proc.returncode}")
+        raise RuntimeError(
+            f"Claude CLI failed with exit code {proc.returncode}\n"
+            f"stderr: {stderr[:1000] if stderr else '(empty)'}\n"
+            f"stdout: {stdout[:1000] if stdout else '(empty)'}"
+        )
 
     parsed = json.loads(stdout)
     output_text = parsed.get("result", "")
@@ -135,7 +140,11 @@ class PlannerReviewer:
             effort=self.effort,
         )
 
-        return "REVIEW_PASS" in output
+        # Check the review file, not the chat output — look for REVIEW_PASS on its own line
+        if review_path.exists():
+            review_text = review_path.read_text()
+            return review_text.strip().endswith("REVIEW_PASS")
+        return False
 
     def patch(self, review_path: Path, patch_path: Path) -> None:
         """Read a review and create a detailed patch for the implementer."""
