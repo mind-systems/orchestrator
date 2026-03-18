@@ -134,7 +134,17 @@ def review_plan(project_dir: Path, plan_path: Path) -> None:
         print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
         implementer.implement(plan_path, patches_dir)
 
-    _git_commit(project_dir, f"Review fixes: {plan_path.stem}")
+    # Build commit message from the last review's critical findings
+    review_files = sorted(reviews_dir.glob(f"{slug}-review-*.md"))
+    last_review = review_files[-1] if review_files else None
+    commit_msg = plan_path.stem.replace("-", " ", 1)  # "22 signal dispatch computation loop"
+    if last_review:
+        lines = last_review.read_text().splitlines()
+        # Collect issue titles (lines starting with ### under Critical Issues)
+        issues = [l.lstrip("# ").strip() for l in lines if l.startswith("### ")]
+        if issues:
+            commit_msg += "\n\n" + "\n".join(f"- {i}" for i in issues[:5])
+    _git_commit(project_dir, commit_msg)
 
     elapsed = int(time.monotonic() - plan_start)
     mins, secs = divmod(elapsed, 60)
