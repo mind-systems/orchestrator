@@ -15,6 +15,10 @@ def _load_prompt(name: str) -> str:
     return (PROMPTS_DIR / f"{name}.md").read_text()
 
 
+MAX_RETRIES = 3
+RETRY_DELAY = 30  # seconds
+
+
 def _run_claude(
     prompt: str,
     cwd: str,
@@ -45,42 +49,70 @@ def _run_claude(
     elif system_prompt:
         cmd.extend(["--system-prompt", system_prompt])
 
-    print(f"\n--- Claude agent ({cwd}) ---")
-    start = time.monotonic()
-    proc = subprocess.Popen(
-        cmd, cwd=cwd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        stdin=subprocess.DEVNULL,
-        text=True,
-    )
-
-    try:
-        stdout, stderr = proc.communicate()
-    except KeyboardInterrupt:
-        proc.kill()
-        proc.wait()
-        print("\n>>> Interrupted by user")
-        sys.exit(130)
-
-    elapsed = int(time.monotonic() - start)
-    mins, secs = divmod(elapsed, 60)
-
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"Claude CLI failed with exit code {proc.returncode}\n"
-            f"stderr: {stderr[:1000] if stderr else '(empty)'}\n"
-            f"stdout: {stdout[:1000] if stdout else '(empty)'}"
+    for attempt in range(1, MAX_RETRIES + 1):
+        print(f"\n--- Claude agent ({cwd}) ---")
+        start = time.monotonic()
+        proc = subprocess.Popen(
+            cmd, cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,
+            text=True,
         )
 
-    parsed = json.loads(stdout)
-    output_text = parsed.get("result", "")
-    sid = parsed.get("session_id", "")
+        try:
+            stdout, stderr = proc.communicate()
+        except KeyboardInterrupt:
+            proc.kill()
+            proc.wait()
+            print("\n>>> Interrupted by user")
+            sys.exit(130)
 
-    summary = output_text[:500] + ("..." if len(output_text) > 500 else "")
-    print(f"{summary}\n  [{mins}m {secs}s]")
+        elapsed = int(time.monotonic() - start)
+        mins, secs = divmod(elapsed, 60)
 
-    return output_text, sid
+        # Check for retryable errors (overloaded, rate limit)
+        retryable = False
+        if proc.returncode != 0 and stdout:
+            try:
+                parsed = json.loads(stdout)
+                result_text = parsed.get("result", "")
+                if "overloaded" in result_text.lower() or "529" in result_text:
+                    retryable = True
+            except json.JSONDecodeError:
+                pass
+
+        if retryable and attempt < MAX_RETRIES:
+            print(f">>> API overloaded, retrying in {RETRY_DELAY}s (attempt {attempt}/{MAX_RETRIES})...")
+            time.sleep(RETRY_DELAY)
+            continue
+
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"Claude CLI failed with exit code {proc.returncode}\n"
+                f"stderr: {stderr[:1000] if stderr else '(empty)'}\n"
+                f"stdout: {stdout[:1000] if stdout else '(empty)'}"
+            )
+
+        parsed = json.loads(stdout)
+        if parsed.get("is_error"):
+            result_text = parsed.get("result", "")
+            if ("overloaded" in result_text.lower() or "529" in result_text) and attempt < MAX_RETRIES:
+                print(f">>> API overloaded, retrying in {RETRY_DELAY}s (attempt {attempt}/{MAX_RETRIES})...")
+                time.sleep(RETRY_DELAY)
+                continue
+            raise RuntimeError(f"Claude returned error: {result_text[:500]}")
+
+        output_text = parsed.get("result", "")
+        sid = parsed.get("session_id", "")
+
+        summary = output_text[:500] + ("..." if len(output_text) > 500 else "")
+        print(f"{summary}\n  [{mins}m {secs}s]")
+
+        return output_text, sid
+
+    # Should never reach here, but just in case
+    raise RuntimeError("All retry attempts exhausted")
 
 
 class PlannerReviewer:
