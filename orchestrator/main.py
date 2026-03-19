@@ -211,10 +211,26 @@ def run_review(project_dir: Path) -> None:
         print("No plan files found.")
         return
 
-    print(f"Found {len(plan_files)} plans to review.")
+    reviews_dir = project_dir / ".ai-factory" / "reviews"
+
+    def _already_passed(plan_path: Path) -> bool:
+        slug = plan_path.stem
+        for review_file in sorted(reviews_dir.glob(f"{slug}-review-*.md")):
+            if review_file.read_text().strip().endswith("REVIEW_PASS"):
+                return True
+        return False
+
+    pending = [p for p in plan_files if not _already_passed(p)]
+    skipped = len(plan_files) - len(pending)
+    if skipped:
+        print(f"Skipping {skipped} already-passed plans.")
+    if not pending:
+        print("All plans already passed review.")
+        return
+    print(f"Found {len(pending)} plans to review.")
 
     def loop():
-        for plan_path in plan_files:
+        for plan_path in pending:
             review_plan(project_dir, plan_path)
 
     time_str = _with_caffeinate(loop)
