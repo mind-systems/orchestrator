@@ -30,6 +30,13 @@ def _next_number(directory: Path) -> int:
 def _git_commit(project_dir: Path, milestone_title: str) -> None:
     """Stage all changes and commit after a completed milestone."""
     subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
+    # Check if there's anything to commit
+    result = subprocess.run(
+        ["git", "diff", "--cached", "--quiet"], cwd=project_dir,
+    )
+    if result.returncode == 0:
+        print(">>> Nothing to commit, skipping.")
+        return
     message = f"{milestone_title}\n\nCo-Authored-By: AI Orchestrator <noreply@orchestrator>"
     subprocess.run(["git", "commit", "-m", message], cwd=project_dir, check=True)
     print(f">>> COMMITTED: {milestone_title}")
@@ -140,8 +147,14 @@ def review_plan(project_dir: Path, plan_path: Path) -> None:
     commit_msg = plan_path.stem.replace("-", " ", 1)  # "22 signal dispatch computation loop"
     if last_review:
         lines = last_review.read_text().splitlines()
-        # Collect issue titles (lines starting with ### under Critical Issues)
-        issues = [l.lstrip("# ").strip() for l in lines if l.startswith("### ")]
+        # Collect issue titles (### N. ...) — numbered headings are actual findings
+        issues = []
+        for l in lines:
+            if l.startswith("### ") and l[4:5].isdigit():
+                title = l.lstrip("# ").strip()
+                # Remove leading "N. " numbering
+                title = title.split(". ", 1)[-1] if ". " in title else title
+                issues.append(title)
         if issues:
             commit_msg += "\n\n" + "\n".join(f"- {i}" for i in issues[:5])
     _git_commit(project_dir, commit_msg)
@@ -191,10 +204,18 @@ def run_implement(project_dir: Path) -> None:
         for i, milestone in enumerate(pending, start=_next_number(plans_dir)):
             process_milestone(project_dir, milestone, i)
 
+        # Clean reviews and run review flow on all plans
+        reviews_dir = project_dir / ".ai-factory" / "reviews"
+        if reviews_dir.exists():
+            for f in reviews_dir.glob("*.md"):
+                f.unlink()
+            print("\n>>> Cleared all reviews. Starting review flow...")
+        run_review(project_dir)
+
     time_str = _with_caffeinate(loop)
 
     print(f"\n{'='*60}")
-    print(f"ALL MILESTONES COMPLETE — {time_str}")
+    print(f"ALL DONE — {time_str}")
     print(f"{'='*60}")
 
 
