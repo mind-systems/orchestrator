@@ -133,13 +133,20 @@ class PlannerReviewer:
         self.model = model
         self.effort = effort
 
-    def plan(self, milestone_title: str, milestone_description: str, plan_path: Path) -> None:
-        prompt = (
-            f"Create an implementation plan for this milestone:\n\n"
-            f"**{milestone_title}**\n"
-            f"{milestone_description}\n\n"
-            f"Write the plan to: {plan_path}\n"
-        )
+    def plan(self, milestone_title: str, milestone_description: str, plan_path: Path, feedback: str | None = None) -> None:
+        if feedback:
+            prompt = (
+                f"Your plan at {plan_path} was reviewed and has issues.\n\n"
+                f"Reviewer feedback:\n{feedback}\n\n"
+                f"Update the plan to address these issues. Write the updated plan to: {plan_path}\n"
+            )
+        else:
+            prompt = (
+                f"Create an implementation plan for this milestone:\n\n"
+                f"**{milestone_title}**\n"
+                f"{milestone_description}\n\n"
+                f"Write the plan to: {plan_path}\n"
+            )
 
         _, self.session_id = _run_claude(
             prompt=prompt,
@@ -196,6 +203,46 @@ class PlannerReviewer:
             model=self.model,
             effort=self.effort,
         )
+
+
+class PlanReviewer:
+    """Reviews a plan before implementation. Fresh session — no planner bias."""
+
+    def __init__(
+        self,
+        project_dir: Path,
+        model: str = "opus",
+        effort: str = "high",
+    ):
+        self.project_dir = project_dir
+        self.system_prompt = _load_prompt("reviewer")
+        self.tools = ["Read", "Glob", "Grep", "Bash"]
+        self.model = model
+        self.effort = effort
+
+    def review_plan(self, plan_path: Path) -> tuple[bool, str]:
+        """Review a plan file. Returns (passed, feedback_text)."""
+        prompt = (
+            f"Review the PLAN at: {plan_path}\n"
+            f"Read the plan file and the codebase it targets.\n"
+            f"Check for: missing steps, wrong assumptions about the codebase, "
+            f"architectural mistakes, missing migrations, security issues, "
+            f"incorrect file paths or API usage.\n"
+            f"Do NOT write to a file. Just output your review.\n"
+            f"If the plan is solid, end your response with REVIEW_PASS on its own line.\n"
+        )
+
+        output, _ = _run_claude(
+            prompt=prompt,
+            cwd=str(self.project_dir),
+            system_prompt=self.system_prompt,
+            allowed_tools=self.tools,
+            model=self.model,
+            effort=self.effort,
+        )
+
+        passed = output.strip().endswith("REVIEW_PASS")
+        return passed, output
 
 
 class Implementer:

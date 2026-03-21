@@ -9,8 +9,8 @@ import sys
 import time
 from pathlib import Path
 
-from .agents import Implementer, PlannerReviewer
-from .roadmap import mark_done, parse_roadmap
+from .agents import Implementer, PlannerReviewer, PlanReviewer
+from .roadmap import mark_done, mark_skipped, parse_roadmap
 
 MAX_REVIEW_ITERATIONS = 3
 
@@ -68,8 +68,21 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int) -> Non
     planner_reviewer.plan(milestone.title, milestone.description, plan_path)
 
     if not plan_path.exists():
-        print(f"ERROR: Plan file not created at {plan_path}")
-        sys.exit(1)
+        print(f">>> Planner did not create a plan (milestone may already be done). Skipping.")
+        roadmap_path = project_dir / ".ai-factory" / "ROADMAP.md"
+        mark_skipped(roadmap_path, milestone)
+        return
+
+    # Step 1.5: Plan review (fresh context, one pass)
+    print("\n>>> REVIEWING PLAN...")
+    plan_reviewer = PlanReviewer(project_dir)
+    plan_passed, plan_feedback = plan_reviewer.review_plan(plan_path)
+    if not plan_passed:
+        print(">>> Plan has issues — sending feedback to planner...")
+        planner_reviewer.plan(
+            milestone.title, milestone.description, plan_path,
+            feedback=plan_feedback,
+        )
 
     # Step 2-3: Implement → Review loop
     for iteration in range(1, MAX_REVIEW_ITERATIONS + 1):
