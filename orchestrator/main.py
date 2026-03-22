@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from .agents import Implementer, PlannerReviewer, PlanReviewer
+from .agents import Implementer, PlannerReviewer, PlanReviewer, RateLimitError
 from .roadmap import mark_done, mark_skipped, parse_roadmap
 
 MAX_REVIEW_ITERATIONS = 3
@@ -289,10 +289,16 @@ def cli() -> None:
     args = parser.parse_args()
     project_dir = Path(args.project_dir).resolve() if hasattr(args, "project_dir") and args.project_dir else Path(".").resolve()
 
-    if args.command == "review":
-        run_review(project_dir)
-    else:
-        run_implement(project_dir)
+    try:
+        if args.command == "review":
+            run_review(project_dir)
+        else:
+            run_implement(project_dir)
+    except RateLimitError as e:
+        print(f"\n{'='*60}")
+        print(f"STOPPED — Claude rate limit reached: {e}")
+        print(f"{'='*60}")
+        sys.exit(0)
 
 
 if __name__ == "__main__":

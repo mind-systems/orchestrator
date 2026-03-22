@@ -19,6 +19,10 @@ MAX_RETRIES = 3
 RETRY_DELAY = 30  # seconds
 
 
+class RateLimitError(Exception):
+    """Raised when the Claude API rate limit / daily quota is exhausted."""
+
+
 def _run_claude(
     prompt: str,
     cwd: str,
@@ -88,6 +92,15 @@ def _run_claude(
             continue
 
         if proc.returncode != 0:
+            # Even on non-zero exit, stdout may contain a structured error
+            if stdout:
+                try:
+                    parsed = json.loads(stdout)
+                    result_text = parsed.get("result", "")
+                    if "hit your limit" in result_text.lower() or "resets" in result_text.lower():
+                        raise RateLimitError(result_text)
+                except (json.JSONDecodeError, KeyError):
+                    pass
             raise RuntimeError(
                 f"Claude CLI failed with exit code {proc.returncode}\n"
                 f"stderr: {stderr[:1000] if stderr else '(empty)'}\n"
@@ -97,6 +110,8 @@ def _run_claude(
         parsed = json.loads(stdout)
         if parsed.get("is_error"):
             result_text = parsed.get("result", "")
+            if "hit your limit" in result_text.lower() or "resets" in result_text.lower():
+                raise RateLimitError(result_text)
             if ("overloaded" in result_text.lower() or "529" in result_text) and attempt < MAX_RETRIES:
                 print(f">>> API overloaded, retrying in {RETRY_DELAY}s (attempt {attempt}/{MAX_RETRIES})...")
                 time.sleep(RETRY_DELAY)
