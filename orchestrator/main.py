@@ -183,6 +183,13 @@ def _with_caffeinate(func, *args, **kwargs):
     start = time.monotonic()
     try:
         func(*args, **kwargs)
+    except Exception:
+        elapsed = int(time.monotonic() - start)
+        mins, secs = divmod(elapsed, 60)
+        hours, mins = divmod(mins, 60)
+        elapsed_str = f"{hours}h {mins}m {secs}s" if hours else f"{mins}m {secs}s"
+        print(f">>> Ran for {elapsed_str} before stopping.")
+        raise
     finally:
         caffeinate.send_signal(signal.SIGTERM)
         caffeinate.wait()
