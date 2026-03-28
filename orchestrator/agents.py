@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import time
 from pathlib import Path
+
+from . import state
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
@@ -62,14 +65,16 @@ def _run_claude(
             stderr=subprocess.PIPE,
             stdin=subprocess.DEVNULL,
             text=True,
+            start_new_session=True,
         )
 
         try:
             stdout, stderr = proc.communicate()
         except KeyboardInterrupt:
+            # Second Ctrl+C while waiting — kill immediately
             proc.kill()
             proc.wait()
-            print("\n>>> Interrupted by user")
+            print("\n>>> Force quit.")
             sys.exit(130)
 
         elapsed = int(time.monotonic() - start)
@@ -105,6 +110,12 @@ def _run_claude(
                 f"Claude CLI failed with exit code {proc.returncode}\n"
                 f"stderr: {stderr[:1000] if stderr else '(empty)'}\n"
                 f"stdout: {stdout[:1000] if stdout else '(empty)'}"
+            )
+
+        if not stdout.strip():
+            raise RuntimeError(
+                f"Claude CLI exited 0 but stdout is empty\n"
+                f"stderr: {stderr[:1000] if stderr else '(empty)'}"
             )
 
         parsed = json.loads(stdout)

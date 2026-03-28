@@ -11,8 +11,17 @@ from pathlib import Path
 
 from .agents import Implementer, PlannerReviewer, PlanReviewer, RateLimitError
 from .roadmap import mark_done, mark_skipped, parse_roadmap
+from . import state
 
 MAX_REVIEW_ITERATIONS = 3
+
+
+def _handle_sigint(sig, frame):
+    if state.stop_requested:
+        print("\n>>> Force quit.")
+        sys.exit(1)
+    state.stop_requested = True
+    print("\n>>> Will stop after the current milestone finishes. Press Ctrl+C again to force quit.")
 
 
 def _next_number(directory: Path) -> int:
@@ -200,8 +209,8 @@ def _with_caffeinate(func, *args, **kwargs):
     return f"{hours}h {mins}m {secs}s" if hours else f"{mins}m {secs}s"
 
 
-def run_implement(project_dir: Path) -> None:
-    """Main orchestrator loop — plan, implement, review from roadmap."""
+def _implement_loop(project_dir: Path) -> None:
+    """Plan + implement all pending milestones. No review."""
     roadmap_path = project_dir / ".ai-factory" / "ROADMAP.md"
 
     if not roadmap_path.exists():
@@ -220,27 +229,46 @@ def run_implement(project_dir: Path) -> None:
     plans_dir = project_dir / ".ai-factory" / "plans"
     plans_dir.mkdir(parents=True, exist_ok=True)
 
-    def loop():
-        for i, milestone in enumerate(pending, start=_next_number(plans_dir)):
-            process_milestone(project_dir, milestone, i)
+    for i, milestone in enumerate(pending, start=_next_number(plans_dir)):
+        if state.stop_requested:
+            print("\n>>> Stop requested — halting before next milestone.")
+            return
+        process_milestone(project_dir, milestone, i)
 
-        # Clean reviews and run review flow on all plans
+
+def run_implement(project_dir: Path) -> None:
+    """Implement only — plan + implement milestones, no review pass."""
+    signal.signal(signal.SIGINT, _handle_sigint)
+    time_str = _with_caffeinate(_implement_loop, project_dir)
+    print(f"\n{'='*60}")
+    print(f"IMPLEMENT DONE — {time_str}")
+    print(f"{'='*60}")
+
+
+def run_implement_review(project_dir: Path) -> None:
+    """Implement all milestones, then run review pass on all plans."""
+    signal.signal(signal.SIGINT, _handle_sigint)
+
+    def loop():
+        _implement_loop(project_dir)
+
         reviews_dir = project_dir / ".ai-factory" / "reviews"
         if reviews_dir.exists():
             for f in reviews_dir.glob("*.md"):
                 f.unlink()
             print("\n>>> Cleared all reviews. Starting review flow...")
-        run_review(project_dir)
+        review_loop = run_review(project_dir)
+        if review_loop:
+            review_loop()
 
     time_str = _with_caffeinate(loop)
-
     print(f"\n{'='*60}")
     print(f"ALL DONE — {time_str}")
     print(f"{'='*60}")
 
 
-def run_review(project_dir: Path) -> None:
-    """Review all existing plans against the current codebase."""
+def run_review(project_dir: Path):
+    """Review all existing plans against the current codebase. Returns the review loop callable, or None if nothing to review."""
     plans_dir = project_dir / ".ai-factory" / "plans"
 
     if not plans_dir.exists():
@@ -274,31 +302,35 @@ def run_review(project_dir: Path) -> None:
         for plan_path in pending:
             review_plan(project_dir, plan_path)
 
-    time_str = _with_caffeinate(loop)
-
-    print(f"\n{'='*60}")
-    print(f"ALL PLANS REVIEWED — {time_str}")
-    print(f"{'='*60}")
+    return loop
 
 
 def cli() -> None:
     parser = argparse.ArgumentParser(description="AI orchestrator — plan, implement, review from roadmap")
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
 
-    # Default: implement
-    impl_parser = subparsers.add_parser("implement", help="Plan, implement, and review milestones from roadmap")
-    impl_parser.add_argument("project_dir", nargs="?", default=".", help="Path to the project directory")
-
-    # Review mode
-    rev_parser = subparsers.add_parser("review", help="Review all existing plans against current codebase")
-    rev_parser.add_argument("project_dir", nargs="?", default=".", help="Path to the project directory")
+    for cmd, help_text in [
+        ("implement", "Plan and implement milestones (no review pass)"),
+        ("review", "Review all existing plans against current codebase"),
+        ("implement-review", "Implement milestones, then run review pass on all plans"),
+    ]:
+        p = subparsers.add_parser(cmd, help=help_text)
+        p.add_argument("project_dir", nargs="?", default=".", help="Path to the project directory")
 
     args = parser.parse_args()
     project_dir = Path(args.project_dir).resolve() if hasattr(args, "project_dir") and args.project_dir else Path(".").resolve()
 
     try:
         if args.command == "review":
-            run_review(project_dir)
+            signal.signal(signal.SIGINT, _handle_sigint)
+            loop = run_review(project_dir)
+            if loop:
+                time_str = _with_caffeinate(loop)
+                print(f"\n{'='*60}")
+                print(f"ALL PLANS REVIEWED — {time_str}")
+                print(f"{'='*60}")
+        elif args.command == "implement-review":
+            run_implement_review(project_dir)
         else:
             run_implement(project_dir)
     except RateLimitError as e:
