@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import signal
 import subprocess
 import sys
@@ -12,6 +13,23 @@ from pathlib import Path
 from .agents import Implementer, PlannerReviewer, PlanReviewer, RateLimitError
 from .roadmap import mark_done, mark_skipped, parse_roadmap
 from . import state
+
+
+def _load_state(project_dir: Path) -> dict:
+    state_path = project_dir / ".ai-factory" / "orchestrator-state.json"
+    if state_path.exists():
+        try:
+            return json.loads(state_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {}
+
+
+def _save_state(project_dir: Path, data: dict) -> None:
+    state_path = project_dir / ".ai-factory" / "orchestrator-state.json"
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text(json.dumps(data, indent=2))
+
 
 MAX_REVIEW_ITERATIONS = 3
 
@@ -94,6 +112,9 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int) -> Non
         )
 
     # Step 2-3: Implement → Review loop
+    orch_state = _load_state(project_dir)
+    implement_reviews: list[str] = orch_state.setdefault("implement_reviews", [])
+
     for iteration in range(1, MAX_REVIEW_ITERATIONS + 1):
         print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
         implementer.implement(plan_path, patches_dir)
@@ -102,6 +123,9 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int) -> Non
         subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
         review_path = reviews_dir / f"{seq}-{milestone.slug}-review-{iteration}.md"
         passed = planner_reviewer.review(plan_path, review_path)
+
+        implement_reviews.append(review_path.name)
+        _save_state(project_dir, orch_state)
 
         if passed:
             print(f">>> REVIEW PASSED — see {review_path}")
@@ -252,11 +276,21 @@ def run_implement_review(project_dir: Path) -> None:
     def loop():
         _implement_loop(project_dir)
 
-        reviews_dir = project_dir / ".ai-factory" / "reviews"
-        if reviews_dir.exists():
-            for f in reviews_dir.glob("*.md"):
-                f.unlink()
-            print("\n>>> Cleared all reviews. Starting review flow...")
+        # Delete only the review files created during this implement pass
+        orch_state = _load_state(project_dir)
+        implement_reviews: list[str] = orch_state.pop("implement_reviews", [])
+        _save_state(project_dir, orch_state)
+
+        if implement_reviews:
+            reviews_dir = project_dir / ".ai-factory" / "reviews"
+            deleted = 0
+            for name in implement_reviews:
+                f = reviews_dir / name
+                if f.exists():
+                    f.unlink()
+                    deleted += 1
+            print(f"\n>>> Cleared {deleted} implement-phase review(s). Starting review flow...")
+
         review_loop = run_review(project_dir)
         if review_loop:
             review_loop()
