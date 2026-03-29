@@ -26,7 +26,7 @@ Three-agent pipeline that processes milestones from a target project's `.ai-fact
 
 1. **PlannerReviewer** (`agents.py`) — runs as Opus with `--resume` to maintain session state across plan + review calls. First call uses the combined planner+reviewer system prompt; subsequent calls resume the same session.
 2. **Implementer** (`agents.py`) — runs as Sonnet, also session-persistent across implement → fix-patch iterations.
-3. **Orchestrator loop** (`main.py`) — drives the pipeline: plan → [implement → review] × up to `MAX_REVIEW_ITERATIONS` → mark done → git commit.
+3. **Orchestrator loop** (`main.py`) — drives the pipeline: plan → [implement → review] × up to `ORCHESTRATOR_MAX_ITERATIONS` (env var, default 3) → mark done → git commit.
 
 All agents communicate through files, not shared memory. The planner writes to `.ai-factory/plans/<seq>-<slug>.md`; the reviewer writes feedback patches to `.ai-factory/patches/<seq>-<slug>-review-<n>.md`; the implementer reads both.
 
@@ -44,5 +44,5 @@ The project being orchestrated must have:
 
 ## Key constants
 
-- `MAX_REVIEW_ITERATIONS = 3` in `main.py`
+- `ORCHESTRATOR_MAX_ITERATIONS` env var (default 3) — single iteration limit for all flows
 - Default models/effort: Planner=opus/high, Reviewer=opus/medium, Implementer=sonnet/high — override when instantiating agents in `process_milestone()`

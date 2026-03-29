@@ -67,7 +67,7 @@ def _git_commit(project_dir: Path, milestone_title: str) -> None:
     print(f">>> COMMITTED: {milestone_title}")
 
 
-def process_milestone(project_dir: Path, milestone, milestone_index: int, max_review_iterations: int = 3) -> None:
+def process_milestone(project_dir: Path, milestone, milestone_index: int, max_iterations: int = 3) -> None:
     """Plan → implement → review loop for a single milestone."""
     ai_factory = project_dir / ".ai-factory"
     plans_dir = ai_factory / "plans"
@@ -113,7 +113,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_re
     orch_state = _load_state(project_dir)
     implement_reviews: list[str] = orch_state.setdefault("implement_reviews", [])
 
-    for iteration in range(1, max_review_iterations + 1):
+    for iteration in range(1, max_iterations + 1):
         print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
         implementer.implement(plan_path, patches_dir)
 
@@ -130,8 +130,8 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_re
             break
         else:
             print(f">>> Review found issues — see {review_path}")
-            if iteration == max_review_iterations:
-                print(f"WARNING: Max review iterations ({max_review_iterations}) reached. Moving on.")
+            if iteration == max_iterations:
+                print(f"WARNING: Max iterations ({max_iterations}) reached. Moving on.")
 
     # Step 4: Mark done + commit
     roadmap_path = project_dir / ".ai-factory" / "ROADMAP.md"
@@ -143,7 +143,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_re
     print(f">>> Milestone done [{mins}m {secs}s]")
 
 
-def process_refactor_milestone(project_dir: Path, milestone, milestone_index: int, max_refactor_iterations: int = 2) -> None:
+def process_refactor_milestone(project_dir: Path, milestone, milestone_index: int, max_iterations: int = 3) -> None:
     """Audit → implement → verify loop for a single refactor milestone."""
     ai_factory = project_dir / ".ai-factory"
     plans_dir = ai_factory / "plans"
@@ -169,7 +169,7 @@ def process_refactor_milestone(project_dir: Path, milestone, milestone_index: in
     refactor_planner.audit_and_plan(milestone.title, milestone.description, plan_path)
 
     # Step 2-3: Implement → Verify loop
-    for iteration in range(1, max_refactor_iterations + 1):
+    for iteration in range(1, max_iterations + 1):
         print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
         implementer.implement(plan_path, patches_dir)
 
@@ -186,9 +186,9 @@ def process_refactor_milestone(project_dir: Path, milestone, milestone_index: in
             # Bridge verify findings to patches_dir so Implementer can read them
             patch_path = patches_dir / f"{seq}-{milestone.slug}-patch-{iteration}.md"
             patch_path.write_text(review_path.read_text())
-            if iteration == max_refactor_iterations:
+            if iteration == max_iterations:
                 raise PipelineStopError(
-                    f"Max refactor iterations ({max_refactor_iterations}) reached.\n\n"
+                    f"Max iterations ({max_iterations}) reached.\n\n"
                     f"Last review: {review_path}\n\n{review_path.read_text()}"
                 )
 
@@ -202,7 +202,7 @@ def process_refactor_milestone(project_dir: Path, milestone, milestone_index: in
     print(f">>> Milestone done [{mins}m {secs}s]")
 
 
-def review_plan(project_dir: Path, plan_path: Path, max_review_iterations: int = 3) -> None:
+def review_plan(project_dir: Path, plan_path: Path, max_iterations: int = 3) -> None:
     """Review → patch → implement → review loop for a single plan."""
     ai_factory = project_dir / ".ai-factory"
     patches_dir = ai_factory / "patches"
@@ -219,7 +219,7 @@ def review_plan(project_dir: Path, plan_path: Path, max_review_iterations: int =
     implementer = Implementer(project_dir)
     plan_start = time.monotonic()
 
-    for iteration in range(1, max_review_iterations + 1):
+    for iteration in range(1, max_iterations + 1):
         print(f"\n>>> REVIEWING (iteration {iteration})...")
         subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
         review_path = reviews_dir / f"{slug}-review-{iteration}.md"
@@ -231,8 +231,8 @@ def review_plan(project_dir: Path, plan_path: Path, max_review_iterations: int =
 
         print(f">>> Review found issues — see {review_path}")
 
-        if iteration == max_review_iterations:
-            print(f"WARNING: Max review iterations ({max_review_iterations}) reached. Moving on.")
+        if iteration == max_iterations:
+            print(f"WARNING: Max iterations ({max_iterations}) reached. Moving on.")
             break
 
         # Planner creates a detailed patch from the review
@@ -290,7 +290,7 @@ def _with_caffeinate(func, *args, **kwargs):
     return f"{hours}h {mins}m {secs}s" if hours else f"{mins}m {secs}s"
 
 
-def _implement_loop(project_dir: Path, max_review_iterations: int = 3) -> None:
+def _implement_loop(project_dir: Path, max_iterations: int = 3) -> None:
     """Plan + implement all pending milestones. No review."""
     roadmap_path = project_dir / ".ai-factory" / "ROADMAP.md"
 
@@ -314,10 +314,10 @@ def _implement_loop(project_dir: Path, max_review_iterations: int = 3) -> None:
         if state.stop_requested:
             print("\n>>> Stop requested — halting before next milestone.")
             return
-        process_milestone(project_dir, milestone, i, max_review_iterations)
+        process_milestone(project_dir, milestone, i, max_iterations)
 
 
-def _refactor_loop(project_dir: Path, max_refactor_iterations: int = 2) -> None:
+def _refactor_loop(project_dir: Path, max_iterations: int = 3) -> None:
     """Run refactor pipeline on all pending milestones."""
     roadmap_path = project_dir / ".ai-factory" / "ROADMAP.md"
 
@@ -341,33 +341,33 @@ def _refactor_loop(project_dir: Path, max_refactor_iterations: int = 2) -> None:
         if state.stop_requested:
             print("\n>>> Stop requested — halting before next milestone.")
             return
-        process_refactor_milestone(project_dir, milestone, i, max_refactor_iterations)
+        process_refactor_milestone(project_dir, milestone, i, max_iterations)
 
 
-def run_implement(project_dir: Path, max_review_iterations: int = 3) -> None:
+def run_implement(project_dir: Path, max_iterations: int = 3) -> None:
     """Implement only — plan + implement milestones, no review pass."""
     signal.signal(signal.SIGINT, _handle_sigint)
-    time_str = _with_caffeinate(_implement_loop, project_dir, max_review_iterations)
+    time_str = _with_caffeinate(_implement_loop, project_dir, max_iterations)
     print(f"\n{'='*60}")
     print(f"IMPLEMENT DONE — {time_str}")
     print(f"{'='*60}")
 
 
-def run_refactor(project_dir: Path, max_refactor_iterations: int = 2) -> None:
+def run_refactor(project_dir: Path, max_iterations: int = 3) -> None:
     """Run refactor pipeline on pending milestones."""
     signal.signal(signal.SIGINT, _handle_sigint)
-    time_str = _with_caffeinate(_refactor_loop, project_dir, max_refactor_iterations)
+    time_str = _with_caffeinate(_refactor_loop, project_dir, max_iterations)
     print(f"\n{'='*60}")
     print(f"REFACTOR DONE — {time_str}")
     print(f"{'='*60}")
 
 
-def run_implement_review(project_dir: Path, max_review_iterations: int = 3) -> None:
+def run_implement_review(project_dir: Path, max_iterations: int = 3) -> None:
     """Implement all milestones, then run review pass on all plans."""
     signal.signal(signal.SIGINT, _handle_sigint)
 
     def loop():
-        _implement_loop(project_dir, max_review_iterations)
+        _implement_loop(project_dir, max_iterations)
 
         # Delete only the review files created during this implement pass
         orch_state = _load_state(project_dir)
@@ -384,7 +384,7 @@ def run_implement_review(project_dir: Path, max_review_iterations: int = 3) -> N
                     deleted += 1
             print(f"\n>>> Cleared {deleted} implement-phase review(s). Starting review flow...")
 
-        review_loop = run_review(project_dir, max_review_iterations)
+        review_loop = run_review(project_dir, max_iterations)
         if review_loop:
             review_loop()
 
@@ -394,7 +394,7 @@ def run_implement_review(project_dir: Path, max_review_iterations: int = 3) -> N
     print(f"{'='*60}")
 
 
-def run_review(project_dir: Path, max_review_iterations: int = 3):
+def run_review(project_dir: Path, max_iterations: int = 3):
     """Review all existing plans against the current codebase. Returns the review loop callable, or None if nothing to review."""
     plans_dir = project_dir / ".ai-factory" / "plans"
 
@@ -427,7 +427,7 @@ def run_review(project_dir: Path, max_review_iterations: int = 3):
 
     def loop():
         for plan_path in pending:
-            review_plan(project_dir, plan_path, max_review_iterations)
+            review_plan(project_dir, plan_path, max_iterations)
 
     return loop
 
@@ -448,24 +448,23 @@ def cli() -> None:
     args = parser.parse_args()
     project_dir = Path(args.project_dir).resolve() if hasattr(args, "project_dir") and args.project_dir else Path(".").resolve()
 
-    max_review = int(os.environ.get("ORCHESTRATOR_MAX_REVIEW_ITERATIONS", "3"))
-    max_refactor = int(os.environ.get("ORCHESTRATOR_MAX_REFACTOR_ITERATIONS", "2"))
+    max_iterations = int(os.environ.get("ORCHESTRATOR_MAX_ITERATIONS", "3"))
 
     try:
         if args.command == "review":
             signal.signal(signal.SIGINT, _handle_sigint)
-            loop = run_review(project_dir, max_review)
+            loop = run_review(project_dir, max_iterations)
             if loop:
                 time_str = _with_caffeinate(loop)
                 print(f"\n{'='*60}")
                 print(f"ALL PLANS REVIEWED — {time_str}")
                 print(f"{'='*60}")
         elif args.command == "implement-review":
-            run_implement_review(project_dir, max_review)
+            run_implement_review(project_dir, max_iterations)
         elif args.command == "refactor":
-            run_refactor(project_dir, max_refactor)
+            run_refactor(project_dir, max_iterations)
         else:
-            run_implement(project_dir, max_review)
+            run_implement(project_dir, max_iterations)
     except PipelineStopError as e:
         print(f"\n{'='*60}")
         print(f"STOPPED — {e}")

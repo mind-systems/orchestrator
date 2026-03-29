@@ -14,7 +14,7 @@
 
 - [x] **refactor CLI command** — Add `refactor` subcommand to `cli()` in `main.py`. Reads ROADMAP.md, filters pending milestones, runs `process_refactor_milestone` for each. Wraps in `_with_caffeinate`. Handles `PipelineStopError` by printing findings and stopping — does not continue to next milestone.
 
-- [ ] **Unified iteration limit** — Replace all separate iteration limit constants and env vars (`ORCHESTRATOR_MAX_REVIEW_ITERATIONS`, `ORCHESTRATOR_MAX_REFACTOR_ITERATIONS`, etc.) with a single `ORCHESTRATOR_MAX_ITERATIONS` env var (default 3). All flows — implement review, plan review, refactor — use this one value. Update all call sites in `main.py` that pass iteration limits.
+- [x] **Unified iteration limit** — Replace all separate iteration limit constants and env vars (`ORCHESTRATOR_MAX_REVIEW_ITERATIONS`, `ORCHESTRATOR_MAX_REFACTOR_ITERATIONS`, etc.) with a single `ORCHESTRATOR_MAX_ITERATIONS` env var (default 3). All flows — implement review, plan review, refactor — use this one value. Update all call sites in `main.py` that pass iteration limits.
 
 - [ ] **Plan review cycle** — Give the plan phase up to `ORCHESTRATOR_MAX_ITERATIONS` attempts instead of a single pass. PlanReviewer writes its output to `.ai-factory/plan-reviews/{seq}-{slug}-plan-review-{n}.md` and ends the file with `PLAN_REVIEW_PASS` if the plan is solid. Planner reads the review file on the next attempt (not raw text output). If `PLAN_REVIEW_PASS` is not reached by the last iteration — raise `PipelineStopError` with the last plan-review file path and contents.
 

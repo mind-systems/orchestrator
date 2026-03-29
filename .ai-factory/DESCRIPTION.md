@@ -54,7 +54,7 @@ The project being orchestrated must have:
 
 ## Key Constants
 
-- `MAX_REVIEW_ITERATIONS = 3` in `main.py`
+- `ORCHESTRATOR_MAX_ITERATIONS` env var (default 3) — single iteration limit for all flows
 - Default models: Planner=opus/high, Reviewer=opus/medium, Implementer=sonnet/high
 
 ## Non-Functional Requirements
