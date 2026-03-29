@@ -73,9 +73,11 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
     plans_dir = ai_factory / "plans"
     patches_dir = ai_factory / "patches"
     reviews_dir = ai_factory / "reviews"
+    plan_reviews_dir = ai_factory / "plan-reviews"
     plans_dir.mkdir(parents=True, exist_ok=True)
     patches_dir.mkdir(parents=True, exist_ok=True)
     reviews_dir.mkdir(parents=True, exist_ok=True)
+    plan_reviews_dir.mkdir(parents=True, exist_ok=True)
 
     seq = f"{milestone_index:02d}"
     plan_path = plans_dir / f"{seq}-{milestone.slug}.md"
@@ -98,15 +100,27 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
         mark_skipped(roadmap_path, milestone)
         return
 
-    # Step 1.5: Plan review (fresh context, one pass)
-    print("\n>>> REVIEWING PLAN...")
-    plan_reviewer = PlanReviewer(project_dir)
-    plan_passed, plan_feedback = plan_reviewer.review_plan(plan_path)
-    if not plan_passed:
-        print(">>> Plan has issues — sending feedback to planner...")
+    # Step 1.5: Iterative plan review
+    for attempt in range(1, max_iterations + 1):
+        print(f"\n>>> REVIEWING PLAN (attempt {attempt})...")
+        plan_reviewer = PlanReviewer(project_dir)
+        plan_review_path = plan_reviews_dir / f"{seq}-{milestone.slug}-plan-review-{attempt}.md"
+        plan_passed = plan_reviewer.review_plan(plan_path, plan_review_path)
+
+        if plan_passed:
+            print(f">>> Plan review passed — see {plan_review_path}")
+            break
+
+        if attempt == max_iterations:
+            raise PipelineStopError(
+                f"Plan failed review after {max_iterations} attempt(s).\n\n"
+                f"Last review: {plan_review_path}\n\n{plan_review_path.read_text()}"
+            )
+
+        print(">>> Plan has issues — revising plan...")
         planner_reviewer.plan(
             milestone.title, milestone.description, plan_path,
-            feedback=plan_feedback,
+            plan_review_path=plan_review_path,
         )
 
     # Step 2-3: Implement → Review loop
