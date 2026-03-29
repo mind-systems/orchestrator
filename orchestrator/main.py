@@ -183,6 +183,9 @@ def process_refactor_milestone(project_dir: Path, milestone, milestone_index: in
             print(f">>> VERIFY PASSED — see {review_path}")
             break
         else:
+            # Bridge verify findings to patches_dir so Implementer can read them
+            patch_path = patches_dir / f"{seq}-{milestone.slug}-patch-{iteration}.md"
+            patch_path.write_text(review_path.read_text())
             if iteration == max_refactor_iterations:
                 raise PipelineStopError(
                     f"Max refactor iterations ({max_refactor_iterations}) reached.\n\n"
