@@ -319,3 +319,64 @@ class Implementer:
             model=self.model,
             effort=self.effort,
         )
+
+
+class RefactorPlanner:
+    """Audits code areas and verifies refactor fixes. Same session — verifier has auditor's context."""
+
+    def __init__(
+        self,
+        project_dir: Path,
+        model: str = "opus",
+        effort: str = "high",
+    ):
+        self.project_dir = project_dir
+        self.system_prompt = _load_prompt("refactor-planner")
+        self.session_id: str | None = None
+        self.tools = ["Read", "Write", "Glob", "Grep", "Bash"]
+        self.model = model
+        self.effort = effort
+
+    def audit_and_plan(self, milestone_title: str, milestone_description: str, plan_path: Path) -> None:
+        """Audit the code area described by the milestone and write a refactor plan."""
+        prompt = (
+            f"Audit the code area described by this milestone and write a refactor plan:\n\n"
+            f"**{milestone_title}**\n"
+            f"{milestone_description}\n\n"
+            f"Write the refactor plan to: {plan_path}\n"
+        )
+
+        _, self.session_id = _run_claude(
+            prompt=prompt,
+            cwd=str(self.project_dir),
+            system_prompt=self.system_prompt,
+            allowed_tools=self.tools,
+            model=self.model,
+            effort=self.effort,
+        )
+
+    def verify(self, plan_path: Path, review_path: Path) -> bool:
+        """Verify implemented fixes against the plan. Uses same session as audit_and_plan."""
+        prompt = (
+            f"The refactor plan is at: {plan_path}\n"
+            f"Verify that all fixes described in the plan have been implemented correctly.\n"
+            f"Run `git diff HEAD` and `git status` to see ALL changes.\n"
+            f"Read each changed/new file IN FULL to confirm correctness.\n"
+            f"Write your findings to: {review_path}\n"
+            f"If all fixes are correctly implemented, end the findings file with REVIEW_PASS on its own line.\n"
+        )
+
+        _, self.session_id = _run_claude(
+            prompt=prompt,
+            cwd=str(self.project_dir),
+            system_prompt=self.system_prompt if not self.session_id else None,
+            session_id=self.session_id,
+            allowed_tools=self.tools,
+            model=self.model,
+            effort=self.effort,
+        )
+
+        if review_path.exists():
+            review_text = review_path.read_text()
+            return review_text.strip().endswith("REVIEW_PASS")
+        return False
