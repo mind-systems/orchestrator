@@ -391,7 +391,6 @@ def run_implement_review(project_dir: Path, max_iterations: int = 3) -> None:
         _implement_loop(project_dir, max_iterations)
 
         if state.stop_requested:
-            print("\n>>> Stop requested — halting.")
             return
 
         # Delete only the review files created during this implement pass
