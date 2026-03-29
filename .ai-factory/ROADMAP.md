@@ -12,7 +12,7 @@
 
 - [x] **process_refactor_milestone function** — Add `process_refactor_milestone(project_dir, milestone, milestone_index)` to `main.py`. Chain: `RefactorPlanner.audit_and_plan` → `Implementer.implement` → `RefactorPlanner.verify`. On `REVIEW_PASS` mark done and git commit. If max iterations reached without `REVIEW_PASS` — raise `PipelineStopError` with the last review file path and its contents. Uses `ORCHESTRATOR_MAX_REFACTOR_ITERATIONS` limit.
 
-- [ ] **refactor CLI command** — Add `refactor` subcommand to `cli()` in `main.py`. Reads ROADMAP.md, filters pending milestones, runs `process_refactor_milestone` for each. Wraps in `_with_caffeinate`. Handles `PipelineStopError` by printing findings and stopping — does not continue to next milestone.
+- [x] **refactor CLI command** — Add `refactor` subcommand to `cli()` in `main.py`. Reads ROADMAP.md, filters pending milestones, runs `process_refactor_milestone` for each. Wraps in `_with_caffeinate`. Handles `PipelineStopError` by printing findings and stopping — does not continue to next milestone.
 
 ## Completed
 

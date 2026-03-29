@@ -314,12 +314,48 @@ def _implement_loop(project_dir: Path, max_review_iterations: int = 3) -> None:
         process_milestone(project_dir, milestone, i, max_review_iterations)
 
 
+def _refactor_loop(project_dir: Path, max_refactor_iterations: int = 2) -> None:
+    """Run refactor pipeline on all pending milestones."""
+    roadmap_path = project_dir / ".ai-factory" / "ROADMAP.md"
+
+    if not roadmap_path.exists():
+        print(f"ERROR: No ROADMAP.md found at {roadmap_path}")
+        sys.exit(1)
+
+    milestones = parse_roadmap(roadmap_path)
+    pending = [m for m in milestones if not m.done]
+
+    if not pending:
+        print("All milestones are done!")
+        return
+
+    print(f"Found {len(pending)} pending milestones out of {len(milestones)} total.")
+
+    plans_dir = project_dir / ".ai-factory" / "plans"
+    plans_dir.mkdir(parents=True, exist_ok=True)
+
+    for i, milestone in enumerate(pending, start=_next_number(plans_dir)):
+        if state.stop_requested:
+            print("\n>>> Stop requested — halting before next milestone.")
+            return
+        process_refactor_milestone(project_dir, milestone, i, max_refactor_iterations)
+
+
 def run_implement(project_dir: Path, max_review_iterations: int = 3) -> None:
     """Implement only — plan + implement milestones, no review pass."""
     signal.signal(signal.SIGINT, _handle_sigint)
     time_str = _with_caffeinate(_implement_loop, project_dir, max_review_iterations)
     print(f"\n{'='*60}")
     print(f"IMPLEMENT DONE — {time_str}")
+    print(f"{'='*60}")
+
+
+def run_refactor(project_dir: Path, max_refactor_iterations: int = 2) -> None:
+    """Run refactor pipeline on pending milestones."""
+    signal.signal(signal.SIGINT, _handle_sigint)
+    time_str = _with_caffeinate(_refactor_loop, project_dir, max_refactor_iterations)
+    print(f"\n{'='*60}")
+    print(f"REFACTOR DONE — {time_str}")
     print(f"{'='*60}")
 
 
@@ -401,6 +437,7 @@ def cli() -> None:
         ("implement", "Plan and implement milestones (no review pass)"),
         ("review", "Review all existing plans against current codebase"),
         ("implement-review", "Implement milestones, then run review pass on all plans"),
+        ("refactor", "Run refactor pipeline on pending milestones"),
     ]:
         p = subparsers.add_parser(cmd, help=help_text)
         p.add_argument("project_dir", nargs="?", default=".", help="Path to the project directory")
@@ -422,6 +459,8 @@ def cli() -> None:
                 print(f"{'='*60}")
         elif args.command == "implement-review":
             run_implement_review(project_dir, max_review)
+        elif args.command == "refactor":
+            run_refactor(project_dir, max_refactor)
         else:
             run_implement(project_dir, max_review)
     except PipelineStopError as e:
