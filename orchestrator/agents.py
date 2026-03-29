@@ -26,6 +26,10 @@ class RateLimitError(Exception):
     """Raised when the Claude API rate limit / daily quota is exhausted."""
 
 
+class PipelineStopError(Exception):
+    """Raised to request a graceful halt of the pipeline."""
+
+
 def _run_claude(
     prompt: str,
     cwd: str,

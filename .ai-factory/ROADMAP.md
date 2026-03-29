@@ -6,7 +6,7 @@
 
 - [x] **Orchestrator state file** — Add `orchestrator-state.json` to track inter-run state. Implement `_load_state` / `_save_state` helpers. Record review file names created during implement phase so they can be selectively deleted before the review phase, instead of wiping all reviews indiscriminately.
 
-- [ ] **Preparatory refactor** — Two small changes before refactor mode. (1) Replace hardcoded `MAX_REVIEW_ITERATIONS = 3` with env var `ORCHESTRATOR_MAX_REVIEW_ITERATIONS` (default 3); add `ORCHESTRATOR_MAX_REFACTOR_ITERATIONS` (default 2); pass limits as parameters to `process_milestone()` instead of reading the global. (2) Add `PipelineStopError(message)` to `agents.py`; catch it in `cli()` alongside `RateLimitError` — print message and exit 0.
+- [x] **Preparatory refactor** — Two small changes before refactor mode. (1) Replace hardcoded `MAX_REVIEW_ITERATIONS = 3` with env var `ORCHESTRATOR_MAX_REVIEW_ITERATIONS` (default 3); add `ORCHESTRATOR_MAX_REFACTOR_ITERATIONS` (default 2); pass limits as parameters to `process_milestone()` instead of reading the global. (2) Add `PipelineStopError(message)` to `agents.py`; catch it in `cli()` alongside `RateLimitError` — print message and exit 0.
 
 - [ ] **RefactorPlanner agent class** — Add `RefactorPlanner` to `agents.py` using `refactor-planner.md` as system prompt. Method `audit_and_plan(milestone_title, milestone_description, plan_path)` for the first iteration. Method `verify(plan_path, review_path)` for subsequent iterations — writes findings to review file, returns `True` if file ends with `REVIEW_PASS`, `False` otherwise. Same session across calls via `--resume`.
 
