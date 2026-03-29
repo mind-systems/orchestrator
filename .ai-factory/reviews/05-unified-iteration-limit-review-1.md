@@ -1,47 +1,47 @@
-# Review: 05-unified-iteration-limit
+## Code Review Summary
 
-## Verification Summary
+**Files Reviewed:** 3 (`orchestrator/main.py`, `CLAUDE.md`, `.ai-factory/DESCRIPTION.md`)
+**Risk Level:** 🟢 Low
 
-Verified every function signature, call site, default value, `range()` call, and log/error message in `orchestrator/main.py` (482 lines). Also verified `CLAUDE.md` and `DESCRIPTION.md` updates.
+### Context Gates
+- `ARCHITECTURE.md` — not present (WARN, non-blocking)
+- `RULES.md` — not present (WARN, non-blocking)
+- `ROADMAP.md` — milestone 05 correctly marked `[x]`. Milestone description matches implementation.
+- `skill-context/aif-review/SKILL.md` — not present (WARN, non-blocking)
 
-## Call-chain audit — all correct
+### Audit
 
-| Caller | Callee | Parameter passed | Default |
-|--------|--------|-----------------|---------|
-| `cli()` L451 | env var read | `ORCHESTRATOR_MAX_ITERATIONS` | `"3"` |
-| `cli()` L456,463,465,467 | `run_review`, `run_implement_review`, `run_refactor`, `run_implement` | `max_iterations` | — |
-| `run_implement` L350 | `_implement_loop` | `max_iterations` | 3 |
-| `run_refactor` L359 | `_refactor_loop` | `max_iterations` | 3 |
-| `run_implement_review` L370,387 | `_implement_loop`, `run_review` | `max_iterations` | 3 |
-| `run_review` L430 (closure) | `review_plan` | `max_iterations` | 3 |
-| `_implement_loop` L317 | `process_milestone` | `max_iterations` | 3 |
-| `_refactor_loop` L344 | `process_refactor_milestone` | `max_iterations` | 3 |
+**Parameter rename — complete.** Every function signature changed from `max_review_iterations` / `max_refactor_iterations` to `max_iterations` with default `3`:
 
-## Leaf function audit
+| Function | Old param | New param | Default |
+|----------|-----------|-----------|---------|
+| `process_milestone` | `max_review_iterations` | `max_iterations` | 3 |
+| `process_refactor_milestone` | `max_refactor_iterations` | `max_iterations` | 3 (was 2) |
+| `review_plan` | `max_review_iterations` | `max_iterations` | 3 |
+| `_implement_loop` | `max_review_iterations` | `max_iterations` | 3 |
+| `_refactor_loop` | `max_refactor_iterations` | `max_iterations` | 3 (was 2) |
+| `run_implement` | `max_review_iterations` | `max_iterations` | 3 |
+| `run_refactor` | `max_refactor_iterations` | `max_iterations` | 3 (was 2) |
+| `run_implement_review` | `max_review_iterations` | `max_iterations` | 3 |
+| `run_review` | `max_review_iterations` | `max_iterations` | 3 |
 
-- `process_milestone` L70: signature `max_iterations: int = 3`, loop `range(1, max_iterations + 1)` L116, warning references `max_iterations` L133-134 — correct
-- `process_refactor_milestone` L146: signature `max_iterations: int = 3`, loop `range(1, max_iterations + 1)` L172, `PipelineStopError` references `max_iterations` L189-192 — correct
-- `review_plan` L205: signature `max_iterations: int = 3`, loop `range(1, max_iterations + 1)` L222, warning references `max_iterations` L234-235 — correct
+**Env var unification — correct.** Two reads (`ORCHESTRATOR_MAX_REVIEW_ITERATIONS`, `ORCHESTRATOR_MAX_REFACTOR_ITERATIONS`) replaced with single `ORCHESTRATOR_MAX_ITERATIONS` in `cli()` L465.
 
-## Stale reference check
+**Call-chain threading — verified.** Every caller passes `max_iterations` through to its callee. No parameter dropped or shadowed.
 
-Grep for old names (`MAX_REVIEW_ITERATIONS`, `MAX_REFACTOR_ITERATIONS`, `max_review_iterations`, `max_refactor_iterations`, `max_review`, `max_refactor`) returns zero hits in any `.py` file. All remaining references are in historical `.ai-factory/` artifacts (old plans, reviews, patches, roadmap entries) which correctly reflect the state at time of creation.
+**Loop bounds — correct.** All three `range(1, max_iterations + 1)` calls and their corresponding `if iteration == max_iterations` checks use the renamed parameter consistently.
 
-## Documentation updates
+**Log/error messages — updated.** "Max review iterations" and "Max refactor iterations" both changed to generic "Max iterations". No stale wording.
 
-- `CLAUDE.md` L29: updated to `ORCHESTRATOR_MAX_ITERATIONS` (env var, default 3) — correct
-- `CLAUDE.md` L47: updated to `ORCHESTRATOR_MAX_ITERATIONS` env var (default 3) — single iteration limit for all flows — correct
-- `DESCRIPTION.md` L57: updated to match — correct
+**Stale references — zero.** Grep for old names (`MAX_REVIEW_ITERATIONS`, `MAX_REFACTOR_ITERATIONS`, `max_review_iterations`, `max_refactor_iterations`, `max_review`, `max_refactor`) across all `.py` files returns no matches. Old references exist only in historical `.ai-factory/` artifacts (plans, reviews, roadmap descriptions) which correctly reflect the state at time of creation.
 
-## Behavioral change acknowledged
+**Documentation — consistent.** `CLAUDE.md` L29 and L47 both updated. `DESCRIPTION.md` L57 updated. All three reference `ORCHESTRATOR_MAX_ITERATIONS` env var (default 3).
 
-Refactor flow default changed from 2 → 3 iterations. Intentional per roadmap ("All flows use this one value"). No issue.
+**Behavioral change acknowledged.** Refactor flow default changed from 2 → 3 iterations. Intentional per roadmap: "All flows use this one value."
 
-## No issues found
-
-- No missed call sites
-- No stale references in source code
-- No type mismatches or runtime risks
-- Documentation consistent across all files
+### Positive Notes
+- Clean mechanical rename with zero missed sites
+- Consistent default value (3) across all nine function signatures
+- Error messages properly genericized
 
 REVIEW_PASS
