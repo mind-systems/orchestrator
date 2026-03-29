@@ -1,1 +1,5 @@
-{}
+{
+  "implement_reviews": [
+    "07-graceful-stop-in-review-loop-review-1.md"
+  ]
+}

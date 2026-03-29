@@ -40,6 +40,15 @@ def _handle_sigint(sig, frame):
     print("\n>>> Will stop after the current milestone finishes. Press Ctrl+C again to force quit.")
 
 
+def _run_loop(items, process_fn) -> None:
+    """Iterate over items, checking stop_requested before each."""
+    for item in items:
+        if state.stop_requested:
+            print("\n>>> Stop requested — halting.")
+            return
+        process_fn(item)
+
+
 def _next_number(directory: Path) -> int:
     """Return the next sequential number based on existing files in directory."""
     existing = sorted(directory.glob("*.md"))
@@ -324,11 +333,10 @@ def _implement_loop(project_dir: Path, max_iterations: int = 3) -> None:
     plans_dir = project_dir / ".ai-factory" / "plans"
     plans_dir.mkdir(parents=True, exist_ok=True)
 
-    for i, milestone in enumerate(pending, start=_next_number(plans_dir)):
-        if state.stop_requested:
-            print("\n>>> Stop requested — halting before next milestone.")
-            return
-        process_milestone(project_dir, milestone, i, max_iterations)
+    _run_loop(
+        enumerate(pending, start=_next_number(plans_dir)),
+        lambda item: process_milestone(project_dir, item[1], item[0], max_iterations),
+    )
 
 
 def _refactor_loop(project_dir: Path, max_iterations: int = 3) -> None:
@@ -351,11 +359,10 @@ def _refactor_loop(project_dir: Path, max_iterations: int = 3) -> None:
     plans_dir = project_dir / ".ai-factory" / "plans"
     plans_dir.mkdir(parents=True, exist_ok=True)
 
-    for i, milestone in enumerate(pending, start=_next_number(plans_dir)):
-        if state.stop_requested:
-            print("\n>>> Stop requested — halting before next milestone.")
-            return
-        process_refactor_milestone(project_dir, milestone, i, max_iterations)
+    _run_loop(
+        enumerate(pending, start=_next_number(plans_dir)),
+        lambda item: process_refactor_milestone(project_dir, item[1], item[0], max_iterations),
+    )
 
 
 def run_implement(project_dir: Path, max_iterations: int = 3) -> None:
@@ -382,6 +389,10 @@ def run_implement_review(project_dir: Path, max_iterations: int = 3) -> None:
 
     def loop():
         _implement_loop(project_dir, max_iterations)
+
+        if state.stop_requested:
+            print("\n>>> Stop requested — halting.")
+            return
 
         # Delete only the review files created during this implement pass
         orch_state = _load_state(project_dir)
@@ -440,8 +451,7 @@ def run_review(project_dir: Path, max_iterations: int = 3):
     print(f"Found {len(pending)} plans to review.")
 
     def loop():
-        for plan_path in pending:
-            review_plan(project_dir, plan_path, max_iterations)
+        _run_loop(pending, lambda plan_path: review_plan(project_dir, plan_path, max_iterations))
 
     return loop
 

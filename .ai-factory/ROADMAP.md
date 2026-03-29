@@ -18,6 +18,8 @@
 
 - [x] **Plan review cycle** — Give the plan phase up to `ORCHESTRATOR_MAX_ITERATIONS` attempts instead of a single pass. PlanReviewer writes its output to `.ai-factory/plan-reviews/{seq}-{slug}-plan-review-{n}.md` and ends the file with `PLAN_REVIEW_PASS` if the plan is solid. Planner reads the review file on the next attempt (not raw text output). If `PLAN_REVIEW_PASS` is not reached by the last iteration — raise `PipelineStopError` with the last plan-review file path and contents.
 
+- [x] **Graceful stop in review loop** — `_implement_loop` and `_refactor_loop` check `state.stop_requested` before each milestone, but the review loop inside `run_review` does not. Extract a shared `_run_loop(items, process_fn)` helper that checks `state.stop_requested` before each item and prints `>>> Stop requested — halting.` if set. Replace the `for` loops in `_implement_loop`, `_refactor_loop`, and the inner `loop()` in `run_review` with calls to `_run_loop`. Also add a `state.stop_requested` check in `run_implement_review` between the implement phase and the review phase — so that Ctrl+C during implement prevents the review phase from starting.
+
 ## Completed
 
 | Milestone | Date |
