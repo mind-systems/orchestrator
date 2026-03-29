@@ -11,7 +11,7 @@ import sys
 import time
 from pathlib import Path
 
-from .agents import Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, RateLimitError
+from .agents import Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, RateLimitError, RefactorPlanner
 from .roadmap import mark_done, mark_skipped, parse_roadmap
 from . import state
 
@@ -132,6 +132,62 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_re
             print(f">>> Review found issues — see {review_path}")
             if iteration == max_review_iterations:
                 print(f"WARNING: Max review iterations ({max_review_iterations}) reached. Moving on.")
+
+    # Step 4: Mark done + commit
+    roadmap_path = project_dir / ".ai-factory" / "ROADMAP.md"
+    mark_done(roadmap_path, milestone)
+    _git_commit(project_dir, milestone.title)
+
+    elapsed = int(time.monotonic() - milestone_start)
+    mins, secs = divmod(elapsed, 60)
+    print(f">>> Milestone done [{mins}m {secs}s]")
+
+
+def process_refactor_milestone(project_dir: Path, milestone, milestone_index: int, max_refactor_iterations: int = 2) -> None:
+    """Audit → implement → verify loop for a single refactor milestone."""
+    ai_factory = project_dir / ".ai-factory"
+    plans_dir = ai_factory / "plans"
+    patches_dir = ai_factory / "patches"
+    reviews_dir = ai_factory / "reviews"
+    plans_dir.mkdir(parents=True, exist_ok=True)
+    patches_dir.mkdir(parents=True, exist_ok=True)
+    reviews_dir.mkdir(parents=True, exist_ok=True)
+
+    seq = f"{milestone_index:02d}"
+    plan_path = plans_dir / f"{seq}-{milestone.slug}.md"
+    print(f"\n{'='*60}")
+    print(f"MILESTONE: {milestone.title}")
+    print(f"{'='*60}")
+
+    # Create agents
+    refactor_planner = RefactorPlanner(project_dir)
+    implementer = Implementer(project_dir)
+    milestone_start = time.monotonic()
+
+    # Step 1: Audit + plan
+    print("\n>>> AUDITING...")
+    refactor_planner.audit_and_plan(milestone.title, milestone.description, plan_path)
+
+    # Step 2-3: Implement → Verify loop
+    for iteration in range(1, max_refactor_iterations + 1):
+        print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
+        implementer.implement(plan_path, patches_dir)
+
+        subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
+        review_path = reviews_dir / f"{seq}-{milestone.slug}-review-{iteration}.md"
+
+        print(f"\n>>> VERIFYING (iteration {iteration})...")
+        passed = refactor_planner.verify(plan_path, review_path)
+
+        if passed:
+            print(f">>> VERIFY PASSED — see {review_path}")
+            break
+        else:
+            if iteration == max_refactor_iterations:
+                raise PipelineStopError(
+                    f"Max refactor iterations ({max_refactor_iterations}) reached.\n\n"
+                    f"Last review: {review_path}\n\n{review_path.read_text()}"
+                )
 
     # Step 4: Mark done + commit
     roadmap_path = project_dir / ".ai-factory" / "ROADMAP.md"
