@@ -88,6 +88,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
     reviews_dir.mkdir(parents=True, exist_ok=True)
     plan_reviews_dir.mkdir(parents=True, exist_ok=True)
 
+    roadmap_path = project_dir / ".ai-factory" / "ROADMAP.md"
     seq = f"{milestone_index:02d}"
     plan_path = plans_dir / f"{seq}-{milestone.slug}.md"
     print(f"\n{'='*60}")
@@ -101,11 +102,10 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
 
     # Step 1: Plan
     print("\n>>> PLANNING...")
-    planner_reviewer.plan(milestone.title, milestone.description, plan_path)
+    planner_reviewer.plan(milestone.title, milestone.description, plan_path, roadmap_path=roadmap_path, line_number=milestone.line_number)
 
     if not plan_path.exists():
         print(f">>> Planner did not create a plan (milestone may already be done). Skipping.")
-        roadmap_path = project_dir / ".ai-factory" / "ROADMAP.md"
         mark_skipped(roadmap_path, milestone)
         return
 
@@ -138,7 +138,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
 
     for iteration in range(1, max_iterations + 1):
         print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
-        implementer.implement(plan_path, patches_dir)
+        implementer.implement(plan_path, patches_dir, roadmap_path=roadmap_path, line_number=milestone.line_number)
 
         print(f"\n>>> REVIEWING (iteration {iteration})...")
         subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
@@ -157,7 +157,6 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
                 print(f"WARNING: Max iterations ({max_iterations}) reached. Moving on.")
 
     # Step 4: Mark done + commit
-    roadmap_path = project_dir / ".ai-factory" / "ROADMAP.md"
     mark_done(roadmap_path, milestone)
     _git_commit(project_dir, milestone.title)
 
@@ -176,6 +175,7 @@ def process_refactor_milestone(project_dir: Path, milestone, milestone_index: in
     patches_dir.mkdir(parents=True, exist_ok=True)
     reviews_dir.mkdir(parents=True, exist_ok=True)
 
+    roadmap_path = project_dir / ".ai-factory" / "ROADMAP.md"
     seq = f"{milestone_index:02d}"
     plan_path = plans_dir / f"{seq}-{milestone.slug}.md"
     print(f"\n{'='*60}")
@@ -189,12 +189,12 @@ def process_refactor_milestone(project_dir: Path, milestone, milestone_index: in
 
     # Step 1: Audit + plan
     print("\n>>> AUDITING...")
-    refactor_planner.audit_and_plan(milestone.title, milestone.description, plan_path)
+    refactor_planner.audit_and_plan(milestone.title, milestone.description, plan_path, roadmap_path=roadmap_path, line_number=milestone.line_number)
 
     # Step 2-3: Implement → Verify loop
     for iteration in range(1, max_iterations + 1):
         print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
-        implementer.implement(plan_path, patches_dir)
+        implementer.implement(plan_path, patches_dir, roadmap_path=roadmap_path, line_number=milestone.line_number)
 
         subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
         review_path = reviews_dir / f"{seq}-{milestone.slug}-review-{iteration}.md"
@@ -216,7 +216,6 @@ def process_refactor_milestone(project_dir: Path, milestone, milestone_index: in
                 )
 
     # Step 4: Mark done + commit
-    roadmap_path = project_dir / ".ai-factory" / "ROADMAP.md"
     mark_done(roadmap_path, milestone)
     _git_commit(project_dir, milestone.title)
 

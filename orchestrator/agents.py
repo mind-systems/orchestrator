@@ -163,7 +163,7 @@ class PlannerReviewer:
         self.model = model
         self.effort = effort
 
-    def plan(self, milestone_title: str, milestone_description: str, plan_path: Path, plan_review_path: Path | None = None) -> None:
+    def plan(self, milestone_title: str, milestone_description: str, plan_path: Path, plan_review_path: Path | None = None, roadmap_path: Path | None = None, line_number: int | None = None) -> None:
         if plan_review_path:
             prompt = (
                 f"Your plan at {plan_path} was reviewed and has issues.\n\n"
@@ -171,8 +171,12 @@ class PlannerReviewer:
                 f"Update the plan to address the issues in that review. Write the updated plan to: {plan_path}\n"
             )
         else:
+            roadmap_line = ""
+            if roadmap_path is not None and line_number is not None:
+                roadmap_line = f"Roadmap: {roadmap_path} (line {line_number + 1})\n"
             prompt = (
                 f"Create an implementation plan for this milestone:\n\n"
+                f"{roadmap_line}"
                 f"**{milestone_title}**\n"
                 f"{milestone_description}\n\n"
                 f"Write the plan to: {plan_path}\n"
@@ -292,23 +296,28 @@ class Implementer:
         self.model = model
         self.effort = effort
 
-    def implement(self, plan_path: Path, patches_dir: Path) -> None:
-        patches_note = ""
-        if patches_dir.exists():
-            patch_files = sorted(patches_dir.glob("*.md"))
-            if patch_files:
-                patches_note = f"\n\nCheck for review feedback in: {patches_dir}"
-
-        prompt = (
-            f"Implement the plan at: {plan_path}"
-            f"{patches_note}"
-        )
-
+    def implement(self, plan_path: Path, patches_dir: Path, roadmap_path: Path | None = None, line_number: int | None = None) -> None:
         if self.session_id:
             # Continuing — apply fixes from patches
             prompt = (
                 f"Review feedback has been written to {patches_dir}. "
                 f"Read the latest patch file there and apply the fixes."
+            )
+        else:
+            patches_note = ""
+            if patches_dir.exists():
+                patch_files = sorted(patches_dir.glob("*.md"))
+                if patch_files:
+                    patches_note = f"\n\nCheck for review feedback in: {patches_dir}"
+
+            roadmap_line = ""
+            if roadmap_path is not None and line_number is not None:
+                roadmap_line = f"Roadmap: {roadmap_path} (line {line_number + 1})\n"
+
+            prompt = (
+                f"{roadmap_line}"
+                f"Implement the plan at: {plan_path}"
+                f"{patches_note}"
             )
 
         _, self.session_id = _run_claude(
@@ -338,10 +347,14 @@ class RefactorPlanner:
         self.model = model
         self.effort = effort
 
-    def audit_and_plan(self, milestone_title: str, milestone_description: str, plan_path: Path) -> None:
+    def audit_and_plan(self, milestone_title: str, milestone_description: str, plan_path: Path, roadmap_path: Path | None = None, line_number: int | None = None) -> None:
         """Audit the code area described by the milestone and write a refactor plan."""
+        roadmap_line = ""
+        if roadmap_path is not None and line_number is not None:
+            roadmap_line = f"Roadmap: {roadmap_path} (line {line_number + 1})\n"
         prompt = (
             f"Audit the code area described by this milestone and write a refactor plan:\n\n"
+            f"{roadmap_line}"
             f"**{milestone_title}**\n"
             f"{milestone_description}\n\n"
             f"Write the refactor plan to: {plan_path}\n"

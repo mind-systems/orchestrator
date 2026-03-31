@@ -20,6 +20,8 @@
 
 - [x] **Graceful stop in review loop** — `_implement_loop` and `_refactor_loop` check `state.stop_requested` before each milestone, but the review loop inside `run_review` does not. Extract a shared `_run_loop(items, process_fn)` helper that checks `state.stop_requested` before each item and prints `>>> Stop requested — halting.` if set. Replace the `for` loops in `_implement_loop`, `_refactor_loop`, and the inner `loop()` in `run_review` with calls to `_run_loop`. Also add a `state.stop_requested` check in `run_implement_review` between the implement phase and the review phase — so that Ctrl+C during implement prevents the review phase from starting.
 
+- [x] **Roadmap context in agent prompts** — `Milestone` already has `line_number` (0-based). Pass `roadmap_path` and `milestone.line_number` into `PlannerReviewer.plan()`, `RefactorPlanner.audit_and_plan()`, and `Implementer.implement()`. In each prompt, add a line before the milestone title: `"Roadmap: {roadmap_path} (line {milestone.line_number + 1})\n"`. The agent then has the option to read the full roadmap for context — what's already done, what comes next — without being forced to.
+
 ## Completed
 
 | Milestone | Date |
