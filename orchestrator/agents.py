@@ -200,7 +200,7 @@ class PlannerReviewer:
             f"Read each changed/new file IN FULL — understand the surrounding code, not just the diff.\n"
             f"Think about what will break at runtime: missing migrations, type mismatches, race conditions, etc.\n"
             f"Write your full review to: {review_path}\n"
-            f"If no critical issues found, end the review file with REVIEW_PASS on its own line.\n"
+            f"If you have no findings at all, end the review file with REVIEW_PASS on its own line.\n"
         )
 
         output, self.session_id = _run_claude(

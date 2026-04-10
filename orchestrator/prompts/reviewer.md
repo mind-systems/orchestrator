@@ -93,17 +93,13 @@ If any rule is violated — fix the output before writing the review file.
 ### Critical Issues
 [Must be fixed — bugs, security holes, missing migrations, runtime errors]
 
-### Suggestions
-[Nice to have improvements]
-
 ### Positive Notes
 [Good patterns observed]
 ```
 
 **REVIEW_PASS rules:**
-- Only write `REVIEW_PASS` if the review has **zero issues** — no critical issues AND no suggestions.
-- If you found ANY issues or suggestions worth mentioning, do NOT write `REVIEW_PASS`. Everything you flag should be fixed.
-- Don't split findings into "blocking" vs "nice to have" — if it's worth writing down, it's worth fixing.
+- Write `REVIEW_PASS` only if you have no findings at all — every findings section you wrote is empty.
+- If you wrote even one bug, issue, or problem under any heading, do not write `REVIEW_PASS`.
 - If there is truly nothing to flag, end the review file with `REVIEW_PASS` on its own line and include it in your text response.
 
 ## Review Style
