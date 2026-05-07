@@ -8,11 +8,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install dependencies
 cd orchestrator && uv sync
 
-# Implement milestones from roadmap
+# Plan + implement milestones (no review pass)
 uv run orchestrator implement /path/to/project
 
 # Review all existing plans against current codebase
 uv run orchestrator review /path/to/project
+
+# Implement milestones, then run review pass on all plans
+uv run orchestrator implement-review /path/to/project
+
+# Audit + refactor pending milestones (RefactorPlanner finds issues itself)
+uv run orchestrator refactor /path/to/project
 
 # Default (implement) on current directory
 uv run orchestrator
@@ -22,15 +28,26 @@ No test suite or linter is configured.
 
 ## Architecture
 
-Three-agent pipeline that processes milestones from a target project's `.ai-factory/ROADMAP.md`:
+Four-agent pipeline that processes milestones from a target project's `.ai-factory/ROADMAP.md`:
 
-1. **PlannerReviewer** (`agents.py`) — runs as Opus with `--resume` to maintain session state across plan + review calls. First call uses the combined planner+reviewer system prompt; subsequent calls resume the same session.
-2. **Implementer** (`agents.py`) — runs as Sonnet, also session-persistent across implement → fix-patch iterations.
-3. **Orchestrator loop** (`main.py`) — drives the pipeline: plan → [implement → review] × up to `ORCHESTRATOR_MAX_ITERATIONS` (env var, default 3) → mark done → git commit.
+1. **PlannerReviewer** (`agents.py`) — Opus/high. Session-persistent. Writes the plan, then later reviews code changes in the same session (so the reviewer has full planner context).
+2. **PlanReviewer** (`agents.py`) — Opus/high. Fresh session per attempt. Reviews the plan *before* implementation starts, writes `PLAN_REVIEW_PASS` or findings to `.ai-factory/plan-reviews/`.
+3. **Implementer** (`agents.py`) — Sonnet/high. Session-persistent across implement → fix iterations.
+4. **RefactorPlanner** (`agents.py`) — Opus/high. Session-persistent. Used only in `refactor` mode: audits a code area, writes a plan, then verifies fixes in the same session.
 
-All agents communicate through files, not shared memory. The planner writes to `.ai-factory/plans/<seq>-<slug>.md`; the reviewer writes feedback patches to `.ai-factory/patches/<seq>-<slug>-review-<n>.md`; the implementer reads both.
+Pipeline per milestone (`implement` mode):
 
-`_run_claude()` in `agents.py` shells out to the `claude` CLI with `--output-format json` and parses `result`/`session_id` from the response. Review pass/fail is detected by the string `REVIEW_PASS` in the reviewer's output.
+```
+PlannerReviewer.plan()
+  └─► PlanReviewer.review_plan()  ×N  (FAIL → PlannerReviewer.plan() again)
+        └─► Implementer.implement()
+              └─► PlannerReviewer.review()  ×N  (FAIL → Implementer.implement() again)
+                    └─► mark_done() + git commit
+```
+
+All agents communicate through files, not shared memory. Output directories under `.ai-factory/`: `plans/`, `plan-reviews/`, `reviews/`, `patches/`.
+
+`_run_claude()` in `agents.py` shells out to the `claude` CLI with `--output-format json` and parses `result`/`session_id`. Pass/fail is detected by `PLAN_REVIEW_PASS` (plan review) or `REVIEW_PASS` (code review) as the last line of the respective file.
 
 ## Target project requirements
 
@@ -44,5 +61,5 @@ The project being orchestrated must have:
 
 ## Key constants
 
-- `ORCHESTRATOR_MAX_ITERATIONS` env var (default 3) — single iteration limit for all flows
-- Default models/effort: Planner=opus/high, Reviewer=opus/medium, Implementer=sonnet/high — override when instantiating agents in `process_milestone()`
+- `ORCHESTRATOR_MAX_ITERATIONS` env var (default 3) — single iteration limit for all flows (plan review, implement review, refactor verify)
+- Default models/effort: PlannerReviewer=opus/high, PlanReviewer=opus/high, Implementer=sonnet/high, RefactorPlanner=opus/high — override when instantiating agents in `process_milestone()` / `process_refactor_milestone()`
