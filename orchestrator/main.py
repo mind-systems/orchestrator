@@ -79,24 +79,45 @@ def _git_commit(project_dir: Path, milestone_title: str) -> None:
 def _detect_milestone_step(
     project_dir: Path, seq: str, slug: str,
     plan_path: Path, plan_reviews_dir: Path, reviews_dir: Path,
-) -> tuple[str, int]:
-    """Detect where a previous run stopped and return (step, counter) to resume from.
+) -> tuple[str, int, Path]:
+    """Detect where a previous run stopped and return (step, counter, plan_path) to resume from.
 
     Steps: "plan", "plan_review", "implement", "review", "done".
     Counter is the attempt/iteration number to use next.
+    The returned plan_path is the canonical path discovered from the lowest-seq file matching
+    the slug (handles the case where a previous run was interrupted and the current run computes
+    a different seq via _next_number).
     """
+    # Resolve canonical seq and plan_path by scanning for existing files with this slug.
+    # This handles interrupted runs where _next_number() would otherwise produce a different seq.
+    plans_dir = plan_path.parent
+    slug_matches = sorted(plans_dir.glob(f"*-{slug}.md"))
+    if slug_matches:
+        best: Path | None = None
+        best_num: int | None = None
+        for f in slug_matches:
+            parts = f.stem.split("-", 1)
+            if parts[0].isdigit():
+                num = int(parts[0])
+                if best_num is None or num < best_num:
+                    best_num = num
+                    best = f
+        if best is not None:
+            seq = f"{best_num:02d}"
+            plan_path = best
+
     # 1. Plan doesn't exist → start fresh
     if not plan_path.exists():
-        return ("plan", 1)
+        return ("plan", 1, plan_path)
 
     # 2. No plan-review files → need to do first plan review
     plan_review_files = sorted(plan_reviews_dir.glob(f"{seq}-{slug}-plan-review-*.md"))
     if not plan_review_files:
-        return ("plan_review", 1)
+        return ("plan_review", 1, plan_path)
 
     # 3. Latest plan-review didn't pass → plan needs revision
     if not plan_review_files[-1].read_text().strip().endswith("PLAN_REVIEW_PASS"):
-        return ("plan", len(plan_review_files) + 1)
+        return ("plan", len(plan_review_files) + 1, plan_path)
 
     # 4. Working tree is clean (excluding .ai-factory/ artifacts) → need to implement
     diff = subprocess.run(
@@ -108,19 +129,19 @@ def _detect_milestone_step(
         cwd=project_dir, capture_output=True, text=True,
     )
     if not diff.stdout.strip() and not status.stdout.strip():
-        return ("implement", 1)
+        return ("implement", 1, plan_path)
 
     # 5. No review files → need to do first review
     review_files = sorted(reviews_dir.glob(f"{seq}-{slug}-review-*.md"))
     if not review_files:
-        return ("review", 1)
+        return ("review", 1, plan_path)
 
     # 6. Latest review didn't pass → need to re-implement
     if not review_files[-1].read_text().strip().endswith("REVIEW_PASS"):
-        return ("implement", len(review_files) + 1)
+        return ("implement", len(review_files) + 1, plan_path)
 
     # 7. All steps complete
-    return ("done", 0)
+    return ("done", 0, plan_path)
 
 
 def process_milestone(project_dir: Path, milestone, milestone_index: int, max_iterations: int = 3) -> None:
@@ -143,7 +164,8 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
     print(f"{'='*60}")
 
     milestone_start = time.monotonic()
-    step, counter = _detect_milestone_step(project_dir, seq, milestone.slug, plan_path, plan_reviews_dir, reviews_dir)
+    step, counter, plan_path = _detect_milestone_step(project_dir, seq, milestone.slug, plan_path, plan_reviews_dir, reviews_dir)
+    seq = plan_path.stem.split("-", 1)[0]
 
     if step != "plan":
         print(f">>> Resuming from step '{step}' (counter={counter})")
@@ -265,7 +287,8 @@ def process_refactor_milestone(project_dir: Path, milestone, milestone_index: in
     print(f"{'='*60}")
 
     milestone_start = time.monotonic()
-    step, counter = _detect_milestone_step(project_dir, seq, milestone.slug, plan_path, plan_reviews_dir, reviews_dir)
+    step, counter, plan_path = _detect_milestone_step(project_dir, seq, milestone.slug, plan_path, plan_reviews_dir, reviews_dir)
+    seq = plan_path.stem.split("-", 1)[0]
 
     if step != "plan":
         print(f">>> Resuming from step '{step}' (counter={counter})")
