@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 from .agents import Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, RateLimitError, RefactorPlanner
-from .roadmap import mark_done, mark_skipped, parse_roadmap
+from .roadmap import ParseResult, mark_done, mark_skipped, parse_roadmap
 from . import state
 
 
@@ -486,14 +486,19 @@ def _implement_loop(project_dir: Path, max_iterations: int = 3) -> None:
         print(f"ERROR: No ROADMAP.md found at {roadmap_path}")
         sys.exit(1)
 
-    milestones = parse_roadmap(roadmap_path)
+    result = parse_roadmap(roadmap_path)
+    milestones = result.milestones
     pending = [m for m in milestones if not m.done]
 
     if not pending:
         print("All milestones are done!")
         return
 
-    print(f"Found {len(pending)} pending milestones out of {len(milestones)} total.")
+    if result.breakpoint_hit:
+        total = len(milestones) + result.milestones_after_breakpoint
+        print(f"Found {len(pending)} pending milestones out of {total} total (stopped at breakpoint — {result.milestones_after_breakpoint} milestones after marker not queued).")
+    else:
+        print(f"Found {len(pending)} pending milestones out of {len(milestones)} total.")
 
     plans_dir = project_dir / ".ai-factory" / "plans"
     plans_dir.mkdir(parents=True, exist_ok=True)
@@ -512,14 +517,19 @@ def _refactor_loop(project_dir: Path, max_iterations: int = 3) -> None:
         print(f"ERROR: No ROADMAP.md found at {roadmap_path}")
         sys.exit(1)
 
-    milestones = parse_roadmap(roadmap_path)
+    result = parse_roadmap(roadmap_path)
+    milestones = result.milestones
     pending = [m for m in milestones if not m.done]
 
     if not pending:
         print("All milestones are done!")
         return
 
-    print(f"Found {len(pending)} pending milestones out of {len(milestones)} total.")
+    if result.breakpoint_hit:
+        total = len(milestones) + result.milestones_after_breakpoint
+        print(f"Found {len(pending)} pending milestones out of {total} total (stopped at breakpoint — {result.milestones_after_breakpoint} milestones after marker not queued).")
+    else:
+        print(f"Found {len(pending)} pending milestones out of {len(milestones)} total.")
 
     plans_dir = project_dir / ".ai-factory" / "plans"
     plans_dir.mkdir(parents=True, exist_ok=True)

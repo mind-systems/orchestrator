@@ -24,12 +24,35 @@ class Milestone:
         return s.strip("-")
 
 
-def parse_roadmap(path: Path) -> list[Milestone]:
-    """Parse ROADMAP.md and return list of milestones."""
+@dataclass
+class ParseResult:
+    milestones: list[Milestone]
+    breakpoint_hit: bool
+    milestones_after_breakpoint: int
+
+
+def parse_roadmap(path: Path) -> ParseResult:
+    """Parse ROADMAP.md and return ParseResult.
+
+    When a ``---STOP---`` marker is present and at least one milestone follows it,
+    only milestones before the marker are returned and ``breakpoint_hit`` is True.
+    A marker with nothing after it is treated as if it weren't there.
+    """
     lines = path.read_text().splitlines()
     milestones: list[Milestone] = []
+    marker_found = False
+    milestones_after_breakpoint = 0
 
     for i, line in enumerate(lines):
+        if marker_found:
+            if CHECKBOX_RE.match(line.strip()):
+                milestones_after_breakpoint += 1
+            continue
+
+        if line.strip() == "---STOP---":
+            marker_found = True
+            continue
+
         m = CHECKBOX_RE.match(line.strip())
         if m:
             done = m.group(1) == "x"
@@ -37,7 +60,8 @@ def parse_roadmap(path: Path) -> list[Milestone]:
             description = m.group(3).strip()
             milestones.append(Milestone(title=title, description=description, done=done, line_number=i))
 
-    return milestones
+    breakpoint_hit = marker_found and milestones_after_breakpoint > 0
+    return ParseResult(milestones=milestones, breakpoint_hit=breakpoint_hit, milestones_after_breakpoint=milestones_after_breakpoint)
 
 
 def mark_done(path: Path, milestone: Milestone) -> None:
