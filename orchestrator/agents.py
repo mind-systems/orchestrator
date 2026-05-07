@@ -182,6 +182,7 @@ class PlannerReviewer:
                 f"Write the plan to: {plan_path}\n"
             )
 
+        is_new = self.session_id is None
         _, self.session_id = _run_claude(
             prompt=prompt,
             cwd=str(self.project_dir),
@@ -190,6 +191,8 @@ class PlannerReviewer:
             model=self.model,
             effort=self.effort,
         )
+        if is_new:
+            print(f"  [session: {self.session_id}]")
 
     def review(self, plan_path: Path, review_path: Path) -> bool:
         """Review code changes. Uses same session as planner for deep context."""
@@ -266,7 +269,7 @@ class PlanReviewer:
             f"If the plan is solid, end the review file with PLAN_REVIEW_PASS on its own line.\n"
         )
 
-        _run_claude(
+        _, sid = _run_claude(
             prompt=prompt,
             cwd=str(self.project_dir),
             system_prompt=self.system_prompt,
@@ -274,6 +277,7 @@ class PlanReviewer:
             model=self.model,
             effort=self.effort,
         )
+        print(f"  [session: {sid}]")
 
         if review_path.exists():
             return review_path.read_text().strip().endswith("PLAN_REVIEW_PASS")
@@ -320,6 +324,7 @@ class Implementer:
                 f"{patches_note}"
             )
 
+        is_new = self.session_id is None
         _, self.session_id = _run_claude(
             prompt=prompt,
             cwd=str(self.project_dir),
@@ -329,6 +334,8 @@ class Implementer:
             model=self.model,
             effort=self.effort,
         )
+        if is_new:
+            print(f"  [session: {self.session_id}]")
 
 
 class RefactorPlanner:
@@ -367,6 +374,7 @@ class RefactorPlanner:
                 f"Write the refactor plan to: {plan_path}\n"
             )
 
+        is_new = self.session_id is None
         _, self.session_id = _run_claude(
             prompt=prompt,
             cwd=str(self.project_dir),
@@ -375,6 +383,8 @@ class RefactorPlanner:
             model=self.model,
             effort=self.effort,
         )
+        if is_new:
+            print(f"  [session: {self.session_id}]")
 
     def verify(self, plan_path: Path, review_path: Path) -> bool:
         """Verify implemented fixes against the plan. Uses same session as audit_and_plan."""
