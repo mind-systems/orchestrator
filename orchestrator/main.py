@@ -251,9 +251,11 @@ def process_refactor_milestone(project_dir: Path, milestone, milestone_index: in
     plans_dir = ai_factory / "plans"
     patches_dir = ai_factory / "patches"
     reviews_dir = ai_factory / "reviews"
+    plan_reviews_dir = ai_factory / "plan-reviews"
     plans_dir.mkdir(parents=True, exist_ok=True)
     patches_dir.mkdir(parents=True, exist_ok=True)
     reviews_dir.mkdir(parents=True, exist_ok=True)
+    plan_reviews_dir.mkdir(parents=True, exist_ok=True)
 
     roadmap_path = project_dir / ".ai-factory" / "ROADMAP.md"
     seq = f"{milestone_index:02d}"
@@ -270,6 +272,36 @@ def process_refactor_milestone(project_dir: Path, milestone, milestone_index: in
     # Step 1: Audit + plan
     print("\n>>> AUDITING...")
     refactor_planner.audit_and_plan(milestone.title, milestone.description, plan_path, roadmap_path=roadmap_path, line_number=milestone.line_number)
+
+    # Step 1.5: Iterative plan review
+    for attempt in range(1, max_iterations + 1):
+        print(f"\n>>> REVIEWING PLAN (attempt {attempt})...")
+        plan_reviewer = PlanReviewer(project_dir)
+        plan_review_path = plan_reviews_dir / f"{seq}-{milestone.slug}-plan-review-{attempt}.md"
+        plan_passed = plan_reviewer.review_plan(plan_path, plan_review_path)
+
+        if plan_passed:
+            print(f">>> Plan review passed — see {plan_review_path}")
+            break
+
+        if attempt == max_iterations:
+            raise PipelineStopError(
+                f"Plan failed review after {max_iterations} attempt(s).\n\n"
+                f"Last review: {plan_review_path}\n\n{plan_review_path.read_text()}"
+            )
+
+        print(">>> Plan has issues — revising plan...")
+        refactor_planner.audit_and_plan(
+            milestone.title, milestone.description, plan_path,
+            plan_review_path=plan_review_path,
+        )
+
+    # Safety guard: ensure a passing plan review exists before implementing
+    _plan_review_files = sorted(plan_reviews_dir.glob(f"{seq}-{milestone.slug}-plan-review-*.md"))
+    if not _plan_review_files or not _plan_review_files[-1].read_text().strip().endswith("PLAN_REVIEW_PASS"):
+        raise PipelineStopError(
+            f"No passing plan review found for milestone {seq}-{milestone.slug}. Cannot proceed to implementation."
+        )
 
     # Step 2-3: Implement → Verify loop
     for iteration in range(1, max_iterations + 1):

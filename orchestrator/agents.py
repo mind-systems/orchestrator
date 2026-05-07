@@ -347,18 +347,25 @@ class RefactorPlanner:
         self.model = model
         self.effort = effort
 
-    def audit_and_plan(self, milestone_title: str, milestone_description: str, plan_path: Path, roadmap_path: Path | None = None, line_number: int | None = None) -> None:
+    def audit_and_plan(self, milestone_title: str, milestone_description: str, plan_path: Path, roadmap_path: Path | None = None, line_number: int | None = None, plan_review_path: Path | None = None) -> None:
         """Audit the code area described by the milestone and write a refactor plan."""
-        roadmap_line = ""
-        if roadmap_path is not None and line_number is not None:
-            roadmap_line = f"Roadmap: {roadmap_path} (line {line_number + 1})\n"
-        prompt = (
-            f"Audit the code area described by this milestone and write a refactor plan:\n\n"
-            f"{roadmap_line}"
-            f"**{milestone_title}**\n"
-            f"{milestone_description}\n\n"
-            f"Write the refactor plan to: {plan_path}\n"
-        )
+        if plan_review_path:
+            prompt = (
+                f"Your plan at {plan_path} was reviewed and has issues.\n\n"
+                f"Read the review at: {plan_review_path}\n\n"
+                f"Update the plan to address the issues in that review. Write the updated plan to: {plan_path}\n"
+            )
+        else:
+            roadmap_line = ""
+            if roadmap_path is not None and line_number is not None:
+                roadmap_line = f"Roadmap: {roadmap_path} (line {line_number + 1})\n"
+            prompt = (
+                f"Audit the code area described by this milestone and write a refactor plan:\n\n"
+                f"{roadmap_line}"
+                f"**{milestone_title}**\n"
+                f"{milestone_description}\n\n"
+                f"Write the refactor plan to: {plan_path}\n"
+            )
 
         _, self.session_id = _run_claude(
             prompt=prompt,
