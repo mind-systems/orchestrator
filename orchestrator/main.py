@@ -264,37 +264,63 @@ def process_refactor_milestone(project_dir: Path, milestone, milestone_index: in
     print(f"MILESTONE: {milestone.title}")
     print(f"{'='*60}")
 
+    milestone_start = time.monotonic()
+    step, counter = _detect_milestone_step(project_dir, seq, milestone.slug, plan_path, plan_reviews_dir, reviews_dir)
+
+    if step != "plan":
+        print(f">>> Resuming from step '{step}' (counter={counter})")
+
+    if step == "done":
+        mark_done(roadmap_path, milestone)
+        _git_commit(project_dir, milestone.title)
+        elapsed = int(time.monotonic() - milestone_start)
+        mins, secs = divmod(elapsed, 60)
+        print(f">>> Milestone done [{mins}m {secs}s]")
+        return
+
     # Create agents
     refactor_planner = RefactorPlanner(project_dir)
     implementer = Implementer(project_dir)
-    milestone_start = time.monotonic()
 
     # Step 1: Audit + plan
-    print("\n>>> AUDITING...")
-    refactor_planner.audit_and_plan(milestone.title, milestone.description, plan_path, roadmap_path=roadmap_path, line_number=milestone.line_number)
+    if step == "plan":
+        print("\n>>> AUDITING...")
+        if counter > 1:
+            prev_plan_review = plan_reviews_dir / f"{seq}-{milestone.slug}-plan-review-{counter - 1}.md"
+            refactor_planner.audit_and_plan(milestone.title, milestone.description, plan_path, roadmap_path=roadmap_path, line_number=milestone.line_number, plan_review_path=prev_plan_review)
+        else:
+            refactor_planner.audit_and_plan(milestone.title, milestone.description, plan_path, roadmap_path=roadmap_path, line_number=milestone.line_number)
+
+        if not plan_path.exists():
+            print(f">>> Planner did not create a plan (milestone may already be done). Skipping.")
+            mark_skipped(roadmap_path, milestone)
+            return
+
+        step = "plan_review"
 
     # Step 1.5: Iterative plan review
-    for attempt in range(1, max_iterations + 1):
-        print(f"\n>>> REVIEWING PLAN (attempt {attempt})...")
-        plan_reviewer = PlanReviewer(project_dir)
-        plan_review_path = plan_reviews_dir / f"{seq}-{milestone.slug}-plan-review-{attempt}.md"
-        plan_passed = plan_reviewer.review_plan(plan_path, plan_review_path)
+    if step in ("plan", "plan_review"):
+        for attempt in range(counter, max_iterations + 1):
+            print(f"\n>>> REVIEWING PLAN (attempt {attempt})...")
+            plan_reviewer = PlanReviewer(project_dir)
+            plan_review_path = plan_reviews_dir / f"{seq}-{milestone.slug}-plan-review-{attempt}.md"
+            plan_passed = plan_reviewer.review_plan(plan_path, plan_review_path)
 
-        if plan_passed:
-            print(f">>> Plan review passed — see {plan_review_path}")
-            break
+            if plan_passed:
+                print(f">>> Plan review passed — see {plan_review_path}")
+                break
 
-        if attempt == max_iterations:
-            raise PipelineStopError(
-                f"Plan failed review after {max_iterations} attempt(s).\n\n"
-                f"Last review: {plan_review_path}\n\n{plan_review_path.read_text()}"
+            if attempt == max_iterations:
+                raise PipelineStopError(
+                    f"Plan failed review after {max_iterations} attempt(s).\n\n"
+                    f"Last review: {plan_review_path}\n\n{plan_review_path.read_text()}"
+                )
+
+            print(">>> Plan has issues — revising plan...")
+            refactor_planner.audit_and_plan(
+                milestone.title, milestone.description, plan_path,
+                plan_review_path=plan_review_path,
             )
-
-        print(">>> Plan has issues — revising plan...")
-        refactor_planner.audit_and_plan(
-            milestone.title, milestone.description, plan_path,
-            plan_review_path=plan_review_path,
-        )
 
     # Safety guard: ensure a passing plan review exists before implementing
     _plan_review_files = sorted(plan_reviews_dir.glob(f"{seq}-{milestone.slug}-plan-review-*.md"))
@@ -304,9 +330,14 @@ def process_refactor_milestone(project_dir: Path, milestone, milestone_index: in
         )
 
     # Step 2-3: Implement → Verify loop
-    for iteration in range(1, max_iterations + 1):
-        print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
-        implementer.implement(plan_path, patches_dir, roadmap_path=roadmap_path, line_number=milestone.line_number)
+    impl_start = counter if step in ("implement", "review") else 1
+    for iteration in range(impl_start, max_iterations + 1):
+        if step == "review" and iteration == counter:
+            # Resuming mid-verify: implementation already done, go straight to verify
+            pass
+        else:
+            print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
+            implementer.implement(plan_path, patches_dir, roadmap_path=roadmap_path, line_number=milestone.line_number)
 
         subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
         review_path = reviews_dir / f"{seq}-{milestone.slug}-review-{iteration}.md"

@@ -28,7 +28,7 @@
 
 - [x] **Plan review in refactor mode** — Add `PlanReviewer` phase to `process_refactor_milestone()` after `audit_and_plan()`, identical to how it works in `process_milestone()`. PlanReviewer checks that the refactor plan doesn't break existing functionality — not whether the audit findings are correct, but whether the proposed changes are safe. Uses the same `plan-reviews/` directory and `PLAN_REVIEW_PASS` signal. If plan review fails after `ORCHESTRATOR_MAX_ITERATIONS` attempts — raise `PipelineStopError`.
 
-- [ ] **Resume from mid-milestone failure in refactor mode** — Same idea for `process_refactor_milestone()`, but accounting for the plan review phase added above. Detection logic: if no plan file → `audit_and_plan`; if no plan-reviews → `plan_review` (attempt 1); if latest plan-review lacks `PLAN_REVIEW_PASS` → `audit_and_plan` (revision, attempt N+1); if `git diff HEAD` is empty → `implement`; if no review files for this slug → `verify` (iteration 1); if latest review lacks `REVIEW_PASS` → `implement` (next iteration). Skip completed steps, pass correct iteration counter.
+- [x] **Resume from mid-milestone failure in refactor mode** — Same idea for `process_refactor_milestone()`, but accounting for the plan review phase added above. Detection logic: if no plan file → `audit_and_plan`; if no plan-reviews → `plan_review` (attempt 1); if latest plan-review lacks `PLAN_REVIEW_PASS` → `audit_and_plan` (revision, attempt N+1); if `git diff HEAD` is empty → `implement`; if no review files for this slug → `verify` (iteration 1); if latest review lacks `REVIEW_PASS` → `implement` (next iteration). Skip completed steps, pass correct iteration counter.
 
 ## Completed
 
