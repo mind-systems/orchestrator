@@ -64,11 +64,17 @@ def parse_roadmap(path: Path) -> ParseResult:
     return ParseResult(milestones=milestones, breakpoint_hit=breakpoint_hit, milestones_after_breakpoint=milestones_after_breakpoint)
 
 
-def mark_done(path: Path, milestone: Milestone) -> None:
+def mark_done(path: Path, milestone: Milestone, elapsed_secs: int | None = None) -> None:
     """Mark a milestone as completed in ROADMAP.md."""
     lines = path.read_text().splitlines()
     line = lines[milestone.line_number]
-    lines[milestone.line_number] = line.replace("- [ ]", "- [x]", 1)
+    new_line = line.replace("- [ ]", "- [x]", 1)
+    if elapsed_secs is not None:
+        mins, secs = divmod(elapsed_secs, 60)
+        hours, mins = divmod(mins, 60)
+        time_str = f"{hours}h {mins}m {secs}s" if hours else f"{mins}m {secs}s"
+        new_line = new_line.rstrip() + f" [{time_str}]"
+    lines[milestone.line_number] = new_line
     path.write_text("\n".join(lines) + "\n")
 
 

@@ -171,9 +171,9 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
         print(f">>> Resuming from step '{step}' (counter={counter})")
 
     if step == "done":
-        mark_done(roadmap_path, milestone)
-        _git_commit(project_dir, milestone.title)
         elapsed = int(time.monotonic() - milestone_start)
+        mark_done(roadmap_path, milestone, elapsed)
+        _git_commit(project_dir, milestone.title)
         mins, secs = divmod(elapsed, 60)
         print(f">>> Milestone done [{mins}m {secs}s]")
         return
@@ -256,13 +256,16 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
         else:
             print(f">>> Review found issues — see {review_path}")
             if iteration == max_iterations:
-                print(f"WARNING: Max iterations ({max_iterations}) reached. Moving on.")
+                raise PipelineStopError(
+                    f"Max iterations ({max_iterations}) reached without REVIEW_PASS.\n\n"
+                    f"Last review: {review_path}\n\n{review_path.read_text()}"
+                )
 
     # Step 4: Mark done + commit
-    mark_done(roadmap_path, milestone)
+    elapsed = int(time.monotonic() - milestone_start)
+    mark_done(roadmap_path, milestone, elapsed)
     _git_commit(project_dir, milestone.title)
 
-    elapsed = int(time.monotonic() - milestone_start)
     mins, secs = divmod(elapsed, 60)
     print(f">>> Milestone done [{mins}m {secs}s]")
 
@@ -294,9 +297,9 @@ def process_refactor_milestone(project_dir: Path, milestone, milestone_index: in
         print(f">>> Resuming from step '{step}' (counter={counter})")
 
     if step == "done":
-        mark_done(roadmap_path, milestone)
-        _git_commit(project_dir, milestone.title)
         elapsed = int(time.monotonic() - milestone_start)
+        mark_done(roadmap_path, milestone, elapsed)
+        _git_commit(project_dir, milestone.title)
         mins, secs = divmod(elapsed, 60)
         print(f">>> Milestone done [{mins}m {secs}s]")
         return
@@ -382,10 +385,10 @@ def process_refactor_milestone(project_dir: Path, milestone, milestone_index: in
                 )
 
     # Step 4: Mark done + commit
-    mark_done(roadmap_path, milestone)
+    elapsed = int(time.monotonic() - milestone_start)
+    mark_done(roadmap_path, milestone, elapsed)
     _git_commit(project_dir, milestone.title)
 
-    elapsed = int(time.monotonic() - milestone_start)
     mins, secs = divmod(elapsed, 60)
     print(f">>> Milestone done [{mins}m {secs}s]")
 

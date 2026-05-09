@@ -34,6 +34,10 @@
 
 - [x] **Log session_id on new session start** — After each first `_run_claude()` call that creates a new session, print the session_id so it's visible in the orchestrator log. In `PlannerReviewer.plan()`, `PlanReviewer.review_plan()`, `Implementer.implement()`, and `RefactorPlanner.audit_and_plan()`: after the `_run_claude()` call that assigns `self.session_id` for the first time (i.e. when `self.session_id` was `None` before the call), add `print(f"  [session: {self.session_id}]")`. For `PlanReviewer` which has no persistent `session_id`, log unconditionally after `_run_claude()`.
 
+- [x] **Elapsed time in closed milestones** — When marking a milestone done in `ROADMAP.md`, append the elapsed time to the end of the line (e.g. `[12m 34s]`). Time is calculated before `mark_done()` and passed as `elapsed_secs` parameter.
+
+- [x] **Stop on review iteration limit** — `process_milestone()` was silently committing when `max_iterations` was reached without `REVIEW_PASS`. Replace the `WARNING` print with a `PipelineStopError` — consistent with `process_refactor_milestone()` behavior.
+
 - [x] **Breakpoint in ROADMAP.md** — Add support for `---STOP---` marker in ROADMAP.md. In `roadmap.py`, `parse_roadmap()` currently reads all lines and collects milestones. Add a check: if a line strips to `---STOP---`, stop collecting milestones at that point — milestones after the marker are not returned. In `_implement_loop()` and `_refactor_loop()`, update the log line to indicate when a breakpoint was hit — but only when the marker actually cut off pending milestones. `parse_roadmap()` must return whether a `---STOP---` marker was encountered and how many milestones were left after it. If the marker was present AND there are milestones after it that were not returned, print `Found N pending milestones out of M total (stopped at breakpoint — X milestones after marker not queued).` If the marker is present but nothing follows it (e.g. it's at the end of the file), treat it as if it weren't there — no special message. `review` mode reads `plans/` directly and is not affected by this marker.
 
 ## Completed
