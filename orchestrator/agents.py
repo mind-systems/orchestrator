@@ -154,9 +154,10 @@ class PlannerReviewer:
         project_dir: Path,
         model: str = "opus",
         effort: str = "high",
+        planner_prompt_name: str = "planner",
     ):
         self.project_dir = project_dir
-        self.planner_prompt = _load_prompt("planner")
+        self.planner_prompt = _load_prompt(planner_prompt_name)
         self.reviewer_prompt = _load_prompt("reviewer")
         self.system_prompt = self.planner_prompt + "\n\n---\n\n" + self.reviewer_prompt
         self.session_id: str | None = None
@@ -401,3 +402,55 @@ class RefactorPlanner:
             review_text = review_path.read_text()
             return review_text.strip().endswith("REVIEW_PASS")
         return False
+
+
+class TestRunner:
+    """Runs the test command from the plan file and captures output. No LLM."""
+
+    def run(self, plan_path: Path, output_path: Path, project_dir: Path) -> bool:
+        """Extract test command from plan, run it, write output. Returns True if exit code 0."""
+        cmd = self._extract_test_command(plan_path)
+        if not cmd:
+            output_path.write_text("ERROR: No '## Test Command' section found in plan.\n")
+            return False
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        print(f"\n--- TestRunner: {cmd} ---")
+        start = time.monotonic()
+        result = subprocess.run(
+            cmd, shell=True, cwd=str(project_dir),
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        )
+        elapsed = time.monotonic() - start
+        output = (
+            f"$ {cmd}\n"
+            f"exit code: {result.returncode}\n"
+            f"elapsed: {elapsed:.1f}s\n\n"
+            f"{result.stdout}"
+        )
+        passed = result.returncode == 0
+        if passed:
+            output += "\nTEST_PASS"
+        output_path.write_text(output)
+        status = "PASSED" if passed else "FAILED"
+        print(f"--- TestRunner: {status} (exit {result.returncode}, {elapsed:.1f}s) ---")
+        return passed
+
+    @staticmethod
+    def _extract_test_command(plan_path: Path) -> str | None:
+        """Read `## Test Command` section from the plan and return the command string."""
+        lines = plan_path.read_text().splitlines()
+        in_section = False
+        for line in lines:
+            if line.strip() == "## Test Command":
+                in_section = True
+                continue
+            if in_section:
+                stripped = line.strip()
+                if stripped.startswith("#"):
+                    break
+                if stripped.startswith("`") and stripped.endswith("`"):
+                    return stripped.strip("`")
+                if stripped:
+                    return stripped
+        return None

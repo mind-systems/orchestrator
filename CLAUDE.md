@@ -20,6 +20,9 @@ uv run orchestrator implement-review /path/to/project
 # Audit + refactor pending milestones (RefactorPlanner finds issues itself)
 uv run orchestrator refactor /path/to/project
 
+# Write tests for milestones from ROADMAP_TESTS.md
+uv run orchestrator test /path/to/project
+
 # Default (implement) on current directory
 uv run orchestrator
 ```
@@ -34,6 +37,7 @@ Four-agent pipeline that processes milestones from a target project's `.ai-facto
 2. **PlanReviewer** (`agents.py`) — Opus/high. Fresh session per attempt. Reviews the plan *before* implementation starts, writes `PLAN_REVIEW_PASS` or findings to `.ai-factory/plan-reviews/`.
 3. **Implementer** (`agents.py`) — Sonnet/high. Session-persistent across implement → fix iterations.
 4. **RefactorPlanner** (`agents.py`) — Opus/high. Session-persistent. Used only in `refactor` mode: audits a code area, writes a plan, then verifies fixes in the same session.
+5. **TestRunner** (`agents.py`) — No LLM. Used only in `test` mode: reads `## Test Command` from the plan file, runs it via shell, writes stdout+exit code to `.ai-factory/test-runs/`. Returns `True` if exit code is 0.
 
 Pipeline per milestone (`implement` mode):
 
@@ -45,7 +49,17 @@ PlannerReviewer.plan()
                     └─► mark_done() + git commit
 ```
 
-All agents communicate through files, not shared memory. Output directories under `.ai-factory/`: `plans/`, `plan-reviews/`, `reviews/`, `patches/`.
+Pipeline per milestone (`test` mode):
+
+```
+PlannerReviewer.plan()      ← uses test-planner prompt
+  └─► PlanReviewer.review_plan()  ×N  (FAIL → PlannerReviewer.plan() again)
+        └─► Implementer.implement()
+              └─► TestRunner.run()  ×N  (FAIL → Implementer.implement() again)
+                    └─► mark_done() + git commit
+```
+
+All agents communicate through files, not shared memory. Output directories under `.ai-factory/`: `plans/`, `plan-reviews/`, `reviews/`, `patches/`, `test-runs/`.
 
 `_run_claude()` in `agents.py` shells out to the `claude` CLI with `--output-format json` and parses `result`/`session_id`. Pass/fail is detected by `PLAN_REVIEW_PASS` (plan review) or `REVIEW_PASS` (code review) as the last line of the respective file.
 
@@ -58,6 +72,8 @@ The project being orchestrated must have:
   ```
 - `.ai-factory/DESCRIPTION.md` — tech stack and conventions (read by the planner agent)
 - An initialized git repo (the orchestrator commits after each milestone)
+
+For `test` mode, milestones are read from `.ai-factory/ROADMAP_TESTS.md` (same format). This file is separate from `ROADMAP.md` so test tasks don't pollute the main roadmap.
 
 ## Key constants
 

@@ -1,4 +1,4 @@
-[← Режим рефакторинга](refactor-mode.md) · [Back to README](../README.md) · [Требования к проекту →](target-project.md)
+[← Режим тестирования](test-mode.md) · [Back to README](../README.md) · [Требования к проекту →](target-project.md)
 
 # Конфигурация
 

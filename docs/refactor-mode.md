@@ -1,4 +1,4 @@
-[← Как это работает](how-it-works.md) · [Back to README](../README.md) · [Конфигурация →](configuration.md)
+[← Как это работает](how-it-works.md) · [Back to README](../README.md) · [Режим тестирования →](test-mode.md)
 
 # Режим рефакторинга
 
@@ -27,4 +27,5 @@ Refactor pipeline состоит из трёх фаз.
 ## See Also
 
 - [Как это работает](how-it-works.md) — сигналы REVIEW_PASS и PLAN_FAIL в общем контексте
+- [Режим тестирования](test-mode.md) — аналогичный специализированный режим для написания тестов
 - [Конфигурация](configuration.md) — лимит итераций для refactor режима
