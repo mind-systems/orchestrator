@@ -14,9 +14,6 @@ uv run orchestrator implement /path/to/project
 # Review all existing plans against current codebase
 uv run orchestrator review /path/to/project
 
-# Implement milestones, then run review pass on all plans
-uv run orchestrator implement-review /path/to/project
-
 # Audit + refactor pending milestones (RefactorPlanner finds issues itself)
 uv run orchestrator refactor /path/to/project
 

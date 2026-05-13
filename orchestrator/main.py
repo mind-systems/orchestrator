@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import signal
 import subprocess
@@ -15,21 +14,6 @@ from .agents import Implementer, PipelineStopError, PlannerReviewer, PlanReviewe
 from .roadmap import ParseResult, mark_done, mark_skipped, parse_roadmap
 from . import state
 
-
-def _load_state(project_dir: Path) -> dict:
-    state_path = project_dir / ".ai-factory" / "orchestrator-state.json"
-    if state_path.exists():
-        try:
-            return json.loads(state_path.read_text())
-        except (json.JSONDecodeError, OSError):
-            pass
-    return {}
-
-
-def _save_state(project_dir: Path, data: dict) -> None:
-    state_path = project_dir / ".ai-factory" / "orchestrator-state.json"
-    state_path.parent.mkdir(parents=True, exist_ok=True)
-    state_path.write_text(json.dumps(data, indent=2))
 
 
 def _handle_sigint(sig, frame):
@@ -230,9 +214,6 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
         )
 
     # Step 2-3: Implement → Review loop
-    orch_state = _load_state(project_dir)
-    implement_reviews: list[str] = orch_state.setdefault("implement_reviews", [])
-
     impl_start = counter if step in ("implement", "review") else 1
     for iteration in range(impl_start, max_iterations + 1):
         if step == "review" and iteration == counter:
@@ -246,9 +227,6 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
         subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
         review_path = reviews_dir / f"{seq}-{milestone.slug}-review-{iteration}.md"
         passed = planner_reviewer.review(plan_path, review_path)
-
-        implement_reviews.append(review_path.name)
-        _save_state(project_dir, orch_state)
 
         if passed:
             print(f">>> REVIEW PASSED — see {review_path}")
@@ -772,40 +750,6 @@ def run_refactor(project_dir: Path, max_iterations: int = 3) -> None:
     print(f"{'='*60}")
 
 
-def run_implement_review(project_dir: Path, max_iterations: int = 3) -> None:
-    """Implement all milestones, then run review pass on all plans."""
-    signal.signal(signal.SIGINT, _handle_sigint)
-
-    def loop():
-        _implement_loop(project_dir, max_iterations)
-
-        if state.stop_requested:
-            return
-
-        # Delete only the review files created during this implement pass
-        orch_state = _load_state(project_dir)
-        implement_reviews: list[str] = orch_state.pop("implement_reviews", [])
-        _save_state(project_dir, orch_state)
-
-        if implement_reviews:
-            reviews_dir = project_dir / ".ai-factory" / "reviews"
-            deleted = 0
-            for name in implement_reviews:
-                f = reviews_dir / name
-                if f.exists():
-                    f.unlink()
-                    deleted += 1
-            print(f"\n>>> Cleared {deleted} implement-phase review(s). Starting review flow...")
-
-        review_loop = run_review(project_dir, max_iterations)
-        if review_loop:
-            review_loop()
-
-    time_str = _with_caffeinate(loop)
-    print(f"\n{'='*60}")
-    print(f"ALL DONE — {time_str}")
-    print(f"{'='*60}")
-
 
 def run_review(project_dir: Path, max_iterations: int = 3):
     """Review all existing plans against the current codebase. Returns the review loop callable, or None if nothing to review."""
@@ -849,9 +793,8 @@ def cli() -> None:
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
 
     for cmd, help_text in [
-        ("implement", "Plan and implement milestones (no review pass)"),
+        ("implement", "Plan and implement milestones"),
         ("review", "Review all existing plans against current codebase"),
-        ("implement-review", "Implement milestones, then run review pass on all plans"),
         ("refactor", "Run refactor pipeline on pending milestones"),
         ("test", "Write tests for milestones (uses test-planner prompt)"),
     ]:
@@ -872,8 +815,6 @@ def cli() -> None:
                 print(f"\n{'='*60}")
                 print(f"ALL PLANS REVIEWED — {time_str}")
                 print(f"{'='*60}")
-        elif args.command == "implement-review":
-            run_implement_review(project_dir, max_iterations)
         elif args.command == "refactor":
             run_refactor(project_dir, max_iterations)
         elif args.command == "test":

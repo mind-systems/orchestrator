@@ -19,7 +19,6 @@ uv run orchestrator implement /path/to/project
 |---------|-----------|
 | `implement` | Планирует и имплементирует все pending-milestone-ы |
 | `review` | Ревьюит все существующие планы против текущей кодовой базы |
-| `implement-review` | Имплементирует, затем запускает полный review-проход |
 | `refactor` | Аудит и рефакторинг — агент сам находит проблемы и чинит их |
 | `test` | Пишет тесты по milestone-ам из `ROADMAP_TESTS.md` |
 
