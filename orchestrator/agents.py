@@ -46,7 +46,8 @@ def _run_claude(
     cmd = [
         "claude",
         "-p", prompt,
-        "--output-format", "json",
+        "--output-format", "stream-json",
+        "--verbose",
         "--allowedTools", ",".join(allowed_tools),
     ]
 
@@ -72,77 +73,94 @@ def _run_claude(
             start_new_session=True,
         )
 
+        lines: list[str] = []
+        sid_seen: str = ""
+
         try:
-            stdout, stderr = proc.communicate()
+            for line in proc.stdout:  # type: ignore[union-attr]
+                line = line.rstrip("\n")
+                lines.append(line)
+                if not sid_seen and line:
+                    try:
+                        event = json.loads(line)
+                        s = event.get("session_id", "")
+                        if s:
+                            sid_seen = s
+                            print(f"  [session: {sid_seen}]")
+                    except json.JSONDecodeError:
+                        pass
         except KeyboardInterrupt:
-            # Second Ctrl+C while waiting — kill immediately
             proc.kill()
             proc.wait()
-            print("\n>>> Force quit.")
+            if sid_seen:
+                print(f"\n>>> Interrupted — session: {sid_seen}")
+            else:
+                print("\n>>> Interrupted (session_id not yet received).")
             sys.exit(130)
+
+        proc.wait()
+        stderr = proc.stderr.read() if proc.stderr else ""  # type: ignore[union-attr]
+        stdout = "\n".join(lines)
 
         elapsed = int(time.monotonic() - start)
         mins, secs = divmod(elapsed, 60)
 
-        # Check for retryable errors (overloaded, rate limit)
-        retryable = False
-        if proc.returncode != 0 and stdout:
+        # Find the final result event (last line with "result" key)
+        parsed_final: dict = {}
+        for line in reversed(lines):
+            if not line:
+                continue
             try:
-                parsed = json.loads(stdout)
-                result_text = parsed.get("result", "")
-                if "overloaded" in result_text.lower() or "529" in result_text:
-                    retryable = True
+                ev = json.loads(line)
+                if "result" in ev:
+                    parsed_final = ev
+                    break
             except json.JSONDecodeError:
-                pass
+                continue
 
-        if retryable and attempt < MAX_RETRIES:
+        result_text = parsed_final.get("result", "")
+        is_error = parsed_final.get("is_error", False)
+
+        # Check for retryable errors (overloaded, rate limit)
+        retryable = (
+            "overloaded" in result_text.lower() or "529" in result_text
+        ) and attempt < MAX_RETRIES
+
+        if retryable:
             print(f">>> API overloaded, retrying in {RETRY_DELAY}s (attempt {attempt}/{MAX_RETRIES})...")
             time.sleep(RETRY_DELAY)
             continue
 
         if proc.returncode != 0:
-            # Even on non-zero exit, stdout may contain a structured error
-            if stdout:
-                try:
-                    parsed = json.loads(stdout)
-                    result_text = parsed.get("result", "")
-                    if "hit your limit" in result_text.lower() or "resets" in result_text.lower():
-                        raise RateLimitError(result_text)
-                except (json.JSONDecodeError, KeyError):
-                    pass
+            if "hit your limit" in result_text.lower() or "resets" in result_text.lower():
+                raise RateLimitError(result_text)
             raise RuntimeError(
                 f"Claude CLI failed with exit code {proc.returncode}\n"
                 f"stderr: {stderr[:1000] if stderr else '(empty)'}\n"
-                f"stdout: {stdout[:1000] if stdout else '(empty)'}"
+                f"stdout: {stdout[:500] if stdout else '(empty)'}"
             )
 
-        if not stdout.strip():
+        if not lines:
             raise RuntimeError(
                 f"Claude CLI exited 0 but stdout is empty\n"
                 f"stderr: {stderr[:1000] if stderr else '(empty)'}"
             )
 
-        parsed = json.loads(stdout)
-        if parsed.get("is_error"):
-            result_text = parsed.get("result", "")
+        if is_error:
             if "hit your limit" in result_text.lower() or "resets" in result_text.lower():
                 raise RateLimitError(result_text)
-            if ("overloaded" in result_text.lower() or "529" in result_text) and attempt < MAX_RETRIES:
-                print(f">>> API overloaded, retrying in {RETRY_DELAY}s (attempt {attempt}/{MAX_RETRIES})...")
-                time.sleep(RETRY_DELAY)
-                continue
             raise RuntimeError(f"Claude returned error: {result_text[:500]}")
 
-        output_text = parsed.get("result", "")
-        sid = parsed.get("session_id", "")
+        sid = parsed_final.get("session_id", sid_seen)
+        if not sid_seen:
+            # session_id only in final event — print it now
+            print(f"  [session: {sid}]")
 
-        print(f"  [session: {sid}]")
-        summary = output_text[:500] + ("..." if len(output_text) > 500 else "")
+        summary = result_text[:500] + ("..." if len(result_text) > 500 else "")
         print(f"{summary}\n  [{mins}m {secs}s]")
 
-        return output_text, sid
+        return result_text, sid
 
-    # Should never reach here, but just in case
     raise RuntimeError("All retry attempts exhausted")
 
 
