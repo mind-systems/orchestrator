@@ -1,5 +1,3 @@
-[← Режим рефакторинга](refactor-mode.md) · [Back to README](../README.md) · [Конфигурация →](configuration.md)
-
 # Режим тестирования
 
 ## Зачем отдельный режим
@@ -42,9 +40,3 @@ uv run orchestrator test /path/to/project
 ```
 
 Оркестратор читает `.ai-factory/ROADMAP_TESTS.md` целевого проекта. Основной `ROADMAP.md` не затрагивается. После каждого milestone делается git commit и задача помечается выполненной в `ROADMAP_TESTS.md`.
-
-## See Also
-
-- [Режим рефакторинга](refactor-mode.md) — другой специализированный режим
-- [Требования к проекту](target-project.md) — формат milestone-ов и структура `.ai-factory/`
-- [Конфигурация](configuration.md) — лимиты итераций
