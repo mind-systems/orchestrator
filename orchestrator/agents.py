@@ -205,7 +205,8 @@ class PlannerReviewer:
         _, self.session_id = _run_claude(
             prompt=prompt,
             cwd=str(self.project_dir),
-            system_prompt=self.system_prompt,
+            system_prompt=self.system_prompt if not self.session_id else None,
+            session_id=self.session_id,
             allowed_tools=self.tools,
             model=self.model,
             effort=self.effort,
