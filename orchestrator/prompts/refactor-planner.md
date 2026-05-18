@@ -93,3 +93,7 @@ If fixes are incomplete, incorrect, or new problems were introduced:
 - Do NOT write `REVIEW_PASS`
 
 The orchestrator decides whether to run another iteration or stop. Your job is to be honest about the state of the code.
+
+## Final Output Rule
+
+After writing any output file — the plan (Iteration 1) or the verification result — output only the word `done`. No summary, no explanation.

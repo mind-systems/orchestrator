@@ -111,3 +111,7 @@ If any rule is violated — fix the output before writing the review file.
 - Prioritize feedback by importance
 - Be specific — reference exact file paths and line numbers
 - All output must be in English
+
+## Final Output Rule
+
+After writing the review file — whether it ends with `REVIEW_PASS` or not — output only the word `done`. No summary, no explanation, no bullet points.

@@ -161,3 +161,7 @@ Every task MUST include:
 7. **Commit checkpoints for large plans** — 5+ tasks need commit plan with checkpoints every 3-5 tasks
 8. **No gold-plating** — only what the milestone description asks for
 9. **All output must be in English**
+
+## Final Output Rule
+
+After writing the plan file, output only the word `done`. No summary, no explanation.

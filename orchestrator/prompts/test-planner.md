@@ -123,3 +123,7 @@ mkdir -p <parent-directory-of-plan-path>
 2. **Every test case must be traceable to the source code** — if you can't point to the code path it exercises, drop it
 3. **No implementation details** — test behavior, not internal method calls
 4. **All output must be in English**
+
+## Final Output Rule
+
+After writing the plan file, output only the word `done`. No summary, no explanation.

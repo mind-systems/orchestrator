@@ -13,6 +13,23 @@ uv run orchestrator implement /path/to/project
 
 Требуется установленный и авторизованный [Claude Code](https://claude.ai/code) CLI.
 
+### Разрешения Claude Code
+
+Агент-планировщик должен иметь право редактировать файлы в `.ai-factory/plans/` — иначе он не сможет исправить план после замечаний ревьюера и цикл зависнет. Добавьте в `~/.claude/settings.json`:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Edit(/Users/<you>/projects/**/.ai-factory/plans/**)",
+      "Write(/Users/<you>/projects/**/.ai-factory/plans/**)"
+    ]
+  }
+}
+```
+
+Без этого разрешения plan-ревью будет бесконечно возвращать одни и те же замечания — план физически не изменится.
+
 ## Режимы работы
 
 | Команда | Что делает |
@@ -22,10 +39,7 @@ uv run orchestrator implement /path/to/project
 | `refactor` | Аудит и рефакторинг — агент сам находит проблемы и чинит их |
 | `test` | Пишет тесты по milestone-ам из `ROADMAP_TESTS.md` |
 
-## Документация
 
-| Раздел | Описание |
-|--------|----------|
 | [Рабочий процесс](docs/workflow.md) | Паттерн работы: от роадмапа до e2e тестирования |
 | [Как это работает](docs/how-it-works.md) | Агентный конвейер, сессии, файловый протокол |
 | [Режим рефакторинга](docs/refactor-mode.md) | Как агент находит костыли и что происходит при PLAN_FAIL |
