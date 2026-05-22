@@ -10,7 +10,7 @@ import sys
 import time
 from pathlib import Path
 
-from .agents import Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, RateLimitError, RefactorPlanner, TestRunner
+from .agents import Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, RateLimitError, RefactorPlanner, TestRunner, _read_sessions
 from .roadmap import ParseResult, mark_done, mark_skipped, parse_roadmap
 from . import state
 
@@ -165,6 +165,11 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
     # Create agents
     planner_reviewer = PlannerReviewer(project_dir, planner_prompt_name=planner_prompt_name)
     implementer = Implementer(project_dir)
+
+    if plan_path.exists():
+        sessions = _read_sessions(plan_path)
+        planner_reviewer.session_id = sessions.get("planner")
+        implementer.session_id = sessions.get("implementer")
 
     # Step 1: Plan
     if step == "plan":
@@ -546,6 +551,11 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, m
     planner_reviewer = PlannerReviewer(project_dir, planner_prompt_name="test-planner")
     implementer = Implementer(project_dir)
     test_runner = TestRunner()
+
+    if plan_path.exists():
+        sessions = _read_sessions(plan_path)
+        planner_reviewer.session_id = sessions.get("planner")
+        implementer.session_id = sessions.get("implementer")
 
     # Step 1: Plan
     if step == "plan":
