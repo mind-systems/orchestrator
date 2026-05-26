@@ -10,7 +10,7 @@ import sys
 import time
 from pathlib import Path
 
-from .agents import Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, RateLimitError, RefactorPlanner, TestRunner, _read_sessions
+from .agents import Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, RateLimitError, RefactorPlanner, TestRunner, _read_sessions, _write_session
 from .roadmap import ParseResult, mark_done, mark_skipped, parse_roadmap
 from . import state
 
@@ -147,9 +147,15 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
     print(f"MILESTONE: {milestone.title}")
     print(f"{'='*60}")
 
-    milestone_start = time.monotonic()
     step, counter, plan_path = _detect_milestone_step(project_dir, seq, milestone.slug, plan_path, plan_reviews_dir, reviews_dir)
     seq = plan_path.stem.split("-", 1)[0]
+
+    elapsed_offset = 0
+    sessions: dict[str, str] = {}
+    if plan_path.exists():
+        sessions = _read_sessions(plan_path)
+        elapsed_offset = int(sessions.get("elapsed", "0"))
+    milestone_start = time.monotonic() - elapsed_offset
 
     if step != "plan":
         print(f">>> Resuming from step '{step}' (counter={counter})")
@@ -166,8 +172,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
     planner_reviewer = PlannerReviewer(project_dir, planner_prompt_name=planner_prompt_name)
     implementer = Implementer(project_dir)
 
-    if plan_path.exists():
-        sessions = _read_sessions(plan_path)
+    if sessions:
         planner_reviewer.session_id = sessions.get("planner")
         implementer.session_id = sessions.get("implementer")
 
@@ -186,6 +191,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
             return
 
         step = "plan_review"
+        _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
     # Step 1.5: Iterative plan review
     if step in ("plan", "plan_review"):
@@ -194,6 +200,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
             plan_reviewer = PlanReviewer(project_dir)
             plan_review_path = plan_reviews_dir / f"{seq}-{milestone.slug}-plan-review-{attempt}.md"
             plan_passed = plan_reviewer.review_plan(plan_path, plan_review_path)
+            _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
             if plan_passed:
                 print(f">>> Plan review passed — see {plan_review_path}")
@@ -227,11 +234,13 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
         else:
             print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
             implementer.implement(plan_path, patches_dir, roadmap_path=roadmap_path, line_number=milestone.line_number)
+            _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
         print(f"\n>>> REVIEWING (iteration {iteration})...")
         subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
         review_path = reviews_dir / f"{seq}-{milestone.slug}-review-{iteration}.md"
         passed = planner_reviewer.review(plan_path, review_path)
+        _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
         if passed:
             print(f">>> REVIEW PASSED — see {review_path}")
@@ -272,9 +281,13 @@ def process_refactor_milestone(project_dir: Path, milestone, milestone_index: in
     print(f"MILESTONE: {milestone.title}")
     print(f"{'='*60}")
 
-    milestone_start = time.monotonic()
     step, counter, plan_path = _detect_milestone_step(project_dir, seq, milestone.slug, plan_path, plan_reviews_dir, reviews_dir)
     seq = plan_path.stem.split("-", 1)[0]
+
+    elapsed_offset = 0
+    if plan_path.exists():
+        elapsed_offset = int(_read_sessions(plan_path).get("elapsed", "0"))
+    milestone_start = time.monotonic() - elapsed_offset
 
     if step != "plan":
         print(f">>> Resuming from step '{step}' (counter={counter})")
@@ -306,6 +319,7 @@ def process_refactor_milestone(project_dir: Path, milestone, milestone_index: in
             return
 
         step = "plan_review"
+        _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
     # Step 1.5: Iterative plan review
     if step in ("plan", "plan_review"):
@@ -314,6 +328,7 @@ def process_refactor_milestone(project_dir: Path, milestone, milestone_index: in
             plan_reviewer = PlanReviewer(project_dir)
             plan_review_path = plan_reviews_dir / f"{seq}-{milestone.slug}-plan-review-{attempt}.md"
             plan_passed = plan_reviewer.review_plan(plan_path, plan_review_path)
+            _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
             if plan_passed:
                 print(f">>> Plan review passed — see {plan_review_path}")
@@ -347,12 +362,14 @@ def process_refactor_milestone(project_dir: Path, milestone, milestone_index: in
         else:
             print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
             implementer.implement(plan_path, patches_dir, roadmap_path=roadmap_path, line_number=milestone.line_number)
+            _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
         subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
         review_path = reviews_dir / f"{seq}-{milestone.slug}-review-{iteration}.md"
 
         print(f"\n>>> VERIFYING (iteration {iteration})...")
         passed = refactor_planner.verify(plan_path, review_path)
+        _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
         if passed:
             print(f">>> VERIFY PASSED — see {review_path}")
@@ -533,9 +550,15 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, m
     print(f"TEST MILESTONE: {milestone.title}")
     print(f"{'='*60}")
 
-    milestone_start = time.monotonic()
     step, counter, plan_path = _detect_test_milestone_step(project_dir, seq, milestone.slug, plan_path, plan_reviews_dir, test_runs_dir)
     seq = plan_path.stem.split("-", 1)[0]
+
+    elapsed_offset = 0
+    sessions: dict[str, str] = {}
+    if plan_path.exists():
+        sessions = _read_sessions(plan_path)
+        elapsed_offset = int(sessions.get("elapsed", "0"))
+    milestone_start = time.monotonic() - elapsed_offset
 
     if step != "plan":
         print(f">>> Resuming from step '{step}' (counter={counter})")
@@ -552,8 +575,7 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, m
     implementer = Implementer(project_dir)
     test_runner = TestRunner()
 
-    if plan_path.exists():
-        sessions = _read_sessions(plan_path)
+    if sessions:
         planner_reviewer.session_id = sessions.get("planner")
         implementer.session_id = sessions.get("implementer")
 
@@ -572,6 +594,7 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, m
             return
 
         step = "plan_review"
+        _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
     # Step 1.5: Iterative plan review
     if step in ("plan", "plan_review"):
@@ -580,6 +603,7 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, m
             plan_reviewer = PlanReviewer(project_dir)
             plan_review_path = plan_reviews_dir / f"{seq}-{milestone.slug}-plan-review-{attempt}.md"
             plan_passed = plan_reviewer.review_plan(plan_path, plan_review_path)
+            _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
             if plan_passed:
                 print(f">>> Plan review passed — see {plan_review_path}")
@@ -611,11 +635,13 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, m
         else:
             print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
             implementer.implement(plan_path, patches_dir, roadmap_path=roadmap_path, line_number=milestone.line_number)
+            _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
         print(f"\n>>> RUNNING TESTS (iteration {iteration})...")
         subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
         test_run_path = test_runs_dir / f"{seq}-{milestone.slug}-test-{iteration}.txt"
         passed = test_runner.run(plan_path, test_run_path, project_dir)
+        _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
         if passed:
             print(f">>> TESTS PASSED — see {test_run_path}")
