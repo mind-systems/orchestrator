@@ -33,7 +33,10 @@ def _read_sessions(plan_path: Path) -> dict[str, str]:
 
 def _write_session(plan_path: Path, key: str, value: str) -> None:
     p = plan_path.with_suffix('.json')
-    data = json.loads(p.read_text()) if p.exists() else {}
+    try:
+        data = json.loads(p.read_text()) if p.exists() else {}
+    except (json.JSONDecodeError, OSError):
+        data = {}
     data[key] = value
     tmp = p.with_suffix('.json.tmp')
     tmp.write_text(json.dumps(data, indent=2))

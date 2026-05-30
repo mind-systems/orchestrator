@@ -248,6 +248,11 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
 
     # Step 2-3: Implement → Review loop
     impl_start = counter if step in ("implement", "review") else 1
+    if impl_start > max_iterations:
+        raise PipelineStopError(
+            f"Resume at iteration {impl_start} exceeds max_iterations "
+            f"({max_iterations}). Bump ORCHESTRATOR_MAX_ITERATIONS to continue."
+        )
     for iteration in range(impl_start, max_iterations + 1):
         if step == "review" and iteration == counter:
             # Resuming mid-review: implementation already done, go straight to review
@@ -673,6 +678,11 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, m
 
     # Step 2-3: Implement → TestRun loop
     impl_start = counter if step in ("implement", "test_run") else 1
+    if impl_start > max_iterations:
+        raise PipelineStopError(
+            f"Resume at iteration {impl_start} exceeds max_iterations "
+            f"({max_iterations}). Bump ORCHESTRATOR_MAX_ITERATIONS to continue."
+        )
     for iteration in range(impl_start, max_iterations + 1):
         if step == "test_run" and iteration == counter:
             pass

@@ -50,6 +50,8 @@
 
 - [x] **Sidecar robustness — three follow-up fixes** — (1) `_read_sessions` crashes on corrupt sidecar (`json.loads` raises where old regex returned `{}`): wrap with `try/except (JSONDecodeError, OSError)`. (2) `review_failed:N` not written when `PipelineStopError` is raised at max iterations — sidecar keeps `"implemented"`, next run overwrites `review-1.md`: move `_write_session` before the max-iterations check in both `process_milestone()` and `process_test_milestone()`. (3) `_write_session` non-atomic (`write_text` truncates then writes): use tmp + `os.replace` to eliminate corruption window. All three in `agents.py` only. Spec: `.ai-factory/notes/05-sidecar-robustness.md`. [6m 45s]
 
+- [x] **Resume guard + write hardening** — (1) Resume after `review_failed:N` at `max_iterations` produces empty `range(N+1, N+1)` → loop skips → `mark_done()` commits unfinished code silently: add `PipelineStopError` guard before both implement/review loops in `main.py`. (2) `_write_session` internal `json.loads` unguarded — corrupt sidecar survives read via `_read_sessions` but crashes first write: wrap in `try/except (JSONDecodeError, OSError)`. (3) `*.json.tmp` not in `.gitignore` — stale tmp from `kill -9` gets picked up by `git add -A`: add one line. Spec: `.ai-factory/notes/06-resume-guard-and-write-hardening.md`. [5m 23s]
+
 ## Completed
 
 | Milestone | Date |
