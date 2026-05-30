@@ -269,12 +269,12 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
             break
         else:
             print(f">>> Review found issues — see {review_path}")
+            _write_session(plan_path, "step", f"review_failed:{iteration}")
             if iteration == max_iterations:
                 raise PipelineStopError(
                     f"Max iterations ({max_iterations}) reached without REVIEW_PASS.\n\n"
                     f"Last review: {review_path}\n\n{review_path.read_text()}"
                 )
-            _write_session(plan_path, "step", f"review_failed:{iteration}")
 
     # Step 4: Mark done + commit
     elapsed = int(time.monotonic() - milestone_start)
@@ -696,12 +696,12 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, m
             # Bridge test output to patches_dir so Implementer reads it on next iteration
             patch_path = patches_dir / f"{seq}-{milestone.slug}-patch-{iteration}.md"
             patch_path.write_text(test_run_path.read_text())
+            _write_session(plan_path, "step", f"test_run_failed:{iteration}")
             if iteration == max_iterations:
                 raise PipelineStopError(
                     f"Tests failed after {max_iterations} iteration(s).\n\n"
                     f"Last run: {test_run_path}\n\n{test_run_path.read_text()}"
                 )
-            _write_session(plan_path, "step", f"test_run_failed:{iteration}")
 
     # Step 4: Mark done + commit
     elapsed = int(time.monotonic() - milestone_start)

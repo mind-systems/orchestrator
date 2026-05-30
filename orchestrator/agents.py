@@ -25,14 +25,19 @@ def _read_sessions(plan_path: Path) -> dict[str, str]:
     p = plan_path.with_suffix('.json')
     if not p.exists():
         return {}
-    return json.loads(p.read_text())
+    try:
+        return json.loads(p.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {}
 
 
 def _write_session(plan_path: Path, key: str, value: str) -> None:
     p = plan_path.with_suffix('.json')
     data = json.loads(p.read_text()) if p.exists() else {}
     data[key] = value
-    p.write_text(json.dumps(data, indent=2))
+    tmp = p.with_suffix('.json.tmp')
+    tmp.write_text(json.dumps(data, indent=2))
+    os.replace(tmp, p)
 
 
 class RateLimitError(Exception):

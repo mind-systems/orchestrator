@@ -48,6 +48,8 @@
 
 - [x] **JSON sidecar + explicit step tracking — replace heuristic resume detection** — Replace the `<!-- orchestrator-sessions -->` HTML comment block in plan files with a `{slug}.json` sidecar file in `plans/`. Agents no longer see internal orchestrator state when reading the plan. Simultaneously replace `_detect_milestone_step()` heuristics (git diff, file globbing) with an explicit `step` key written to the sidecar after each phase — fixes interrupted implement being sent to review instead of re-implement. No backward compat: drop `_SESSIONS_RE` and old comment logic entirely. Spec: `.ai-factory/notes/04-explicit-step-tracking.md`. [12m 55s]
 
+- [x] **Sidecar robustness — three follow-up fixes** — (1) `_read_sessions` crashes on corrupt sidecar (`json.loads` raises where old regex returned `{}`): wrap with `try/except (JSONDecodeError, OSError)`. (2) `review_failed:N` not written when `PipelineStopError` is raised at max iterations — sidecar keeps `"implemented"`, next run overwrites `review-1.md`: move `_write_session` before the max-iterations check in both `process_milestone()` and `process_test_milestone()`. (3) `_write_session` non-atomic (`write_text` truncates then writes): use tmp + `os.replace` to eliminate corruption window. All three in `agents.py` only. Spec: `.ai-factory/notes/05-sidecar-robustness.md`. [6m 45s]
+
 ## Completed
 
 | Milestone | Date |
