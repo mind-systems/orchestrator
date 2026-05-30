@@ -60,6 +60,55 @@ def _git_commit(project_dir: Path, milestone_title: str) -> None:
     print(f">>> COMMITTED: {milestone_title}")
 
 
+def _validate_sidecar_step(
+    step_value: str,
+    seq: str,
+    slug: str,
+    plan_reviews_dir: Path,
+    artifact_dir: Path,
+    fail_prefix: str,
+    fail_suffix: str,
+) -> str:
+    """Return step_value if the referenced artifact exists on disk, or "" if stale.
+
+    Clears step_value when:
+    - plan_review_failed:N and the corresponding plan-review file is missing.
+    - plan_reviewed and no plan-review file ends with PLAN_REVIEW_PASS.
+    - <fail_prefix>N and the corresponding artifact (artifact_dir / seq-slug<fail_suffix>) is missing.
+    "planned" and "implemented" have no artifact reference and are always valid.
+    Malformed :N parses also clear step_value so execution falls through to the heuristic.
+    """
+    if not step_value:
+        return step_value
+    if step_value in ("planned", "implemented"):
+        return step_value
+    if step_value.startswith("plan_review_failed:"):
+        try:
+            n = int(step_value.split(":")[1])
+            if not (plan_reviews_dir / f"{seq}-{slug}-plan-review-{n}.md").exists():
+                return ""
+        except (IndexError, ValueError):
+            return ""
+        return step_value
+    if step_value == "plan_reviewed":
+        if not any(
+            f.read_text().strip().endswith("PLAN_REVIEW_PASS")
+            for f in plan_reviews_dir.glob(f"{seq}-{slug}-plan-review-*.md")
+        ):
+            return ""
+        return step_value
+    if step_value.startswith(fail_prefix):
+        try:
+            n = int(step_value.split(":")[1])
+            if not (artifact_dir / f"{seq}-{slug}{fail_suffix.format(n=n)}").exists():
+                return ""
+        except (IndexError, ValueError):
+            return ""
+        return step_value
+    # unrecognized → return as-is; dispatch will fall through to heuristic
+    return step_value
+
+
 def _detect_milestone_step(
     project_dir: Path, seq: str, slug: str,
     plan_path: Path, plan_reviews_dir: Path, reviews_dir: Path,
@@ -96,7 +145,10 @@ def _detect_milestone_step(
 
     # 2. Check explicit step tracking from JSON sidecar
     sessions = _read_sessions(plan_path)
-    step_value = sessions.get("step", "")
+    step_value = _validate_sidecar_step(
+        sessions.get("step", ""), seq, slug, plan_reviews_dir, reviews_dir,
+        "review_failed:", "-review-{n}.md",
+    )
     if step_value:
         if step_value == "planned":
             return ("plan_review", 1, plan_path)
@@ -339,7 +391,10 @@ def _detect_test_milestone_step(
 
     # Check explicit step tracking from JSON sidecar
     sessions = _read_sessions(plan_path)
-    step_value = sessions.get("step", "")
+    step_value = _validate_sidecar_step(
+        sessions.get("step", ""), seq, slug, plan_reviews_dir, test_runs_dir,
+        "test_run_failed:", "-test-{n}.txt",
+    )
     if step_value:
         if step_value == "planned":
             return ("plan_review", 1, plan_path)
