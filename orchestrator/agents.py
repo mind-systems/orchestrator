@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
 import sys
 import time
@@ -22,45 +21,18 @@ def _load_prompt(name: str) -> str:
 MAX_RETRIES = 3
 RETRY_DELAY = 30  # seconds
 
-_SESSIONS_RE = re.compile(r'<!-- orchestrator-sessions\n(.*?)\n-->', re.DOTALL)
-
-
 def _read_sessions(plan_path: Path) -> dict[str, str]:
-    if not plan_path.exists():
+    p = plan_path.with_suffix('.json')
+    if not p.exists():
         return {}
-    text = plan_path.read_text()
-    m = _SESSIONS_RE.search(text)
-    if not m:
-        return {}
-    result = {}
-    for line in m.group(1).splitlines():
-        if ': ' in line:
-            k, v = line.split(': ', 1)
-            result[k.strip()] = v.strip()
-    return result
+    return json.loads(p.read_text())
 
 
-def _write_session(plan_path: Path, role: str, session_id: str) -> None:
-    if not plan_path.exists() or not session_id:
-        return
-    text = plan_path.read_text()
-    m = _SESSIONS_RE.search(text)
-    if m:
-        lines = m.group(1).splitlines()
-        new_lines, found = [], False
-        for line in lines:
-            if line.startswith(f'{role}: '):
-                new_lines.append(f'{role}: {session_id}')
-                found = True
-            else:
-                new_lines.append(line)
-        if not found:
-            new_lines.append(f'{role}: {session_id}')
-        replacement = '<!-- orchestrator-sessions\n' + '\n'.join(new_lines) + '\n-->'
-        text = text[:m.start()] + replacement + text[m.end():]
-    else:
-        text = text.rstrip('\n') + f'\n\n<!-- orchestrator-sessions\n{role}: {session_id}\n-->\n'
-    plan_path.write_text(text)
+def _write_session(plan_path: Path, key: str, value: str) -> None:
+    p = plan_path.with_suffix('.json')
+    data = json.loads(p.read_text()) if p.exists() else {}
+    data[key] = value
+    p.write_text(json.dumps(data, indent=2))
 
 
 class RateLimitError(Exception):

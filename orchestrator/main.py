@@ -94,16 +94,34 @@ def _detect_milestone_step(
     if not plan_path.exists():
         return ("plan", 1, plan_path)
 
-    # 2. No plan-review files → need to do first plan review
+    # 2. Check explicit step tracking from JSON sidecar
+    sessions = _read_sessions(plan_path)
+    step_value = sessions.get("step", "")
+    if step_value:
+        if step_value == "planned":
+            return ("plan_review", 1, plan_path)
+        elif step_value.startswith("plan_review_failed:"):
+            n = int(step_value.split(":")[1])
+            return ("plan", n + 1, plan_path)
+        elif step_value == "plan_reviewed":
+            return ("implement", 1, plan_path)
+        elif step_value == "implemented":
+            return ("review", 1, plan_path)
+        elif step_value.startswith("review_failed:"):
+            n = int(step_value.split(":")[1])
+            return ("implement", n + 1, plan_path)
+        # unrecognized → fall through to heuristic
+
+    # 3. No plan-review files → need to do first plan review
     plan_review_files = sorted(plan_reviews_dir.glob(f"{seq}-{slug}-plan-review-*.md"))
     if not plan_review_files:
         return ("plan_review", 1, plan_path)
 
-    # 3. Latest plan-review didn't pass → plan needs revision
+    # 4. Latest plan-review didn't pass → plan needs revision
     if not plan_review_files[-1].read_text().strip().endswith("PLAN_REVIEW_PASS"):
         return ("plan", len(plan_review_files) + 1, plan_path)
 
-    # 4. Working tree is clean (excluding .ai-factory/ artifacts) → need to implement
+    # 5. Working tree is clean (excluding .ai-factory/ artifacts) → need to implement
     diff = subprocess.run(
         ["git", "diff", "HEAD", "--", ".", ":!.ai-factory"],
         cwd=project_dir, capture_output=True, text=True,
@@ -115,16 +133,16 @@ def _detect_milestone_step(
     if not diff.stdout.strip() and not status.stdout.strip():
         return ("implement", 1, plan_path)
 
-    # 5. No review files → need to do first review
+    # 6. No review files → need to do first review
     review_files = sorted(reviews_dir.glob(f"{seq}-{slug}-review-*.md"))
     if not review_files:
         return ("review", 1, plan_path)
 
-    # 6. Latest review didn't pass → need to re-implement
+    # 7. Latest review didn't pass → need to re-implement
     if not review_files[-1].read_text().strip().endswith("REVIEW_PASS"):
         return ("implement", len(review_files) + 1, plan_path)
 
-    # 7. All steps complete
+    # 8. All steps complete
     return ("done", 0, plan_path)
 
 
@@ -191,6 +209,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
             return
 
         step = "plan_review"
+        _write_session(plan_path, "step", "planned")
         _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
     # Step 1.5: Iterative plan review
@@ -204,6 +223,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
 
             if plan_passed:
                 print(f">>> Plan review passed — see {plan_review_path}")
+                _write_session(plan_path, "step", "plan_reviewed")
                 break
 
             if attempt == max_iterations:
@@ -213,6 +233,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
                 )
 
             print(">>> Plan has issues — revising plan...")
+            _write_session(plan_path, "step", f"plan_review_failed:{attempt}")
             planner_reviewer.plan(
                 milestone.title, milestone.description, plan_path,
                 plan_review_path=plan_review_path,
@@ -234,6 +255,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
         else:
             print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
             implementer.implement(plan_path, patches_dir, roadmap_path=roadmap_path, line_number=milestone.line_number)
+            _write_session(plan_path, "step", "implemented")
             _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
         print(f"\n>>> REVIEWING (iteration {iteration})...")
@@ -252,6 +274,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
                     f"Max iterations ({max_iterations}) reached without REVIEW_PASS.\n\n"
                     f"Last review: {review_path}\n\n{review_path.read_text()}"
                 )
+            _write_session(plan_path, "step", f"review_failed:{iteration}")
 
     # Step 4: Mark done + commit
     elapsed = int(time.monotonic() - milestone_start)
@@ -505,6 +528,24 @@ def _detect_test_milestone_step(
     if not plan_path.exists():
         return ("plan", 1, plan_path)
 
+    # Check explicit step tracking from JSON sidecar
+    sessions = _read_sessions(plan_path)
+    step_value = sessions.get("step", "")
+    if step_value:
+        if step_value == "planned":
+            return ("plan_review", 1, plan_path)
+        elif step_value.startswith("plan_review_failed:"):
+            n = int(step_value.split(":")[1])
+            return ("plan", n + 1, plan_path)
+        elif step_value == "plan_reviewed":
+            return ("implement", 1, plan_path)
+        elif step_value == "implemented":
+            return ("test_run", 1, plan_path)
+        elif step_value.startswith("test_run_failed:"):
+            n = int(step_value.split(":")[1])
+            return ("implement", n + 1, plan_path)
+        # unrecognized → fall through to heuristic
+
     plan_review_files = sorted(plan_reviews_dir.glob(f"{seq}-{slug}-plan-review-*.md"))
     if not plan_review_files:
         return ("plan_review", 1, plan_path)
@@ -594,6 +635,7 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, m
             return
 
         step = "plan_review"
+        _write_session(plan_path, "step", "planned")
         _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
     # Step 1.5: Iterative plan review
@@ -607,6 +649,7 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, m
 
             if plan_passed:
                 print(f">>> Plan review passed — see {plan_review_path}")
+                _write_session(plan_path, "step", "plan_reviewed")
                 break
 
             if attempt == max_iterations:
@@ -616,6 +659,7 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, m
                 )
 
             print(">>> Plan has issues — revising plan...")
+            _write_session(plan_path, "step", f"plan_review_failed:{attempt}")
             planner_reviewer.plan(
                 milestone.title, milestone.description, plan_path,
                 plan_review_path=plan_review_path,
@@ -635,6 +679,7 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, m
         else:
             print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
             implementer.implement(plan_path, patches_dir, roadmap_path=roadmap_path, line_number=milestone.line_number)
+            _write_session(plan_path, "step", "implemented")
             _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
         print(f"\n>>> RUNNING TESTS (iteration {iteration})...")
@@ -656,6 +701,7 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, m
                     f"Tests failed after {max_iterations} iteration(s).\n\n"
                     f"Last run: {test_run_path}\n\n{test_run_path.read_text()}"
                 )
+            _write_session(plan_path, "step", f"test_run_failed:{iteration}")
 
     # Step 4: Mark done + commit
     elapsed = int(time.monotonic() - milestone_start)
