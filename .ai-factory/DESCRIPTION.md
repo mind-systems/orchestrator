@@ -59,6 +59,11 @@ The project being orchestrated must have:
 - `ORCHESTRATOR_MAX_ITERATIONS` env var (default 3) — single iteration limit for all flows
 - Default models: PlannerReviewer=opus/high, PlanReviewer=opus/high, Implementer=sonnet/high
 
+## Architecture
+
+See `.ai-factory/ARCHITECTURE.md` for detailed guidelines.
+Pattern: Layered Architecture.
+
 ## Non-Functional Requirements
 
 - No test suite or linter configured
