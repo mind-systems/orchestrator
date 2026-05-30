@@ -11,12 +11,6 @@ cd orchestrator && uv sync
 # Plan + implement milestones (no review pass)
 uv run orchestrator implement /path/to/project
 
-# Review all existing plans against current codebase
-uv run orchestrator review /path/to/project
-
-# Audit + refactor pending milestones (RefactorPlanner finds issues itself)
-uv run orchestrator refactor /path/to/project
-
 # Write tests for milestones from ROADMAP_TESTS.md
 uv run orchestrator test /path/to/project
 
@@ -33,8 +27,7 @@ Four-agent pipeline that processes milestones from a target project's `.ai-facto
 1. **PlannerReviewer** (`agents.py`) — Opus/high. Session-persistent. Writes the plan, then later reviews code changes in the same session (so the reviewer has full planner context).
 2. **PlanReviewer** (`agents.py`) — Opus/high. Fresh session per attempt. Reviews the plan *before* implementation starts, writes `PLAN_REVIEW_PASS` or findings to `.ai-factory/plan-reviews/`.
 3. **Implementer** (`agents.py`) — Sonnet/high. Session-persistent across implement → fix iterations.
-4. **RefactorPlanner** (`agents.py`) — Opus/high. Session-persistent. Used only in `refactor` mode: audits a code area, writes a plan, then verifies fixes in the same session.
-5. **TestRunner** (`agents.py`) — No LLM. Used only in `test` mode: reads `## Test Command` from the plan file, runs it via shell, writes stdout+exit code to `.ai-factory/test-runs/`. Returns `True` if exit code is 0.
+4. **TestRunner** (`agents.py`) — No LLM. Used only in `test` mode: reads `## Test Command` from the plan file, runs it via shell, writes stdout+exit code to `.ai-factory/test-runs/`. Returns `True` if exit code is 0.
 
 Pipeline per milestone (`implement` mode):
 
@@ -74,5 +67,5 @@ For `test` mode, milestones are read from `.ai-factory/ROADMAP_TESTS.md` (same f
 
 ## Key constants
 
-- `ORCHESTRATOR_MAX_ITERATIONS` env var (default 3) — single iteration limit for all flows (plan review, implement review, refactor verify)
-- Default models/effort: PlannerReviewer=opus/high, PlanReviewer=opus/high, Implementer=sonnet/high, RefactorPlanner=opus/high — override when instantiating agents in `process_milestone()` / `process_refactor_milestone()`
+- `ORCHESTRATOR_MAX_ITERATIONS` env var (default 3) — single iteration limit for all flows (plan review, implement review, test run)
+- Default models/effort: PlannerReviewer=opus/high, PlanReviewer=opus/high, Implementer=sonnet/high — override when instantiating agents in `process_milestone()`

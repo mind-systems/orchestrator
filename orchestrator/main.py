@@ -10,7 +10,7 @@ import sys
 import time
 from pathlib import Path
 
-from .agents import Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, RateLimitError, RefactorPlanner, TestRunner, _read_sessions, _write_session
+from .agents import Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, RateLimitError, TestRunner, _read_sessions, _write_session
 from .roadmap import ParseResult, mark_done, mark_skipped, parse_roadmap
 from . import state
 
@@ -288,202 +288,6 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
 
     mins, secs = divmod(elapsed, 60)
     print(f">>> Milestone done [{mins}m {secs}s]")
-
-
-def process_refactor_milestone(project_dir: Path, milestone, milestone_index: int, max_iterations: int = 3) -> None:
-    """Audit → implement → verify loop for a single refactor milestone."""
-    ai_factory = project_dir / ".ai-factory"
-    plans_dir = ai_factory / "plans"
-    patches_dir = ai_factory / "patches"
-    reviews_dir = ai_factory / "reviews"
-    plan_reviews_dir = ai_factory / "plan-reviews"
-    plans_dir.mkdir(parents=True, exist_ok=True)
-    patches_dir.mkdir(parents=True, exist_ok=True)
-    reviews_dir.mkdir(parents=True, exist_ok=True)
-    plan_reviews_dir.mkdir(parents=True, exist_ok=True)
-
-    roadmap_path = project_dir / ".ai-factory" / "ROADMAP.md"
-    seq = f"{milestone_index:02d}"
-    plan_path = plans_dir / f"{seq}-{milestone.slug}.md"
-    print(f"\n{'='*60}")
-    print(f"MILESTONE: {milestone.title}")
-    print(f"{'='*60}")
-
-    step, counter, plan_path = _detect_milestone_step(project_dir, seq, milestone.slug, plan_path, plan_reviews_dir, reviews_dir)
-    seq = plan_path.stem.split("-", 1)[0]
-
-    elapsed_offset = 0
-    if plan_path.exists():
-        elapsed_offset = int(_read_sessions(plan_path).get("elapsed", "0"))
-    milestone_start = time.monotonic() - elapsed_offset
-
-    if step != "plan":
-        print(f">>> Resuming from step '{step}' (counter={counter})")
-
-    if step == "done":
-        elapsed = int(time.monotonic() - milestone_start)
-        mark_done(roadmap_path, milestone, elapsed)
-        _git_commit(project_dir, milestone.title)
-        mins, secs = divmod(elapsed, 60)
-        print(f">>> Milestone done [{mins}m {secs}s]")
-        return
-
-    # Create agents
-    refactor_planner = RefactorPlanner(project_dir)
-    implementer = Implementer(project_dir)
-
-    # Step 1: Audit + plan
-    if step == "plan":
-        print("\n>>> AUDITING...")
-        if counter > 1:
-            prev_plan_review = plan_reviews_dir / f"{seq}-{milestone.slug}-plan-review-{counter - 1}.md"
-            refactor_planner.audit_and_plan(milestone.title, milestone.description, plan_path, roadmap_path=roadmap_path, line_number=milestone.line_number, plan_review_path=prev_plan_review)
-        else:
-            refactor_planner.audit_and_plan(milestone.title, milestone.description, plan_path, roadmap_path=roadmap_path, line_number=milestone.line_number)
-
-        if not plan_path.exists():
-            print(f">>> Planner did not create a plan (milestone may already be done). Skipping.")
-            mark_skipped(roadmap_path, milestone)
-            return
-
-        step = "plan_review"
-        _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
-
-    # Step 1.5: Iterative plan review
-    if step in ("plan", "plan_review"):
-        for attempt in range(counter, max_iterations + 1):
-            print(f"\n>>> REVIEWING PLAN (attempt {attempt})...")
-            plan_reviewer = PlanReviewer(project_dir)
-            plan_review_path = plan_reviews_dir / f"{seq}-{milestone.slug}-plan-review-{attempt}.md"
-            plan_passed = plan_reviewer.review_plan(plan_path, plan_review_path)
-            _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
-
-            if plan_passed:
-                print(f">>> Plan review passed — see {plan_review_path}")
-                break
-
-            if attempt == max_iterations:
-                raise PipelineStopError(
-                    f"Plan failed review after {max_iterations} attempt(s).\n\n"
-                    f"Last review: {plan_review_path}\n\n{plan_review_path.read_text()}"
-                )
-
-            print(">>> Plan has issues — revising plan...")
-            refactor_planner.audit_and_plan(
-                milestone.title, milestone.description, plan_path,
-                plan_review_path=plan_review_path,
-            )
-
-    # Safety guard: ensure a passing plan review exists before implementing
-    _plan_review_files = sorted(plan_reviews_dir.glob(f"{seq}-{milestone.slug}-plan-review-*.md"))
-    if not _plan_review_files or not _plan_review_files[-1].read_text().strip().endswith("PLAN_REVIEW_PASS"):
-        raise PipelineStopError(
-            f"No passing plan review found for milestone {seq}-{milestone.slug}. Cannot proceed to implementation."
-        )
-
-    # Step 2-3: Implement → Verify loop
-    impl_start = counter if step in ("implement", "review") else 1
-    for iteration in range(impl_start, max_iterations + 1):
-        if step == "review" and iteration == counter:
-            # Resuming mid-verify: implementation already done, go straight to verify
-            pass
-        else:
-            print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
-            implementer.implement(plan_path, patches_dir, roadmap_path=roadmap_path, line_number=milestone.line_number)
-            _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
-
-        subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
-        review_path = reviews_dir / f"{seq}-{milestone.slug}-review-{iteration}.md"
-
-        print(f"\n>>> VERIFYING (iteration {iteration})...")
-        passed = refactor_planner.verify(plan_path, review_path)
-        _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
-
-        if passed:
-            print(f">>> VERIFY PASSED — see {review_path}")
-            break
-        else:
-            # Bridge verify findings to patches_dir so Implementer can read them
-            patch_path = patches_dir / f"{seq}-{milestone.slug}-patch-{iteration}.md"
-            patch_path.write_text(review_path.read_text())
-            if iteration == max_iterations:
-                raise PipelineStopError(
-                    f"Max iterations ({max_iterations}) reached.\n\n"
-                    f"Last review: {review_path}\n\n{review_path.read_text()}"
-                )
-
-    # Step 4: Mark done + commit
-    elapsed = int(time.monotonic() - milestone_start)
-    mark_done(roadmap_path, milestone, elapsed)
-    _git_commit(project_dir, milestone.title)
-
-    mins, secs = divmod(elapsed, 60)
-    print(f">>> Milestone done [{mins}m {secs}s]")
-
-
-def review_plan(project_dir: Path, plan_path: Path, max_iterations: int = 3) -> None:
-    """Review → patch → implement → review loop for a single plan."""
-    ai_factory = project_dir / ".ai-factory"
-    patches_dir = ai_factory / "patches"
-    reviews_dir = ai_factory / "reviews"
-    patches_dir.mkdir(parents=True, exist_ok=True)
-    reviews_dir.mkdir(parents=True, exist_ok=True)
-
-    slug = plan_path.stem  # e.g. "01-project-scaffold"
-    print(f"\n{'='*60}")
-    print(f"REVIEWING PLAN: {plan_path.name}")
-    print(f"{'='*60}")
-
-    planner_reviewer = PlannerReviewer(project_dir)
-    implementer = Implementer(project_dir)
-    plan_start = time.monotonic()
-
-    for iteration in range(1, max_iterations + 1):
-        print(f"\n>>> REVIEWING (iteration {iteration})...")
-        subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
-        review_path = reviews_dir / f"{slug}-review-{iteration}.md"
-        passed = planner_reviewer.review(plan_path, review_path)
-
-        if passed:
-            print(f">>> REVIEW PASSED — see {review_path}")
-            break
-
-        print(f">>> Review found issues — see {review_path}")
-
-        if iteration == max_iterations:
-            print(f"WARNING: Max iterations ({max_iterations}) reached. Moving on.")
-            break
-
-        # Planner creates a detailed patch from the review
-        print(f"\n>>> PATCHING (iteration {iteration})...")
-        patch_path = patches_dir / f"{slug}-patch-{iteration}.md"
-        planner_reviewer.patch(review_path, patch_path)
-
-        # Implementer applies the patch
-        print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
-        implementer.implement(plan_path, patches_dir)
-
-    # Build commit message from the last review's critical findings
-    review_files = sorted(reviews_dir.glob(f"{slug}-review-*.md"))
-    last_review = review_files[-1] if review_files else None
-    commit_msg = plan_path.stem.replace("-", " ", 1)  # "22 signal dispatch computation loop"
-    if last_review:
-        lines = last_review.read_text().splitlines()
-        # Collect issue titles (### N. ...) — numbered headings are actual findings
-        issues = []
-        for l in lines:
-            if l.startswith("### ") and l[4:5].isdigit():
-                title = l.lstrip("# ").strip()
-                # Remove leading "N. " numbering
-                title = title.split(". ", 1)[-1] if ". " in title else title
-                issues.append(title)
-        if issues:
-            commit_msg += "\n\n" + "\n".join(f"- {i}" for i in issues[:5])
-    _git_commit(project_dir, commit_msg)
-
-    elapsed = int(time.monotonic() - plan_start)
-    mins, secs = divmod(elapsed, 60)
-    print(f">>> Plan review done [{mins}m {secs}s]")
 
 
 def _with_caffeinate(func, *args, **kwargs):
@@ -784,37 +588,6 @@ def _implement_loop(project_dir: Path, max_iterations: int = 3, planner_prompt_n
     )
 
 
-def _refactor_loop(project_dir: Path, max_iterations: int = 3) -> None:
-    """Run refactor pipeline on all pending milestones."""
-    roadmap_path = project_dir / ".ai-factory" / "ROADMAP.md"
-
-    if not roadmap_path.exists():
-        print(f"ERROR: No ROADMAP.md found at {roadmap_path}")
-        sys.exit(1)
-
-    result = parse_roadmap(roadmap_path)
-    milestones = result.milestones
-    pending = [m for m in milestones if not m.done]
-
-    if not pending:
-        print("All milestones are done!")
-        return
-
-    if result.breakpoint_hit:
-        total = len(milestones) + result.milestones_after_breakpoint
-        print(f"Found {len(pending)} pending milestones out of {total} total (stopped at breakpoint — {result.milestones_after_breakpoint} milestones after marker not queued).")
-    else:
-        print(f"Found {len(pending)} pending milestones out of {len(milestones)} total.")
-
-    plans_dir = project_dir / ".ai-factory" / "plans"
-    plans_dir.mkdir(parents=True, exist_ok=True)
-
-    _run_loop(
-        enumerate(pending, start=_next_number(plans_dir)),
-        lambda item: process_refactor_milestone(project_dir, item[1], item[0], max_iterations),
-    )
-
-
 def run_implement(project_dir: Path, max_iterations: int = 3) -> None:
     """Implement only — plan + implement milestones, no review pass."""
     signal.signal(signal.SIGINT, _handle_sigint)
@@ -833,61 +606,12 @@ def run_test(project_dir: Path, max_iterations: int = 3) -> None:
     print(f"{'='*60}")
 
 
-def run_refactor(project_dir: Path, max_iterations: int = 3) -> None:
-    """Run refactor pipeline on pending milestones."""
-    signal.signal(signal.SIGINT, _handle_sigint)
-    time_str = _with_caffeinate(_refactor_loop, project_dir, max_iterations)
-    print(f"\n{'='*60}")
-    print(f"REFACTOR DONE — {time_str}")
-    print(f"{'='*60}")
-
-
-
-def run_review(project_dir: Path, max_iterations: int = 3):
-    """Review all existing plans against the current codebase. Returns the review loop callable, or None if nothing to review."""
-    plans_dir = project_dir / ".ai-factory" / "plans"
-
-    if not plans_dir.exists():
-        print(f"ERROR: No plans directory found at {plans_dir}")
-        sys.exit(1)
-
-    plan_files = sorted(plans_dir.glob("*.md"))
-    if not plan_files:
-        print("No plan files found.")
-        return
-
-    reviews_dir = project_dir / ".ai-factory" / "reviews"
-
-    def _already_passed(plan_path: Path) -> bool:
-        slug = plan_path.stem
-        for review_file in sorted(reviews_dir.glob(f"{slug}-review-*.md")):
-            if review_file.read_text().strip().endswith("REVIEW_PASS"):
-                return True
-        return False
-
-    pending = [p for p in plan_files if not _already_passed(p)]
-    skipped = len(plan_files) - len(pending)
-    if skipped:
-        print(f"Skipping {skipped} already-passed plans.")
-    if not pending:
-        print("All plans already passed review.")
-        return
-    print(f"Found {len(pending)} plans to review.")
-
-    def loop():
-        _run_loop(pending, lambda plan_path: review_plan(project_dir, plan_path, max_iterations))
-
-    return loop
-
-
 def cli() -> None:
     parser = argparse.ArgumentParser(description="AI orchestrator — plan, implement, review from roadmap")
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
 
     for cmd, help_text in [
         ("implement", "Plan and implement milestones"),
-        ("review", "Review all existing plans against current codebase"),
-        ("refactor", "Run refactor pipeline on pending milestones"),
         ("test", "Write tests for milestones (uses test-planner prompt)"),
     ]:
         p = subparsers.add_parser(cmd, help=help_text)
@@ -899,17 +623,7 @@ def cli() -> None:
     max_iterations = int(os.environ.get("ORCHESTRATOR_MAX_ITERATIONS", "3"))
 
     try:
-        if args.command == "review":
-            signal.signal(signal.SIGINT, _handle_sigint)
-            loop = run_review(project_dir, max_iterations)
-            if loop:
-                time_str = _with_caffeinate(loop)
-                print(f"\n{'='*60}")
-                print(f"ALL PLANS REVIEWED — {time_str}")
-                print(f"{'='*60}")
-        elif args.command == "refactor":
-            run_refactor(project_dir, max_iterations)
-        elif args.command == "test":
+        if args.command == "test":
             run_test(project_dir, max_iterations)
         else:
             run_implement(project_dir, max_iterations)
