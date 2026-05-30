@@ -7,7 +7,7 @@ Orchestrator is an AI-driven development automation tool that processes mileston
 ## Core Features
 
 - Reads milestones from `.ai-factory/ROADMAP.md` in the target project
-- Three-agent pipeline: plan → implement → review (with up to 3 review iterations)
+- Four-agent pipeline: plan → plan review → implement → code review (with up to N iterations per phase, configurable via `ORCHESTRATOR_MAX_ITERATIONS`)
 - Session-persistent agents: PlannerReviewer runs as Opus with `--resume`; Implementer runs as Sonnet with `--resume`
 - All agent communication through files (plans, patches), not shared memory
 - Automatic git commit after each completed milestone
@@ -17,7 +17,7 @@ Orchestrator is an AI-driven development automation tool that processes mileston
 
 - **Language:** Python 3.x
 - **Package manager:** uv (pyproject.toml)
-- **Runtime:** Shells out to `claude` CLI with `--output-format json`
+- **Runtime:** Shells out to `claude` CLI with `--output-format stream-json`
 - **No framework, no database** — pure Python CLI tool
 
 ## Architecture
@@ -28,10 +28,12 @@ Orchestrator is an AI-driven development automation tool that processes mileston
 main.py (Orchestrator loop)
   └── process_milestone()
         ├── PlannerReviewer (Opus, --resume) → .ai-factory/plans/<seq>-<slug>.md
+        ├── PlanReviewer (Opus, fresh session) → .ai-factory/plan-reviews/<seq>-<slug>-plan-review-<n>.md
+        │     └── PLAN_REVIEW_PASS → proceed / FAIL → PlannerReviewer revises
         ├── Implementer (Sonnet, --resume)
-        │     ← reads plan + patches
-        └── PlannerReviewer (review pass, same session) → .ai-factory/patches/<seq>-<slug>-review-<n>.md
-              └── detects REVIEW_PASS in output → commit or iterate
+        │     ← reads plan
+        └── PlannerReviewer (review pass, same session) → .ai-factory/reviews/<seq>-<slug>-review-<n>.md
+              └── REVIEW_PASS → commit / FAIL → Implementer fixes
 ```
 
 ### Key Files
@@ -55,7 +57,7 @@ The project being orchestrated must have:
 ## Key Constants
 
 - `ORCHESTRATOR_MAX_ITERATIONS` env var (default 3) — single iteration limit for all flows
-- Default models: Planner=opus/high, Reviewer=opus/medium, Implementer=sonnet/high
+- Default models: PlannerReviewer=opus/high, PlanReviewer=opus/high, Implementer=sonnet/high
 
 ## Non-Functional Requirements
 

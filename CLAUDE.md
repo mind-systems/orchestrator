@@ -51,7 +51,7 @@ PlannerReviewer.plan()      ← uses test-planner prompt
 
 All agents communicate through files, not shared memory. Output directories under `.ai-factory/`: `plans/`, `plan-reviews/`, `reviews/`, `patches/`, `test-runs/`.
 
-`_run_claude()` in `agents.py` shells out to the `claude` CLI with `--output-format json` and parses `result`/`session_id`. Pass/fail is detected by `PLAN_REVIEW_PASS` (plan review) or `REVIEW_PASS` (code review) as the last line of the respective file.
+`_run_claude()` in `agents.py` shells out to the `claude` CLI with `--output-format stream-json` and parses `result`/`session_id`. Pass/fail is detected by `PLAN_REVIEW_PASS` (plan review) or `REVIEW_PASS` (code review) as the last line of the respective file.
 
 ## Target project requirements
 
