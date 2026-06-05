@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -51,6 +52,26 @@ class PipelineStopError(Exception):
     """Raised to request a graceful halt of the pipeline."""
 
 
+def _resolve_claude() -> str:
+    """Return the absolute path to the claude CLI, or raise if not found."""
+    path = shutil.which("claude")
+    if path:
+        return path
+    # nvm installs into a versioned directory that may not be in a subprocess PATH
+    nvm_base = Path.home() / ".nvm" / "versions" / "node"
+    if nvm_base.is_dir():
+        for node_dir in sorted(nvm_base.iterdir(), reverse=True):
+            candidate = node_dir / "bin" / "claude"
+            if candidate.exists():
+                return str(candidate)
+    raise FileNotFoundError(
+        "claude CLI not found. Install it with: npm install -g @anthropic-ai/claude-code"
+    )
+
+
+_CLAUDE_BIN = _resolve_claude()
+
+
 def _run_claude(
     prompt: str,
     cwd: str,
@@ -65,7 +86,7 @@ def _run_claude(
         allowed_tools = ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
 
     cmd = [
-        "claude",
+        _CLAUDE_BIN,
         "-p", prompt,
         "--output-format", "stream-json",
         "--verbose",
