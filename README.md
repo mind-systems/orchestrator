@@ -8,6 +8,7 @@ Orchestrator читает milestone-ы из роадмапа целевого п
 
 ```bash
 cd orchestrator && uv sync
+cp orchestrator.json.example ~/.orchestrator.json  # затем отредактируйте при необходимости
 uv run orchestrator implement /path/to/project
 ```
 
@@ -45,7 +46,7 @@ uv run orchestrator implement /path/to/project
 | [Рабочий процесс](docs/workflow.md) | Паттерн работы: от роадмапа до e2e тестирования |
 | [Как это работает](docs/how-it-works.md) | Агентный конвейер, сессии, файловый протокол |
 | [Режим тестирования](docs/test-mode.md) | Как писать тесты через оркестратор |
-| [Конфигурация](docs/configuration.md) | Env-переменные, модели агентов, лимиты итераций |
+| [Конфигурация](docs/configuration.md) | Файл конфигурации, модели агентов, лимиты итераций |
 | [Требования к проекту](docs/target-project.md) | Что нужно целевому проекту для работы с оркестратором |
 
 ## Лицензия

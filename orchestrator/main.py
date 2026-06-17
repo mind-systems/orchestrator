@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import signal
 import subprocess
@@ -12,6 +11,7 @@ import time
 from pathlib import Path
 
 from .agents import Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, RateLimitError, TestRunner, _read_sessions, _write_session
+from .config import OrchestratorConfig, load_config
 from .roadmap import ParseResult, mark_done, mark_skipped, parse_roadmap
 from . import state
 
@@ -31,7 +31,7 @@ def _parse_pct(text: str, pattern: str) -> float | None:
     return float(m.group(1)) if m else None
 
 
-def _check_usage_limits() -> None:
+def _check_usage_limits(config: OrchestratorConfig) -> None:
     """Run `claude /usage`, log current usage, and stop if either threshold is breached."""
     try:
         result = subprocess.run(["claude", "/usage"], capture_output=True, text=True, timeout=30)
@@ -54,8 +54,8 @@ def _check_usage_limits() -> None:
         print("  [usage check: could not parse output, continuing]")
         return
 
-    session_threshold = float(os.environ.get("ORCHESTRATOR_USAGE_THRESHOLD", "90"))
-    weekly_threshold = float(os.environ.get("ORCHESTRATOR_WEEKLY_THRESHOLD", "95"))
+    session_threshold = config.usage_threshold_5h
+    weekly_threshold = config.usage_threshold_weekly
 
     if session_pct is not None and session_pct >= session_threshold:
         raise PipelineStopError(
@@ -241,8 +241,9 @@ def _detect_milestone_step(
     return ("done", 0, plan_path)
 
 
-def process_milestone(project_dir: Path, milestone, milestone_index: int, max_iterations: int = 3, planner_prompt_name: str = "planner", roadmap_filename: str = "ROADMAP.md", phase_session_id: str | None = None) -> str | None:
+def process_milestone(project_dir: Path, milestone, milestone_index: int, config: OrchestratorConfig, planner_prompt_name: str = "planner", roadmap_filename: str = "ROADMAP.md", phase_session_id: str | None = None) -> str | None:
     """Plan → implement → review loop for a single milestone."""
+    max_iterations = config.max_iterations
     ai_factory = project_dir / ".ai-factory"
     plans_dir = ai_factory / "plans"
     patches_dir = ai_factory / "patches"
@@ -348,7 +349,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
     if impl_start > max_iterations:
         raise PipelineStopError(
             f"Resume at iteration {impl_start} exceeds max_iterations "
-            f"({max_iterations}). Bump ORCHESTRATOR_MAX_ITERATIONS to continue."
+            f"({max_iterations}). Raise max_iterations in ~/.orchestrator.json to continue."
         )
     for iteration in range(impl_start, max_iterations + 1):
         if step == "review" and iteration == counter:
@@ -484,8 +485,9 @@ def _detect_test_milestone_step(
     return ("implement", len(test_run_files) + 1, plan_path)
 
 
-def process_test_milestone(project_dir: Path, milestone, milestone_index: int, max_iterations: int = 3, phase_session_id: str | None = None) -> str | None:
+def process_test_milestone(project_dir: Path, milestone, milestone_index: int, config: OrchestratorConfig, phase_session_id: str | None = None) -> str | None:
     """Plan → implement → test-run loop for a single test milestone."""
+    max_iterations = config.max_iterations
     ai_factory = project_dir / ".ai-factory"
     plans_dir = ai_factory / "plans"
     patches_dir = ai_factory / "patches"
@@ -588,7 +590,7 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, m
     if impl_start > max_iterations:
         raise PipelineStopError(
             f"Resume at iteration {impl_start} exceeds max_iterations "
-            f"({max_iterations}). Bump ORCHESTRATOR_MAX_ITERATIONS to continue."
+            f"({max_iterations}). Raise max_iterations in ~/.orchestrator.json to continue."
         )
     for iteration in range(impl_start, max_iterations + 1):
         if step == "test_run" and iteration == counter:
@@ -630,7 +632,7 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, m
     return planner_reviewer.session_id
 
 
-def _test_loop(project_dir: Path, max_iterations: int = 3) -> None:
+def _test_loop(project_dir: Path, config: OrchestratorConfig) -> None:
     """Write tests for all pending milestones from ROADMAP_TESTS.md."""
     roadmap_path = project_dir / ".ai-factory" / "ROADMAP_TESTS.md"
 
@@ -655,7 +657,7 @@ def _test_loop(project_dir: Path, max_iterations: int = 3) -> None:
     plans_dir = project_dir / ".ai-factory" / "plans"
     plans_dir.mkdir(parents=True, exist_ok=True)
 
-    phase_sessions_enabled = os.environ.get("ORCHESTRATOR_PHASE_SESSIONS", "true").lower() != "false"
+    phase_sessions_enabled = config.enable_phase_sessions
 
     current_section: str | None = None
     phase_session_id: str | None = None
@@ -663,16 +665,16 @@ def _test_loop(project_dir: Path, max_iterations: int = 3) -> None:
         if state.stop_requested:
             print("\n>>> Stop requested — halting.")
             break
-        _check_usage_limits()
+        _check_usage_limits(config)
         if milestone.section != current_section:
             current_section = milestone.section
             phase_session_id = None
         elif not phase_sessions_enabled:
             phase_session_id = None
-        phase_session_id = process_test_milestone(project_dir, milestone, i, max_iterations, phase_session_id=phase_session_id)
+        phase_session_id = process_test_milestone(project_dir, milestone, i, config, phase_session_id=phase_session_id)
 
 
-def _implement_loop(project_dir: Path, max_iterations: int = 3, planner_prompt_name: str = "planner", roadmap_filename: str = "ROADMAP.md") -> None:
+def _implement_loop(project_dir: Path, config: OrchestratorConfig, planner_prompt_name: str = "planner", roadmap_filename: str = "ROADMAP.md") -> None:
     """Plan + implement all pending milestones. No review."""
     roadmap_path = project_dir / ".ai-factory" / roadmap_filename
 
@@ -697,7 +699,7 @@ def _implement_loop(project_dir: Path, max_iterations: int = 3, planner_prompt_n
     plans_dir = project_dir / ".ai-factory" / "plans"
     plans_dir.mkdir(parents=True, exist_ok=True)
 
-    phase_sessions_enabled = os.environ.get("ORCHESTRATOR_PHASE_SESSIONS", "true").lower() != "false"
+    phase_sessions_enabled = config.enable_phase_sessions
 
     current_section: str | None = None
     phase_session_id: str | None = None
@@ -705,28 +707,28 @@ def _implement_loop(project_dir: Path, max_iterations: int = 3, planner_prompt_n
         if state.stop_requested:
             print("\n>>> Stop requested — halting.")
             break
-        _check_usage_limits()
+        _check_usage_limits(config)
         if milestone.section != current_section:
             current_section = milestone.section
             phase_session_id = None
         elif not phase_sessions_enabled:
             phase_session_id = None
-        phase_session_id = process_milestone(project_dir, milestone, i, max_iterations, planner_prompt_name, roadmap_filename, phase_session_id=phase_session_id)
+        phase_session_id = process_milestone(project_dir, milestone, i, config, planner_prompt_name, roadmap_filename, phase_session_id=phase_session_id)
 
 
-def run_implement(project_dir: Path, max_iterations: int = 3) -> None:
+def run_implement(project_dir: Path, config: OrchestratorConfig) -> None:
     """Implement only — plan + implement milestones, no review pass."""
     signal.signal(signal.SIGINT, _handle_sigint)
-    time_str = _with_caffeinate(_implement_loop, project_dir, max_iterations)
+    time_str = _with_caffeinate(_implement_loop, project_dir, config)
     print(f"\n{'='*60}")
     print(f"IMPLEMENT DONE — {time_str}")
     print(f"{'='*60}")
 
 
-def run_test(project_dir: Path, max_iterations: int = 3) -> None:
+def run_test(project_dir: Path, config: OrchestratorConfig) -> None:
     """Test mode — plan + implement tests, gate on real test runner output."""
     signal.signal(signal.SIGINT, _handle_sigint)
-    time_str = _with_caffeinate(_test_loop, project_dir, max_iterations)
+    time_str = _with_caffeinate(_test_loop, project_dir, config)
     print(f"\n{'='*60}")
     print(f"TEST DONE — {time_str}")
     print(f"{'='*60}")
@@ -746,13 +748,13 @@ def cli() -> None:
     args = parser.parse_args()
     project_dir = Path(args.project_dir).resolve() if hasattr(args, "project_dir") and args.project_dir else Path(".").resolve()
 
-    max_iterations = int(os.environ.get("ORCHESTRATOR_MAX_ITERATIONS", "3"))
+    config = load_config()
 
     try:
         if args.command == "test":
-            run_test(project_dir, max_iterations)
+            run_test(project_dir, config)
         else:
-            run_implement(project_dir, max_iterations)
+            run_implement(project_dir, config)
     except PipelineStopError as e:
         print(f"\n{'='*60}")
         print(f"STOPPED — {e}")

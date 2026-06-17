@@ -7,7 +7,7 @@ Orchestrator is an AI-driven development automation tool that processes mileston
 ## Core Features
 
 - Reads milestones from `.ai-factory/ROADMAP.md` in the target project
-- Four-agent pipeline: plan → plan review → implement → code review (with up to N iterations per phase, configurable via `ORCHESTRATOR_MAX_ITERATIONS`)
+- Four-agent pipeline: plan → plan review → implement → code review (with up to N iterations per phase, configurable via `max_iterations` in `~/.orchestrator.json`)
 - Session-persistent agents: PlannerReviewer runs as Opus with `--resume`; Implementer runs as Sonnet with `--resume`
 - All agent communication through files (plans, patches), not shared memory
 - Automatic git commit after each completed milestone
@@ -56,7 +56,7 @@ The project being orchestrated must have:
 
 ## Key Constants
 
-- `ORCHESTRATOR_MAX_ITERATIONS` env var (default 3) — single iteration limit for all flows
+- `max_iterations` field in `~/.orchestrator.json` (default 3) — single iteration limit for all flows
 - Default models: PlannerReviewer=opus/high, PlanReviewer=opus/high, Implementer=sonnet/high
 
 ## Architecture
