@@ -60,8 +60,4 @@
 
 - [x] **Adaptive session usage guard** — No mechanism prevents the orchestrator from starting a milestone that will breach the Claude Code 5-hour session limit. Add `_parse_usage_pct() -> float | None` (runs `claude /usage`, regex for `"Current session: N% used"`); add `UsageGuard` class with adaptive `check(idx)`: checks at milestone 0 and 1, then predicts next check via rolling delta (`next = idx + ceil((threshold - pct) / avg_delta) - 1`), falls back to `+5` when delta ≤ 0 or parse fails. Raise `PipelineStopError` when pct ≥ threshold. Add optional `before_each(i, item)` hook to `_run_loop` (default `None`, backward-compatible). Wire `UsageGuard` into both `_implement_loop` and `_test_loop`. `ORCHESTRATOR_USAGE_THRESHOLD` env var controls threshold (default `90`). Touch only `orchestrator/main.py`. Spec: `.ai-factory/notes/09-adaptive-usage-guard.md`. [7m 2s]
 
-## Completed
-
-| Milestone | Date |
-|-----------|------|
-| Orchestrator state file | 2026-03-29 |
+## Next
