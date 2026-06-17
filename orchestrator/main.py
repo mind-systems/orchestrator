@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import math
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -24,12 +26,62 @@ def _handle_sigint(sig, frame):
     print("\n>>> Will stop after the current milestone finishes. Press Ctrl+C again to force quit.")
 
 
-def _run_loop(items, process_fn) -> None:
+def _parse_usage_pct() -> float | None:
+    """Run `claude /usage` and extract the current session usage percentage."""
+    try:
+        result = subprocess.run(["claude", "/usage"], capture_output=True, text=True, timeout=30)
+        m = re.search(r"Current session:\s+(\d+(?:\.\d+)?)%\s+used", result.stdout)
+        return float(m.group(1)) if m else None
+    except Exception:
+        return None
+
+
+class UsageGuard:
+    """Polls `claude /usage` adaptively and stops the pipeline before hitting the session limit."""
+
+    def __init__(self, threshold: float = 90.0):
+        self.threshold = threshold
+        self._history: list[tuple[int, float]] = []
+        self._next_check_at: int = 0
+
+    def check(self, idx: int) -> None:
+        if idx < self._next_check_at:
+            return
+        pct = _parse_usage_pct()
+        if pct is None:
+            print("  [usage check: could not parse output, continuing]")
+            self._next_check_at = idx + 5
+            return
+        print(f"  [usage: session {pct:.0f}% used]")
+        if pct >= self.threshold:
+            raise PipelineStopError(
+                f"Session usage at {pct:.0f}% — stopping (threshold: {self.threshold:.0f}%)."
+            )
+        self._history.append((idx, pct))
+        self._next_check_at = self._predict_next(idx, pct)
+
+    def _predict_next(self, idx: int, pct: float) -> int:
+        if len(self._history) < 2:
+            return idx + 1
+        oldest_idx, oldest_pct = self._history[0]
+        span = idx - oldest_idx
+        if span == 0:
+            return idx + 5
+        avg_delta = (pct - oldest_pct) / span
+        if avg_delta <= 0:
+            return idx + 5
+        milestones_left = math.ceil((self.threshold - pct) / avg_delta)
+        return idx + max(1, milestones_left - 1)
+
+
+def _run_loop(items, process_fn, before_each=None) -> None:
     """Iterate over items, checking stop_requested before each."""
-    for item in items:
+    for i, item in enumerate(items):
         if state.stop_requested:
             print("\n>>> Stop requested — halting.")
             return
+        if before_each is not None:
+            before_each(i, item)
         process_fn(item)
 
 
@@ -612,12 +664,16 @@ def _test_loop(project_dir: Path, max_iterations: int = 3) -> None:
     plans_dir = project_dir / ".ai-factory" / "plans"
     plans_dir.mkdir(parents=True, exist_ok=True)
 
+    threshold = float(os.environ.get("ORCHESTRATOR_USAGE_THRESHOLD", "90"))
+    guard = UsageGuard(threshold=threshold)
+
     current_section: str | None = None
     phase_session_id: str | None = None
     for i, milestone in enumerate(pending, start=_next_number(plans_dir)):
         if state.stop_requested:
             print("\n>>> Stop requested — halting.")
             break
+        guard.check(i)
         if milestone.section != current_section:
             current_section = milestone.section
             phase_session_id = None
@@ -649,12 +705,16 @@ def _implement_loop(project_dir: Path, max_iterations: int = 3, planner_prompt_n
     plans_dir = project_dir / ".ai-factory" / "plans"
     plans_dir.mkdir(parents=True, exist_ok=True)
 
+    threshold = float(os.environ.get("ORCHESTRATOR_USAGE_THRESHOLD", "90"))
+    guard = UsageGuard(threshold=threshold)
+
     current_section: str | None = None
     phase_session_id: str | None = None
     for i, milestone in enumerate(pending, start=_next_number(plans_dir)):
         if state.stop_requested:
             print("\n>>> Stop requested — halting.")
             break
+        guard.check(i)
         if milestone.section != current_section:
             current_section = milestone.section
             phase_session_id = None
