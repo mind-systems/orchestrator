@@ -16,7 +16,9 @@ uv run orchestrator implement /path/to/project
 | Переменная | По умолчанию | Описание |
 |---|---|---|
 | `ORCHESTRATOR_MAX_ITERATIONS` | `3` | Лимит итераций для каждого цикла (план-ревью, код-ревью, test-run) |
-| `ORCHESTRATOR_USAGE_THRESHOLD` | `90` | Порог использования Claude Code сессии (%), при котором оркестратор останавливается перед следующим milestone |
+| `ORCHESTRATOR_USAGE_THRESHOLD` | `90` | Сессионный порог использования (%), при превышении которого оркестратор останавливается перед следующим milestone |
+| `ORCHESTRATOR_WEEKLY_THRESHOLD` | `95` | Недельный порог использования по всем моделям (%), при превышении которого оркестратор останавливается |
+| `ORCHESTRATOR_PHASE_SESSIONS` | `true` | Когда `false`, каждый milestone начинает новую сессию PlannerReviewer даже внутри одной фазы |
 
 ### ORCHESTRATOR_MAX_ITERATIONS
 
@@ -26,14 +28,29 @@ uv run orchestrator implement /path/to/project
 
 ### ORCHESTRATOR_USAGE_THRESHOLD
 
-Оркестратор отслеживает использование Claude Code сессии и останавливается до того, как оно достигнет лимита. Проверка адаптивная — не после каждого milestone, а по прогнозу:
+Перед каждым milestone оркестратор запускает `claude /usage` и проверяет два порога независимо: сессионный (`ORCHESTRATOR_USAGE_THRESHOLD`, по умолчанию 90) и недельный по всем моделям (`ORCHESTRATOR_WEEKLY_THRESHOLD`, по умолчанию 95). Превышение любого из них останавливает прогон до начала нового milestone.
 
-1. Проверка перед первым milestone (базовый уровень)
-2. Проверка после первого milestone (определяется delta на milestone)
-3. Следующая проверка — за один milestone до предсказанной границы: `текущий + ceil((threshold% - current%) / avg_delta) - 1`
-4. После каждой проверки прогноз пересчитывается
+В лог выводится строка вида:
 
-Для длинного прогона из 20+ milestone-ов оркестратор делает 3-4 проверки вместо 20. Если парсинг `/usage` не удался (сеть, формат изменился) — предупреждение в лог, прогон продолжается.
+```
+  [usage: session 26% · week 52%]
+```
+
+Это даёт видимость динамики по milestone-ам — delta накопления видна между строками. Если парсинг `/usage` не удался (сеть, формат изменился) — предупреждение в лог, прогон продолжается.
+
+Пример с явным заданием обоих порогов:
+
+```bash
+ORCHESTRATOR_USAGE_THRESHOLD=85 ORCHESTRATOR_WEEKLY_THRESHOLD=90 uv run orchestrator implement /path/to/project
+```
+
+### ORCHESTRATOR_WEEKLY_THRESHOLD
+
+Недельный порог потребления по всем моделям (%). Проверяется из той же строки `claude /usage` что и сессионный, независимо от него. Если `claude /usage` не возвращает недельную статистику, порог игнорируется.
+
+### ORCHESTRATOR_PHASE_SESSIONS
+
+Когда `false`, оркестратор не передаёт session ID PlannerReviewer между milestone-ами даже внутри одной фазы роадмапа — каждый milestone начинает со свежей сессии. Это позволяет сравнить расход токенов на идентичном прогоне: один раз с `ORCHESTRATOR_PHASE_SESSIONS=false`, один раз без, и сравнить строки `[usage: ...]` в логе.
 
 ## Модели агентов
 
