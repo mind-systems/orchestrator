@@ -15,6 +15,7 @@ class Milestone:
     description: str
     done: bool
     line_number: int  # 0-based line index in file
+    section: str | None = None
 
     @property
     def slug(self) -> str:
@@ -42,23 +43,28 @@ def parse_roadmap(path: Path) -> ParseResult:
     milestones: list[Milestone] = []
     marker_found = False
     milestones_after_breakpoint = 0
+    current_section: str | None = None
 
     for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("## ") or stripped.startswith("### "):
+            current_section = stripped.lstrip("#").strip()
+
         if marker_found:
-            if CHECKBOX_RE.match(line.strip()):
+            if CHECKBOX_RE.match(stripped):
                 milestones_after_breakpoint += 1
             continue
 
-        if line.strip() == "---STOP---":
+        if stripped == "---STOP---":
             marker_found = True
             continue
 
-        m = CHECKBOX_RE.match(line.strip())
+        m = CHECKBOX_RE.match(stripped)
         if m:
             done = m.group(1) == "x"
             title = m.group(2).strip()
             description = m.group(3).strip()
-            milestones.append(Milestone(title=title, description=description, done=done, line_number=i))
+            milestones.append(Milestone(title=title, description=description, done=done, line_number=i, section=current_section))
 
     breakpoint_hit = marker_found and milestones_after_breakpoint > 0
     return ParseResult(milestones=milestones, breakpoint_hit=breakpoint_hit, milestones_after_breakpoint=milestones_after_breakpoint)

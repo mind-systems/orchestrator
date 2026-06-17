@@ -198,7 +198,7 @@ def _detect_milestone_step(
     return ("done", 0, plan_path)
 
 
-def process_milestone(project_dir: Path, milestone, milestone_index: int, max_iterations: int = 3, planner_prompt_name: str = "planner", roadmap_filename: str = "ROADMAP.md") -> None:
+def process_milestone(project_dir: Path, milestone, milestone_index: int, max_iterations: int = 3, planner_prompt_name: str = "planner", roadmap_filename: str = "ROADMAP.md", phase_session_id: str | None = None) -> str | None:
     """Plan → implement → review loop for a single milestone."""
     ai_factory = project_dir / ".ai-factory"
     plans_dir = ai_factory / "plans"
@@ -236,15 +236,17 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
         _git_commit(project_dir, milestone.title)
         mins, secs = divmod(elapsed, 60)
         print(f">>> Milestone done [{mins}m {secs}s]")
-        return
+        return phase_session_id
 
     # Create agents
     planner_reviewer = PlannerReviewer(project_dir, planner_prompt_name=planner_prompt_name)
     implementer = Implementer(project_dir)
 
-    if sessions:
+    if sessions and sessions.get("planner"):
         planner_reviewer.session_id = sessions.get("planner")
-        implementer.session_id = sessions.get("implementer")
+    elif phase_session_id:
+        planner_reviewer.session_id = phase_session_id
+    implementer.session_id = sessions.get("implementer") if sessions else None
 
     # Step 1: Plan
     if step == "plan":
@@ -258,7 +260,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
         if not plan_path.exists():
             print(f">>> Planner did not create a plan (milestone may already be done). Skipping.")
             mark_skipped(roadmap_path, milestone)
-            return
+            return planner_reviewer.session_id
 
         step = "plan_review"
         _write_session(plan_path, "step", "planned")
@@ -340,6 +342,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, max_it
 
     mins, secs = divmod(elapsed, 60)
     print(f">>> Milestone done [{mins}m {secs}s]")
+    return planner_reviewer.session_id
 
 
 def _with_caffeinate(func, *args, **kwargs):
@@ -438,7 +441,7 @@ def _detect_test_milestone_step(
     return ("implement", len(test_run_files) + 1, plan_path)
 
 
-def process_test_milestone(project_dir: Path, milestone, milestone_index: int, max_iterations: int = 3) -> None:
+def process_test_milestone(project_dir: Path, milestone, milestone_index: int, max_iterations: int = 3, phase_session_id: str | None = None) -> str | None:
     """Plan → implement → test-run loop for a single test milestone."""
     ai_factory = project_dir / ".ai-factory"
     plans_dir = ai_factory / "plans"
@@ -474,15 +477,17 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, m
         _git_commit(project_dir, milestone.title)
         mins, secs = divmod(elapsed, 60)
         print(f">>> Milestone done [{mins}m {secs}s]")
-        return
+        return phase_session_id
 
     planner_reviewer = PlannerReviewer(project_dir, planner_prompt_name="test-planner")
     implementer = Implementer(project_dir)
     test_runner = TestRunner()
 
-    if sessions:
+    if sessions and sessions.get("planner"):
         planner_reviewer.session_id = sessions.get("planner")
-        implementer.session_id = sessions.get("implementer")
+    elif phase_session_id:
+        planner_reviewer.session_id = phase_session_id
+    implementer.session_id = sessions.get("implementer") if sessions else None
 
     # Step 1: Plan
     if step == "plan":
@@ -496,7 +501,7 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, m
         if not plan_path.exists():
             print(">>> Planner did not create a plan. Skipping.")
             mark_skipped(roadmap_path, milestone)
-            return
+            return planner_reviewer.session_id
 
         step = "plan_review"
         _write_session(plan_path, "step", "planned")
@@ -579,6 +584,7 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, m
 
     mins, secs = divmod(elapsed, 60)
     print(f">>> Milestone done [{mins}m {secs}s]")
+    return planner_reviewer.session_id
 
 
 def _test_loop(project_dir: Path, max_iterations: int = 3) -> None:
@@ -606,10 +612,16 @@ def _test_loop(project_dir: Path, max_iterations: int = 3) -> None:
     plans_dir = project_dir / ".ai-factory" / "plans"
     plans_dir.mkdir(parents=True, exist_ok=True)
 
-    _run_loop(
-        enumerate(pending, start=_next_number(plans_dir)),
-        lambda item: process_test_milestone(project_dir, item[1], item[0], max_iterations),
-    )
+    current_section: str | None = None
+    phase_session_id: str | None = None
+    for i, milestone in enumerate(pending, start=_next_number(plans_dir)):
+        if state.stop_requested:
+            print("\n>>> Stop requested — halting.")
+            break
+        if milestone.section != current_section:
+            current_section = milestone.section
+            phase_session_id = None
+        phase_session_id = process_test_milestone(project_dir, milestone, i, max_iterations, phase_session_id=phase_session_id)
 
 
 def _implement_loop(project_dir: Path, max_iterations: int = 3, planner_prompt_name: str = "planner", roadmap_filename: str = "ROADMAP.md") -> None:
@@ -637,10 +649,16 @@ def _implement_loop(project_dir: Path, max_iterations: int = 3, planner_prompt_n
     plans_dir = project_dir / ".ai-factory" / "plans"
     plans_dir.mkdir(parents=True, exist_ok=True)
 
-    _run_loop(
-        enumerate(pending, start=_next_number(plans_dir)),
-        lambda item: process_milestone(project_dir, item[1], item[0], max_iterations, planner_prompt_name, roadmap_filename),
-    )
+    current_section: str | None = None
+    phase_session_id: str | None = None
+    for i, milestone in enumerate(pending, start=_next_number(plans_dir)):
+        if state.stop_requested:
+            print("\n>>> Stop requested — halting.")
+            break
+        if milestone.section != current_section:
+            current_section = milestone.section
+            phase_session_id = None
+        phase_session_id = process_milestone(project_dir, milestone, i, max_iterations, planner_prompt_name, roadmap_filename, phase_session_id=phase_session_id)
 
 
 def run_implement(project_dir: Path, max_iterations: int = 3) -> None:
