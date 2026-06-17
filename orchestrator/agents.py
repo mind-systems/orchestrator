@@ -22,6 +22,11 @@ def _load_prompt(name: str) -> str:
 MAX_RETRIES = 3
 RETRY_DELAY = 30  # seconds
 
+def _has_signal(text: str, signal: str) -> bool:
+    """Return True if signal appears as an exact line within the last 5 lines."""
+    return any(line.strip() == signal for line in text.splitlines()[-5:])
+
+
 def _read_sessions(plan_path: Path) -> dict[str, str]:
     p = plan_path.with_suffix('.json')
     if not p.exists():
@@ -280,8 +285,7 @@ class PlannerReviewer:
 
         # Check the review file, not the chat output — look for REVIEW_PASS on its own line
         if review_path.exists():
-            review_text = review_path.read_text()
-            return review_text.strip().endswith("REVIEW_PASS")
+            return _has_signal(review_path.read_text(), "REVIEW_PASS")
         return False
 
 
@@ -321,7 +325,7 @@ class PlanReviewer:
             effort=self.effort,
         )
         if review_path.exists():
-            return review_path.read_text().strip().endswith("PLAN_REVIEW_PASS")
+            return _has_signal(review_path.read_text(), "PLAN_REVIEW_PASS")
         return False
 
 
