@@ -1,4 +1,4 @@
-"""Orchestrator configuration — loaded from ~/.orchestrator.json at startup."""
+"""Orchestrator configuration — loaded from orchestrator.json in the project root at startup."""
 
 from __future__ import annotations
 
@@ -18,7 +18,8 @@ class OrchestratorConfig:
 
 def load_config() -> OrchestratorConfig:
     """Load and validate config from ~/.orchestrator.json (or ORCHESTRATOR_CONFIG override)."""
-    path = Path(os.environ.get("ORCHESTRATOR_CONFIG", "~/.orchestrator.json")).expanduser()
+    default = Path(__file__).parent.parent / "orchestrator.json"
+    path = Path(os.environ.get("ORCHESTRATOR_CONFIG", str(default)))
 
     if not path.exists():
         raise SystemExit(

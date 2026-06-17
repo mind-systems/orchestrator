@@ -5,18 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Config file (required before first run)
-cat > ~/.orchestrator.json << 'EOF'
-{
-  "max_iterations": 3,
-  "usage_threshold_5h": 90,
-  "usage_threshold_weekly": 95,
-  "enable_phase_sessions": true
-}
-EOF
-
 # Install dependencies
 cd orchestrator && uv sync
+
+# Config file (required before first run)
+cp orchestrator.json.example orchestrator.json  # edit as needed
 
 # Plan + implement milestones (no review pass)
 uv run orchestrator implement /path/to/project
@@ -77,10 +70,10 @@ For `test` mode, milestones are read from `.ai-factory/ROADMAP_TESTS.md` (same f
 
 ## Key constants
 
-- `~/.orchestrator.json` config file fields:
+- `orchestrator.json` config file (project root, gitignored — copy from `orchestrator.json.example`):
   - `max_iterations` (default 3) — single iteration limit for all flows (plan review, implement review, test run)
   - `usage_threshold_5h` (default 90) — stop if 5-hour session usage exceeds this percentage
   - `usage_threshold_weekly` (default 95) — stop if weekly usage exceeds this percentage
   - `enable_phase_sessions` (default true) — carry PlannerReviewer session across milestones within a roadmap phase
-- `ORCHESTRATOR_CONFIG` env var — override the config file path (default: `~/.orchestrator.json`)
+- `ORCHESTRATOR_CONFIG` env var — override the config file path (default: `orchestrator.json` in the project root)
 - Default models/effort: PlannerReviewer=opus/high, PlanReviewer=opus/high, Implementer=sonnet/high — override when instantiating agents in `process_milestone()`

@@ -2,7 +2,7 @@
 
 ## Файл конфигурации
 
-Все настройки оркестратора задаются в `~/.orchestrator.json`. Файл обязателен — без него оркестратор не запустится.
+Все настройки оркестратора задаются в `orchestrator.json` в корне репозитория. Файл обязателен — без него оркестратор не запустится. Он gitignored, поэтому изменения настроек не светятся в `git diff`; шаблон для копирования — `orchestrator.json.example`.
 
 ```json
 {
@@ -15,10 +15,10 @@
 
 Все четыре поля обязательны. Отсутствие файла или любого из полей — ошибка при запуске с внятным сообщением.
 
-Путь к файлу можно переопределить через единственную env-переменную:
+Путь к файлу можно переопределить через env-переменную:
 
 ```bash
-ORCHESTRATOR_CONFIG=./my-config.json uv run orchestrator implement /path/to/project
+ORCHESTRATOR_CONFIG=/path/to/my-config.json uv run orchestrator implement /path/to/project
 ```
 
 ### max_iterations

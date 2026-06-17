@@ -8,7 +8,7 @@ Orchestrator читает milestone-ы из роадмапа целевого п
 
 ```bash
 cd orchestrator && uv sync
-cp orchestrator.json.example ~/.orchestrator.json  # затем отредактируйте при необходимости
+cp orchestrator.json.example orchestrator.json  # затем отредактируйте при необходимости
 uv run orchestrator implement /path/to/project
 ```
 

@@ -36,3 +36,6 @@ htmlcov/
 
 # Sidecar atomic-write temp files
 *.json.tmp
+
+# Local config (use orchestrator.json.example as a template)
+orchestrator.json
