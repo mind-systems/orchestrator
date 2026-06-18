@@ -9,7 +9,7 @@
   "max_iterations": 3,
   "usage_threshold_5h": 90,
   "usage_threshold_weekly": 95,
-  "enable_phase_sessions": true
+  "enable_phase_sessions": false
 }
 ```
 

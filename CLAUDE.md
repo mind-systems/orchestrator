@@ -74,6 +74,6 @@ For `test` mode, milestones are read from `.ai-factory/ROADMAP_TESTS.md` (same f
   - `max_iterations` (default 3) — single iteration limit for all flows (plan review, implement review, test run)
   - `usage_threshold_5h` (default 90) — stop if 5-hour session usage exceeds this percentage
   - `usage_threshold_weekly` (default 95) — stop if weekly usage exceeds this percentage
-  - `enable_phase_sessions` (default true) — carry PlannerReviewer session across milestones within a roadmap phase
+  - `enable_phase_sessions` (default false) — carry PlannerReviewer session across milestones within a roadmap phase
 - `ORCHESTRATOR_CONFIG` env var — override the config file path (default: `orchestrator.json` in the project root)
 - Default models/effort: PlannerReviewer=opus/high, PlanReviewer=opus/high, Implementer=sonnet/high — override when instantiating agents in `process_milestone()`
