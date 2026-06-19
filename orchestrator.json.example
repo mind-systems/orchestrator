@@ -2,5 +2,7 @@
   "max_iterations": 3,
   "usage_threshold_5h": 90,
   "usage_threshold_weekly": 95,
-  "enable_phase_sessions": false
+  "enable_phase_sessions": false,
+  "telegram_bot_token": "",
+  "telegram_chat_id": ""
 }

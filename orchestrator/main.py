@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .agents import Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, RateLimitError, TestRunner, _read_sessions, _write_session
 from .config import OrchestratorConfig, load_config
+from .notify import send_telegram
 from .roadmap import ParseResult, mark_done, mark_skipped, parse_roadmap
 from . import state
 
@@ -751,11 +752,25 @@ def cli() -> None:
         print(f"\n{'='*60}")
         print(f"STOPPED — {e}")
         print(f"{'='*60}")
+        msg = str(e).splitlines()[0]
+        if config.telegram_bot_token and config.telegram_chat_id:
+            send_telegram(
+                config.telegram_bot_token,
+                config.telegram_chat_id,
+                f"Orchestrator stopped: {project_dir.name}\nReason: {msg}",
+            )
         sys.exit(0)
     except RateLimitError as e:
         print(f"\n{'='*60}")
         print(f"STOPPED — Claude rate limit reached: {e}")
         print(f"{'='*60}")
+        msg = str(e).splitlines()[0]
+        if config.telegram_bot_token and config.telegram_chat_id:
+            send_telegram(
+                config.telegram_bot_token,
+                config.telegram_chat_id,
+                f"Orchestrator rate-limited: {project_dir.name}\nReason: {msg}",
+            )
         sys.exit(0)
 
 

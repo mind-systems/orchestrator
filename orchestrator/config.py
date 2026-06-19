@@ -14,6 +14,8 @@ class OrchestratorConfig:
     usage_threshold_5h: float
     usage_threshold_weekly: float
     enable_phase_sessions: bool
+    telegram_bot_token: str | None = None
+    telegram_chat_id: str | None = None
 
 
 def load_config() -> OrchestratorConfig:
@@ -43,4 +45,6 @@ def load_config() -> OrchestratorConfig:
         usage_threshold_5h=float(data["usage_threshold_5h"]),
         usage_threshold_weekly=float(data["usage_threshold_weekly"]),
         enable_phase_sessions=bool(data["enable_phase_sessions"]),
+        telegram_bot_token=data.get("telegram_bot_token") or None,
+        telegram_chat_id=data.get("telegram_chat_id") or None,
     )
