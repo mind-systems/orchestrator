@@ -4,5 +4,6 @@
   "usage_threshold_weekly": 95,
   "enable_phase_sessions": false,
   "telegram_bot_token": "",
-  "telegram_chat_id": ""
+  "telegram_chat_id": "",
+  "telegram_alerts": []
 }

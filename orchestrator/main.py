@@ -12,7 +12,7 @@ from pathlib import Path
 
 from .agents import Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, RateLimitError, TestRunner, _read_sessions, _write_session
 from .config import OrchestratorConfig, load_config
-from .notify import send_telegram
+from .notify import notify
 from .roadmap import ParseResult, mark_done, mark_skipped, parse_roadmap
 from . import state
 
@@ -279,6 +279,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
         elapsed = int(time.monotonic() - milestone_start)
         mark_done(roadmap_path, milestone, elapsed)
         _git_commit(project_dir, milestone.title)
+        notify(config, f"Milestone done: {milestone.title}\nProject: {project_dir.name}", "milestone")
         mins, secs = divmod(elapsed, 60)
         print(f">>> Milestone done [{mins}m {secs}s]")
         return phase_session_id
@@ -384,6 +385,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
     elapsed = int(time.monotonic() - milestone_start)
     mark_done(roadmap_path, milestone, elapsed)
     _git_commit(project_dir, milestone.title)
+    notify(config, f"Milestone done: {milestone.title}\nProject: {project_dir.name}", "milestone")
 
     mins, secs = divmod(elapsed, 60)
     print(f">>> Milestone done [{mins}m {secs}s]")
@@ -521,6 +523,7 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, c
         elapsed = int(time.monotonic() - milestone_start)
         mark_done(roadmap_path, milestone, elapsed)
         _git_commit(project_dir, milestone.title)
+        notify(config, f"Milestone done: {milestone.title}\nProject: {project_dir.name}", "milestone")
         mins, secs = divmod(elapsed, 60)
         print(f">>> Milestone done [{mins}m {secs}s]")
         return phase_session_id
@@ -627,6 +630,7 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, c
     elapsed = int(time.monotonic() - milestone_start)
     mark_done(roadmap_path, milestone, elapsed)
     _git_commit(project_dir, milestone.title)
+    notify(config, f"Milestone done: {milestone.title}\nProject: {project_dir.name}", "milestone")
 
     mins, secs = divmod(elapsed, 60)
     print(f">>> Milestone done [{mins}m {secs}s]")
@@ -659,6 +663,7 @@ def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: Orchestrato
         result = parse_roadmap(roadmap_path)
         pending = [m for m in result.milestones if not m.done]
         if not pending:
+            notify(config, f"All milestones done: {project_dir.name}", "done")
             break
 
         milestone = pending[0]
@@ -753,24 +758,14 @@ def cli() -> None:
         print(f"STOPPED — {e}")
         print(f"{'='*60}")
         msg = str(e).splitlines()[0]
-        if config.telegram_bot_token and config.telegram_chat_id:
-            send_telegram(
-                config.telegram_bot_token,
-                config.telegram_chat_id,
-                f"Orchestrator stopped: {project_dir.name}\nReason: {msg}",
-            )
+        notify(config, f"Orchestrator stopped: {project_dir.name}\n{msg}", "stop")
         sys.exit(0)
     except RateLimitError as e:
         print(f"\n{'='*60}")
         print(f"STOPPED — Claude rate limit reached: {e}")
         print(f"{'='*60}")
         msg = str(e).splitlines()[0]
-        if config.telegram_bot_token and config.telegram_chat_id:
-            send_telegram(
-                config.telegram_bot_token,
-                config.telegram_chat_id,
-                f"Orchestrator rate-limited: {project_dir.name}\nReason: {msg}",
-            )
+        notify(config, f"Orchestrator rate-limited: {project_dir.name}\n{msg}", "stop")
         sys.exit(0)
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -16,6 +16,7 @@ class OrchestratorConfig:
     enable_phase_sessions: bool
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
+    telegram_alerts: list[str] = field(default_factory=list)
 
 
 def load_config() -> OrchestratorConfig:
@@ -47,4 +48,5 @@ def load_config() -> OrchestratorConfig:
         enable_phase_sessions=bool(data["enable_phase_sessions"]),
         telegram_bot_token=data.get("telegram_bot_token") or None,
         telegram_chat_id=data.get("telegram_chat_id") or None,
+        telegram_alerts=data.get("telegram_alerts") or [],
     )
