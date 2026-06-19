@@ -70,23 +70,42 @@ def parse_roadmap(path: Path) -> ParseResult:
     return ParseResult(milestones=milestones, breakpoint_hit=breakpoint_hit, milestones_after_breakpoint=milestones_after_breakpoint)
 
 
+def _find_milestone_line(lines: list[str], milestone: Milestone) -> int | None:
+    """Return the 0-based index of the unchecked milestone line matching *milestone.title*.
+
+    Strips each line before matching (mirrors ``parse_roadmap``).  Returns ``None``
+    when no unchecked line with that title is found.
+    """
+    for i, line in enumerate(lines):
+        m = CHECKBOX_RE.match(line.strip())
+        if m and m.group(1) == " " and m.group(2).strip() == milestone.title:
+            return i
+    return None
+
+
 def mark_done(path: Path, milestone: Milestone, elapsed_secs: int | None = None) -> None:
     """Mark a milestone as completed in ROADMAP.md."""
     lines = path.read_text().splitlines()
-    line = lines[milestone.line_number]
+    idx = _find_milestone_line(lines, milestone)
+    if idx is None:
+        idx = milestone.line_number
+    line = lines[idx]
     new_line = line.replace("- [ ]", "- [x]", 1)
     if elapsed_secs is not None:
         mins, secs = divmod(elapsed_secs, 60)
         hours, mins = divmod(mins, 60)
         time_str = f"{hours}h {mins}m {secs}s" if hours else f"{mins}m {secs}s"
         new_line = new_line.rstrip() + f" [{time_str}]"
-    lines[milestone.line_number] = new_line
+    lines[idx] = new_line
     path.write_text("\n".join(lines) + "\n")
 
 
 def mark_skipped(path: Path, milestone: Milestone) -> None:
     """Mark a milestone as skipped (already done) in ROADMAP.md."""
     lines = path.read_text().splitlines()
-    line = lines[milestone.line_number]
-    lines[milestone.line_number] = line.replace("- [ ]", "- [x] ⚠️ SKIPPED (already implemented)", 1)
+    idx = _find_milestone_line(lines, milestone)
+    if idx is None:
+        idx = milestone.line_number
+    line = lines[idx]
+    lines[idx] = line.replace("- [ ]", "- [x] ⚠️ SKIPPED (already implemented)", 1)
     path.write_text("\n".join(lines) + "\n")
