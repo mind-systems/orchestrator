@@ -632,88 +632,80 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, c
     return planner_reviewer.session_id
 
 
-def _test_loop(project_dir: Path, config: OrchestratorConfig) -> None:
-    """Write tests for all pending milestones from ROADMAP_TESTS.md."""
-    roadmap_path = project_dir / ".ai-factory" / "ROADMAP_TESTS.md"
-
-    if not roadmap_path.exists():
-        print(f"ERROR: No ROADMAP_TESTS.md found at {roadmap_path}")
-        sys.exit(1)
-
-    result = parse_roadmap(roadmap_path)
-    milestones = result.milestones
-    pending = [m for m in milestones if not m.done]
-
-    if not pending:
-        print("All test milestones are done!")
-        return
-
-    if result.breakpoint_hit:
-        total = len(milestones) + result.milestones_after_breakpoint
-        print(f"Found {len(pending)} pending test milestones out of {total} total (stopped at breakpoint — {result.milestones_after_breakpoint} milestones after marker not queued).")
-    else:
-        print(f"Found {len(pending)} pending test milestones out of {len(milestones)} total.")
-
+def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: OrchestratorConfig, process_fn) -> None:
+    """Dynamically re-scan the roadmap before each milestone, always running the first unchecked one."""
     plans_dir = project_dir / ".ai-factory" / "plans"
     plans_dir.mkdir(parents=True, exist_ok=True)
-
     phase_sessions_enabled = config.enable_phase_sessions
+
+    # Startup summary (printed once)
+    result = parse_roadmap(roadmap_path)
+    pending = [m for m in result.milestones if not m.done]
+    if not pending:
+        print("All milestones are done!")
+        return
+    if result.breakpoint_hit:
+        total = len(result.milestones) + result.milestones_after_breakpoint
+        print(f"Found {len(pending)} pending milestones out of {total} total (stopped at breakpoint — {result.milestones_after_breakpoint} milestones after marker not queued).")
+    else:
+        print(f"Found {len(pending)} pending milestones out of {len(result.milestones)} total.")
 
     current_section: str | None = None
     phase_session_id: str | None = None
-    for i, milestone in enumerate(pending, start=_next_number(plans_dir)):
-        if state.stop_requested:
-            print("\n>>> Stop requested — halting.")
+    last_signature: tuple[str, str] | None = None
+
+    while not state.stop_requested:
+        result = parse_roadmap(roadmap_path)
+        pending = [m for m in result.milestones if not m.done]
+        if not pending:
             break
+
+        milestone = pending[0]
+        signature = (milestone.title, milestone.description)
+        if signature == last_signature:
+            raise PipelineStopError(
+                f"Milestone '{milestone.title}' checkbox is still unchecked after processing. "
+                f"Refusing to re-run the same milestone forever — check mark_done / mark_skipped."
+            )
+        last_signature = signature
+
+        i = _next_number(plans_dir)
         _check_usage_limits(config)
+
         if milestone.section != current_section:
             current_section = milestone.section
             phase_session_id = None
         elif not phase_sessions_enabled:
             phase_session_id = None
-        phase_session_id = process_test_milestone(project_dir, milestone, i, config, phase_session_id=phase_session_id)
+
+        phase_session_id = process_fn(milestone, i, phase_session_id)
+
+    if state.stop_requested:
+        print("\n>>> Stop requested — halting.")
+
+
+def _test_loop(project_dir: Path, config: OrchestratorConfig) -> None:
+    """Write tests for all pending milestones from ROADMAP_TESTS.md."""
+    roadmap_path = project_dir / ".ai-factory" / "ROADMAP_TESTS.md"
+    if not roadmap_path.exists():
+        print(f"ERROR: No ROADMAP_TESTS.md found at {roadmap_path}")
+        sys.exit(1)
+    _run_dynamic_loop(
+        project_dir, roadmap_path, config,
+        lambda m, i, sid: process_test_milestone(project_dir, m, i, config, phase_session_id=sid),
+    )
 
 
 def _implement_loop(project_dir: Path, config: OrchestratorConfig, planner_prompt_name: str = "planner", roadmap_filename: str = "ROADMAP.md") -> None:
     """Plan + implement all pending milestones. No review."""
     roadmap_path = project_dir / ".ai-factory" / roadmap_filename
-
     if not roadmap_path.exists():
         print(f"ERROR: No ROADMAP.md found at {roadmap_path}")
         sys.exit(1)
-
-    result = parse_roadmap(roadmap_path)
-    milestones = result.milestones
-    pending = [m for m in milestones if not m.done]
-
-    if not pending:
-        print("All milestones are done!")
-        return
-
-    if result.breakpoint_hit:
-        total = len(milestones) + result.milestones_after_breakpoint
-        print(f"Found {len(pending)} pending milestones out of {total} total (stopped at breakpoint — {result.milestones_after_breakpoint} milestones after marker not queued).")
-    else:
-        print(f"Found {len(pending)} pending milestones out of {len(milestones)} total.")
-
-    plans_dir = project_dir / ".ai-factory" / "plans"
-    plans_dir.mkdir(parents=True, exist_ok=True)
-
-    phase_sessions_enabled = config.enable_phase_sessions
-
-    current_section: str | None = None
-    phase_session_id: str | None = None
-    for i, milestone in enumerate(pending, start=_next_number(plans_dir)):
-        if state.stop_requested:
-            print("\n>>> Stop requested — halting.")
-            break
-        _check_usage_limits(config)
-        if milestone.section != current_section:
-            current_section = milestone.section
-            phase_session_id = None
-        elif not phase_sessions_enabled:
-            phase_session_id = None
-        phase_session_id = process_milestone(project_dir, milestone, i, config, planner_prompt_name, roadmap_filename, phase_session_id=phase_session_id)
+    _run_dynamic_loop(
+        project_dir, roadmap_path, config,
+        lambda m, i, sid: process_milestone(project_dir, m, i, config, planner_prompt_name, roadmap_filename, phase_session_id=sid),
+    )
 
 
 def run_implement(project_dir: Path, config: OrchestratorConfig) -> None:
