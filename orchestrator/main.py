@@ -279,7 +279,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
         elapsed = int(time.monotonic() - milestone_start)
         mark_done(roadmap_path, milestone, elapsed)
         _git_commit(project_dir, milestone.title)
-        notify(config, f"Milestone done: {milestone.title}\nProject: {project_dir.name}", "milestone")
+        notify(config, f"{project_dir.name}: Milestone done: {milestone.title}", "milestone")
         mins, secs = divmod(elapsed, 60)
         print(f">>> Milestone done [{mins}m {secs}s]")
         return phase_session_id
@@ -385,7 +385,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
     elapsed = int(time.monotonic() - milestone_start)
     mark_done(roadmap_path, milestone, elapsed)
     _git_commit(project_dir, milestone.title)
-    notify(config, f"Milestone done: {milestone.title}\nProject: {project_dir.name}", "milestone")
+    notify(config, f"{project_dir.name}: Milestone done: {milestone.title}", "milestone")
 
     mins, secs = divmod(elapsed, 60)
     print(f">>> Milestone done [{mins}m {secs}s]")
@@ -523,7 +523,7 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, c
         elapsed = int(time.monotonic() - milestone_start)
         mark_done(roadmap_path, milestone, elapsed)
         _git_commit(project_dir, milestone.title)
-        notify(config, f"Milestone done: {milestone.title}\nProject: {project_dir.name}", "milestone")
+        notify(config, f"{project_dir.name}: Milestone done: {milestone.title}", "milestone")
         mins, secs = divmod(elapsed, 60)
         print(f">>> Milestone done [{mins}m {secs}s]")
         return phase_session_id
@@ -630,7 +630,7 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, c
     elapsed = int(time.monotonic() - milestone_start)
     mark_done(roadmap_path, milestone, elapsed)
     _git_commit(project_dir, milestone.title)
-    notify(config, f"Milestone done: {milestone.title}\nProject: {project_dir.name}", "milestone")
+    notify(config, f"{project_dir.name}: Milestone done: {milestone.title}", "milestone")
 
     mins, secs = divmod(elapsed, 60)
     print(f">>> Milestone done [{mins}m {secs}s]")
