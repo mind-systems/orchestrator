@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import shutil
 import subprocess
 import sys
@@ -13,6 +14,22 @@ from pathlib import Path
 from . import state
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
+
+
+def kill_active_child() -> None:
+    """Kill the in-flight Claude CLI child process group, if any."""
+    proc = state.active_proc
+    if proc is None or proc.poll() is not None:
+        state.active_proc = None
+        return
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        try:
+            proc.kill()
+        except Exception:
+            pass
+    state.active_proc = None
 
 
 def _load_prompt(name: str) -> str:
@@ -119,6 +136,7 @@ def _run_claude(
             text=True,
             start_new_session=True,
         )
+        state.active_proc = proc
 
         lines: list[str] = []
         sid_seen: str = ""
@@ -137,8 +155,7 @@ def _run_claude(
                     except json.JSONDecodeError:
                         pass
         except KeyboardInterrupt:
-            proc.kill()
-            proc.wait()
+            kill_active_child()
             if sid_seen:
                 print(f"\n>>> Interrupted — session: {sid_seen}")
             else:
@@ -146,6 +163,7 @@ def _run_claude(
             sys.exit(130)
 
         proc.wait()
+        state.active_proc = None
         stderr = proc.stderr.read() if proc.stderr else ""  # type: ignore[union-attr]
         stdout = "\n".join(lines)
 

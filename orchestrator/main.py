@@ -10,7 +10,7 @@ import sys
 import time
 from pathlib import Path
 
-from .agents import Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, RateLimitError, TestRunner, _read_sessions, _write_session
+from .agents import Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, RateLimitError, TestRunner, _read_sessions, _write_session, kill_active_child
 from .config import OrchestratorConfig, load_config
 from .notify import notify
 from .roadmap import ParseResult, mark_done, mark_skipped, parse_roadmap
@@ -21,6 +21,7 @@ from . import state
 def _handle_sigint(sig, frame):
     if state.stop_requested:
         print("\n>>> Force quit.")
+        kill_active_child()
         sys.exit(1)
     state.stop_requested = True
     print("\n>>> Will stop after the current milestone finishes. Press Ctrl+C again to force quit.")
