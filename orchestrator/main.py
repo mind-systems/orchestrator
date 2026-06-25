@@ -393,27 +393,38 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
     return planner_reviewer.session_id
 
 
+def _fmt_elapsed(seconds: int) -> str:
+    mins, secs = divmod(seconds, 60)
+    hours, mins = divmod(mins, 60)
+    return f"{hours}h {mins}m {secs}s" if hours else f"{mins}m {secs}s"
+
+
 def _with_caffeinate(func, *args, **kwargs):
-    """Run a function with macOS sleep prevention."""
-    caffeinate = subprocess.Popen(["caffeinate", "-ims"])
+    """Run a function with macOS sleep prevention (degrades gracefully on non-macOS)."""
     start = time.monotonic()
+    try:
+        caffeinate = subprocess.Popen(["caffeinate", "-ims"])
+    except FileNotFoundError:
+        # caffeinate not available (non-macOS); run without sleep prevention
+        try:
+            func(*args, **kwargs)
+        except Exception:
+            elapsed = int(time.monotonic() - start)
+            print(f">>> Ran for {_fmt_elapsed(elapsed)} before stopping.")
+            raise
+        return _fmt_elapsed(int(time.monotonic() - start))
+
     try:
         func(*args, **kwargs)
     except Exception:
         elapsed = int(time.monotonic() - start)
-        mins, secs = divmod(elapsed, 60)
-        hours, mins = divmod(mins, 60)
-        elapsed_str = f"{hours}h {mins}m {secs}s" if hours else f"{mins}m {secs}s"
-        print(f">>> Ran for {elapsed_str} before stopping.")
+        print(f">>> Ran for {_fmt_elapsed(elapsed)} before stopping.")
         raise
     finally:
         caffeinate.send_signal(signal.SIGTERM)
         caffeinate.wait()
 
-    elapsed = int(time.monotonic() - start)
-    mins, secs = divmod(elapsed, 60)
-    hours, mins = divmod(mins, 60)
-    return f"{hours}h {mins}m {secs}s" if hours else f"{mins}m {secs}s"
+    return _fmt_elapsed(int(time.monotonic() - start))
 
 
 def _detect_test_milestone_step(
