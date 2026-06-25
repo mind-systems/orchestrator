@@ -1,0 +1,15 @@
+$ uv run pytest tests/test_roadmap.py
+exit code: 0
+elapsed: 0.9s
+
+============================= test session starts ==============================
+platform darwin -- Python 3.13.0, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/max/projects/orchestrator
+configfile: pyproject.toml
+collected 23 items
+
+tests/test_roadmap.py .......................                            [100%]
+
+============================== 23 passed in 0.13s ==============================
+
+TEST_PASS
