@@ -114,4 +114,17 @@ Move to **Structured Modules** when:
 
 | Feature | Commit |
 |---------|--------|
-| _(populated by `/roadmap-prune`)_ | — |
+| **Pipeline control** | |
+| Iterative plan review gate | 15f1e77 |
+| Crash recovery — mid-milestone resume | 48e435d |
+| Test mode — real test runner gate | fb219a4 |
+| Dynamic roadmap re-scan loop | a9b1c12 |
+| Roadmap breakpoint marker | 9a4aa63 |
+| **Session & observability** | |
+| Phase-persistent planner session | 025658d |
+| Per-milestone usage guard | b214041 |
+| Telegram alerts (stop / milestone / done) | a3ceb9b |
+| **Configuration** | |
+| Project-root config file | 992a38e |
+| **Internal** | |
+| Roadmap drop history | 282007d |
