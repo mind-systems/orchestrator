@@ -1,0 +1,15 @@
+$ uv run pytest tests/test_main.py
+exit code: 0
+elapsed: 0.8s
+
+============================= test session starts ==============================
+platform darwin -- Python 3.13.0, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/max/projects/orchestrator
+configfile: pyproject.toml
+collected 7 items
+
+tests/test_main.py .......                                               [100%]
+
+============================== 7 passed in 0.07s ===============================
+
+TEST_PASS
