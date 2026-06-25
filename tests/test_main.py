@@ -1,4 +1,4 @@
-"""Unit tests for _parse_pct, _validate_sidecar_step, and _detect_milestone_step."""
+"""Unit tests for _parse_pct, _validate_sidecar_step, _detect_milestone_step, and _detect_test_milestone_step."""
 
 import json
 import subprocess
@@ -6,7 +6,7 @@ import subprocess
 import pytest
 from pathlib import Path
 
-from orchestrator.main import _parse_pct, _validate_sidecar_step, _detect_milestone_step
+from orchestrator.main import _parse_pct, _validate_sidecar_step, _detect_milestone_step, _detect_test_milestone_step
 
 # ---------------------------------------------------------------------------
 # Helpers / constants shared across _validate_sidecar_step tests
@@ -319,3 +319,119 @@ def test_detect_milestone_step_canonical_path_resolution(tmp_path):
     assert step == "plan_review"
     assert counter == 1
     assert returned_path == plan_path_01
+
+
+# ---------------------------------------------------------------------------
+# _detect_test_milestone_step tests
+# ---------------------------------------------------------------------------
+
+DTMS_SEQ = "01"
+DTMS_SLUG = "slug"
+
+
+def _dtms_dirs(tmp_path: Path) -> tuple[Path, Path, Path]:
+    """Build .ai-factory/{plans,plan-reviews,test-runs} and return (plan_reviews_dir, test_runs_dir, plan_path).
+
+    plan_path points to plans/01-slug.md (not created — caller decides whether to write it).
+    """
+    plans_dir = tmp_path / ".ai-factory" / "plans"
+    plan_reviews_dir = tmp_path / ".ai-factory" / "plan-reviews"
+    test_runs_dir = tmp_path / ".ai-factory" / "test-runs"
+    plans_dir.mkdir(parents=True)
+    plan_reviews_dir.mkdir(parents=True)
+    test_runs_dir.mkdir(parents=True)
+    plan_path = plans_dir / f"{DTMS_SEQ}-{DTMS_SLUG}.md"
+    return plan_reviews_dir, test_runs_dir, plan_path
+
+
+# ---------------------------------------------------------------------------
+# Task 1: Fresh start and sidecar-driven steps (no git repo needed)
+# ---------------------------------------------------------------------------
+
+
+def test_detect_test_milestone_step_no_plan_file_returns_plan(tmp_path):
+    """Should return ("plan", 1, plan_path) when the plan file does not exist."""
+    prd, trd, plan_path = _dtms_dirs(tmp_path)
+    # plan_path intentionally not created on disk
+    step, counter, returned_path = _detect_test_milestone_step(
+        tmp_path, DTMS_SEQ, DTMS_SLUG, plan_path, prd, trd
+    )
+    assert step == "plan"
+    assert counter == 1
+    assert returned_path == plan_path
+
+
+def test_detect_test_milestone_step_sidecar_plan_reviewed_returns_implement(tmp_path):
+    """Should return ("implement", 1, plan_path) when sidecar step is "plan_reviewed" and a passing plan-review file is present."""
+    prd, trd, plan_path = _dtms_dirs(tmp_path)
+    plan_path.write_text("# Plan content")
+    plan_path.with_suffix(".json").write_text(json.dumps({"step": "plan_reviewed"}))
+    (prd / f"{DTMS_SEQ}-{DTMS_SLUG}-plan-review-1.md").write_text(
+        "Review notes\n\nPLAN_REVIEW_PASS"
+    )
+    step, counter, returned_path = _detect_test_milestone_step(
+        tmp_path, DTMS_SEQ, DTMS_SLUG, plan_path, prd, trd
+    )
+    assert step == "implement"
+    assert counter == 1
+    assert returned_path == plan_path
+
+
+def test_detect_test_milestone_step_sidecar_implemented_returns_test_run(tmp_path):
+    """Should return ("test_run", 1, plan_path) when sidecar step is "implemented"."""
+    prd, trd, plan_path = _dtms_dirs(tmp_path)
+    plan_path.write_text("# Plan content")
+    plan_path.with_suffix(".json").write_text(json.dumps({"step": "implemented"}))
+    step, counter, returned_path = _detect_test_milestone_step(
+        tmp_path, DTMS_SEQ, DTMS_SLUG, plan_path, prd, trd
+    )
+    assert step == "test_run"
+    assert counter == 1
+    assert returned_path == plan_path
+
+
+def test_detect_test_milestone_step_sidecar_test_run_failed_returns_implement(tmp_path):
+    """Should return ("implement", 2, plan_path) when sidecar step is "test_run_failed:1" and test-runs/01-slug-test-1.txt is present."""
+    prd, trd, plan_path = _dtms_dirs(tmp_path)
+    plan_path.write_text("# Plan content")
+    plan_path.with_suffix(".json").write_text(json.dumps({"step": "test_run_failed:1"}))
+    (trd / f"{DTMS_SEQ}-{DTMS_SLUG}-test-1.txt").write_text("test output")
+    step, counter, returned_path = _detect_test_milestone_step(
+        tmp_path, DTMS_SEQ, DTMS_SLUG, plan_path, prd, trd
+    )
+    assert step == "implement"
+    assert counter == 2
+    assert returned_path == plan_path
+
+
+# ---------------------------------------------------------------------------
+# Task 2: Heuristic fall-through reaching test-run artifacts (git fixture required)
+# ---------------------------------------------------------------------------
+
+
+def test_detect_test_milestone_step_dirty_tree_passing_test_run_returns_done(tmp_path):
+    """Should return ("done", 0, plan_path) when no sidecar step, a passing plan-review is present, the working tree is dirty, and the latest test-runs/01-slug-test-1.txt ends with TEST_PASS."""
+    prd, trd, plan_path = _dtms_dirs(tmp_path)
+    plan_path.write_text("# Plan content")
+    # No sidecar JSON → _read_sessions returns {}
+    (prd / f"{DTMS_SEQ}-{DTMS_SLUG}-plan-review-1.md").write_text(
+        "Review notes\n\nPLAN_REVIEW_PASS"
+    )
+    (trd / f"{DTMS_SEQ}-{DTMS_SLUG}-test-1.txt").write_text("Test output\n\nTEST_PASS")
+    # Init git repo with an empty commit so `git diff HEAD` works
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        [
+            "git", "-c", "user.email=t@t.com", "-c", "user.name=T",
+            "commit", "--allow-empty", "-m", "init",
+        ],
+        cwd=tmp_path, check=True, capture_output=True,
+    )
+    # Create an untracked file outside .ai-factory to make the working tree dirty
+    (tmp_path / "src.py").write_text("x = 1\n")
+    step, counter, returned_path = _detect_test_milestone_step(
+        tmp_path, DTMS_SEQ, DTMS_SLUG, plan_path, prd, trd
+    )
+    assert step == "done"
+    assert counter == 0
+    assert returned_path == plan_path
