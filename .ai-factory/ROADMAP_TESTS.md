@@ -4,7 +4,7 @@
 
 ## Infra
 
-- [ ] **pytest setup** — Add `pytest` as a dev dependency: `uv add --dev pytest`. Create `tests/__init__.py` (empty) and `tests/conftest.py` (empty, placeholder for shared fixtures). Verify `uv run pytest --collect-only` exits 0 with "no tests ran". Add `## Test Command` section to each subsequent plan file: `` `uv run pytest tests/ -v` ``.
+- [x] **pytest setup** — Add `pytest` as a dev dependency: `uv add --dev pytest`. Create `tests/__init__.py` (empty) and `tests/conftest.py` (empty, placeholder for shared fixtures). Verify `uv run pytest --collect-only` exits 0 with "no tests ran". Add `## Test Command` section to each subsequent plan file: `` `uv run pytest tests/ -v` ``. [8m 15s]
 
 ## agents.py
 

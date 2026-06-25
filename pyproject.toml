@@ -9,5 +9,10 @@ dependencies = []
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
 [project.scripts]
 orchestrator = "orchestrator.main:cli"
