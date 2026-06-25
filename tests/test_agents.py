@@ -1,8 +1,8 @@
-"""Unit tests for _has_signal."""
+"""Unit tests for _has_signal and TestRunner._extract_test_command."""
 
 import pytest
 
-from orchestrator.agents import _has_signal
+from orchestrator.agents import _has_signal, TestRunner
 
 
 # ---------------------------------------------------------------------------
@@ -69,3 +69,63 @@ def test_signal_with_surrounding_whitespace():
 def test_empty_text_returns_false():
     """Empty string has no lines; any() over an empty iterable is False."""
     assert _has_signal("", "REVIEW_PASS") is False
+
+
+# ---------------------------------------------------------------------------
+# Task 1: backtick-wrapped command
+# ---------------------------------------------------------------------------
+
+
+def test_extract_test_command_backtick_wrapped(tmp_path):
+    """Should return the command without backticks when the command line is wrapped in single backticks."""
+    p = tmp_path / "plan.md"
+    p.write_text("## Test Command\n`uv run pytest tests/ -v`")
+    assert TestRunner._extract_test_command(p) == "uv run pytest tests/ -v"
+
+
+# ---------------------------------------------------------------------------
+# Task 2: bare command without backticks
+# ---------------------------------------------------------------------------
+
+
+def test_extract_test_command_bare(tmp_path):
+    """Should return the command string as-is when the command line has no backticks."""
+    p = tmp_path / "plan.md"
+    p.write_text("## Test Command\nuv run pytest tests/ -v")
+    assert TestRunner._extract_test_command(p) == "uv run pytest tests/ -v"
+
+
+# ---------------------------------------------------------------------------
+# Task 3: command after intervening blank lines
+# ---------------------------------------------------------------------------
+
+
+def test_extract_test_command_blank_lines(tmp_path):
+    """Should return the first non-empty non-heading line when blank lines follow the heading."""
+    p = tmp_path / "plan.md"
+    p.write_text("## Test Command\n\n\nuv run pytest -v")
+    assert TestRunner._extract_test_command(p) == "uv run pytest -v"
+
+
+# ---------------------------------------------------------------------------
+# Task 4: heading absent
+# ---------------------------------------------------------------------------
+
+
+def test_extract_test_command_no_heading(tmp_path):
+    """Should return None when the plan has no Test Command heading."""
+    p = tmp_path / "plan.md"
+    p.write_text("# Some Plan\n## Other Section\nrun this")
+    assert TestRunner._extract_test_command(p) is None
+
+
+# ---------------------------------------------------------------------------
+# Task 5: empty section before next heading
+# ---------------------------------------------------------------------------
+
+
+def test_extract_test_command_empty_section(tmp_path):
+    """Should return None when the Test Command section is blank up to the next heading."""
+    p = tmp_path / "plan.md"
+    p.write_text("## Test Command\n\n## Next Section\nuv run pytest")
+    assert TestRunner._extract_test_command(p) is None
