@@ -135,7 +135,7 @@ def _run_claude(
         proc = subprocess.Popen(
             cmd, cwd=cwd,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             stdin=subprocess.DEVNULL,
             text=True,
             start_new_session=True,
@@ -168,7 +168,6 @@ def _run_claude(
 
         proc.wait()
         state.active_proc = None
-        stderr = proc.stderr.read() if proc.stderr else ""  # type: ignore[union-attr]
         stdout = "\n".join(lines)
 
         elapsed = int(time.monotonic() - start)
@@ -205,14 +204,12 @@ def _run_claude(
                 raise RateLimitError(result_text)
             raise RuntimeError(
                 f"Claude CLI failed with exit code {proc.returncode}\n"
-                f"stderr: {stderr if stderr else '(empty)'}\n"
                 f"stdout: {stdout if stdout else '(empty)'}"
             )
 
         if not lines:
             raise RuntimeError(
-                f"Claude CLI exited 0 but stdout is empty\n"
-                f"stderr: {stderr[:1000] if stderr else '(empty)'}"
+                "Claude CLI exited 0 but stdout is empty"
             )
 
         if is_error:
