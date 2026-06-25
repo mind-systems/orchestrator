@@ -1,0 +1,46 @@
+$ uv run pytest tests/ -v
+exit code: 0
+elapsed: 3.5s
+
+============================= test session starts ==============================
+platform darwin -- Python 3.13.0, pytest-9.1.1, pluggy-1.6.0 -- /Users/max/projects/orchestrator/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/max/projects/orchestrator
+configfile: pyproject.toml
+collecting ... collected 31 items
+
+tests/test_agents.py::test_signal_on_last_line PASSED                    [  3%]
+tests/test_agents.py::test_signal_on_line_3_of_5 PASSED                  [  6%]
+tests/test_agents.py::test_signal_on_line_6_of_10 PASSED                 [  9%]
+tests/test_agents.py::test_signal_is_plan_review_pass PASSED             [ 12%]
+tests/test_agents.py::test_signal_on_line_5_of_10_excluded PASSED        [ 16%]
+tests/test_agents.py::test_signal_as_substring_rejected PASSED           [ 19%]
+tests/test_agents.py::test_signal_with_surrounding_whitespace PASSED     [ 22%]
+tests/test_agents.py::test_empty_text_returns_false PASSED               [ 25%]
+tests/test_agents.py::test_extract_test_command_backtick_wrapped PASSED  [ 29%]
+tests/test_agents.py::test_extract_test_command_bare PASSED              [ 32%]
+tests/test_agents.py::test_extract_test_command_blank_lines PASSED       [ 35%]
+tests/test_agents.py::test_extract_test_command_no_heading PASSED        [ 38%]
+tests/test_agents.py::test_extract_test_command_empty_section PASSED     [ 41%]
+tests/test_main.py::test_validate_empty_string_returns_empty PASSED      [ 45%]
+tests/test_main.py::test_validate_planned_returns_planned PASSED         [ 48%]
+tests/test_main.py::test_validate_implemented_returns_implemented PASSED [ 51%]
+tests/test_main.py::test_validate_unknown_value_passthrough PASSED       [ 54%]
+tests/test_main.py::test_validate_plan_review_failed_file_present PASSED [ 58%]
+tests/test_main.py::test_validate_plan_review_failed_file_missing PASSED [ 61%]
+tests/test_main.py::test_validate_plan_review_failed_malformed_n PASSED  [ 64%]
+tests/test_main.py::test_validate_plan_reviewed_with_passing_file PASSED [ 67%]
+tests/test_main.py::test_validate_plan_reviewed_no_files PASSED          [ 70%]
+tests/test_main.py::test_validate_review_failed_file_present PASSED      [ 74%]
+tests/test_main.py::test_validate_review_failed_file_missing PASSED      [ 77%]
+tests/test_main.py::test_session_pattern_integer_percentage PASSED       [ 80%]
+tests/test_main.py::test_weekly_pattern_decimal_percentage PASSED        [ 83%]
+tests/test_main.py::test_session_pattern_decimal_percentage PASSED       [ 87%]
+tests/test_main.py::test_successful_match_returns_float_instance PASSED  [ 90%]
+tests/test_main.py::test_no_match_unrelated_text PASSED                  [ 93%]
+tests/test_main.py::test_no_match_unrelated_digits PASSED                [ 96%]
+tests/test_main.py::test_multiline_returns_first_match PASSED            [100%]
+
+============================== 31 passed in 0.85s ==============================
+
+TEST_PASS
