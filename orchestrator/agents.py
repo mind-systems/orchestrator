@@ -91,7 +91,7 @@ def _resolve_claude() -> str:
     )
 
 
-_CLAUDE_BIN = _resolve_claude()
+_CLAUDE_BIN: str | None = None
 
 
 def _run_claude(
@@ -104,6 +104,10 @@ def _run_claude(
     effort: str | None = None,
 ) -> tuple[str, str]:
     """Run claude CLI and return (output_text, session_id)."""
+    global _CLAUDE_BIN
+    if _CLAUDE_BIN is None:
+        _CLAUDE_BIN = _resolve_claude()
+
     if allowed_tools is None:
         allowed_tools = ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
 

@@ -82,7 +82,7 @@
 
 ## Hardening
 
-- [ ] **Lazy `_CLAUDE_BIN` resolution** — `_CLAUDE_BIN = _resolve_claude()` executes at import time in `agents.py`, making the module unimportable without `claude` installed. Change to a module-level `_CLAUDE_BIN: str | None = None`; inside `_run_claude()`, resolve lazily on first call and cache: `global _CLAUDE_BIN; if _CLAUDE_BIN is None: _CLAUDE_BIN = _resolve_claude()`. Prerequisite for any unit test that imports `agents.py`.
+- [x] **Lazy `_CLAUDE_BIN` resolution** — `_CLAUDE_BIN = _resolve_claude()` executes at import time in `agents.py`, making the module unimportable without `claude` installed. Change to a module-level `_CLAUDE_BIN: str | None = None`; inside `_run_claude()`, resolve lazily on first call and cache: `global _CLAUDE_BIN; if _CLAUDE_BIN is None: _CLAUDE_BIN = _resolve_claude()`. Prerequisite for any unit test that imports `agents.py`. [3m 7s]
 
 - [ ] **Caffeinate no-crash on non-macOS** — `_with_caffeinate` in `main.py` always spawns `caffeinate` via `Popen`, raising `FileNotFoundError` immediately on Linux. Wrap the `Popen` call with `try/except FileNotFoundError`: on failure, run the wrapped function directly without caffeinate and return the elapsed string. No behavior change on macOS.
 
