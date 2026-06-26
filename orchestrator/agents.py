@@ -116,6 +116,7 @@ def _run_claude(
         "-p", prompt,
         "--output-format", "stream-json",
         "--verbose",
+        "--dangerously-skip-permissions",
         "--allowedTools", ",".join(allowed_tools),
     ]
 
