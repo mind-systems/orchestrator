@@ -54,37 +54,17 @@ If requirements are ambiguous in a way that blocks planning, note assumptions cl
 
 ### Step 3: Explore Codebase
 
-Before planning, understand the existing code through **parallel exploration**.
+Before planning, understand the existing code by drilling deeper with `Glob`/`Grep`/`Read` into the areas Step 1 recon flagged. Use recon from Step 1 as a starting point, and cover these three angles:
 
-Launch 2-3 Explore agents simultaneously, each focused on a different aspect:
+- **Architecture & affected modules:** Map the directory structure, key entry points, and how modules interact for the feature domain.
+- **Existing patterns & conventions:** Find examples of similar functionality already implemented in the project (API endpoints, services, models, etc.) to follow their patterns.
+- **Dependencies & integration points:** Find files that import/use the relevant module/service, and identify integration points and potential side effects of changes.
 
-```
-Agent 1 — Architecture & affected modules:
-Task(subagent_type: Explore, model: sonnet, prompt:
-  "Find files and modules related to [feature domain]. Map the directory structure,
-   key entry points, and how modules interact. Thoroughness: medium.")
-
-Agent 2 — Existing patterns & conventions:
-Task(subagent_type: Explore, model: sonnet, prompt:
-  "Find examples of similar functionality already implemented in the project.
-   Show patterns for [relevant patterns: API endpoints, services, models, etc.].
-   Thoroughness: medium.")
-
-Agent 3 — Dependencies & integration points (if needed):
-Task(subagent_type: Explore, model: sonnet, prompt:
-  "Find all files that import/use [module/service]. Identify integration points
-   and potential side effects of changes. Thoroughness: medium.")
-```
-
-Use recon from Step 1 as a starting point. Focus Explore agents on areas that need deeper understanding.
-
-**After agents return, synthesize:**
+**After direct exploration, synthesize:**
 - Which files need to be created/modified
 - What patterns to follow (from existing code)
 - Dependencies between components
 - Potential risks or edge cases
-
-**Fallback:** If Task tool is unavailable, use Glob/Grep/Read directly.
 
 ### Step 4: Save Plan to File
 
