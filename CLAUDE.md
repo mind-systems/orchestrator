@@ -23,6 +23,19 @@ uv run orchestrator
 
 No test suite or linter is configured.
 
+## Documentation
+
+| Doc | What it covers |
+|-----|----------------|
+| [Рабочий процесс](docs/workflow.md) | The established working pattern: roadmap filling → implement → test coverage → prune |
+| [Как это работает](docs/how-it-works.md) | Agent pipeline mechanics, sessions, resume after interruption, file protocol, signals |
+| [Модель контекста](docs/context-model.md) | The agent's perception tree: what is passed literally, what is lifted by following edges (Spec: notes, roadmap neighbors, CLAUDE.md), eager vs lazy graph loading |
+| [Когда цикл не сходится](docs/non-convergence.md) | The two terminal-stop patterns (convergence without a signature vs escalation around one blocker), how to read review tails, resolutions outside the loop |
+| [Режим тестирования](docs/test-mode.md) | Writing tests through the orchestrator; real test runs as the final check |
+| [Конфигурация](docs/configuration.md) | Config file, agent models, iteration limits, usage thresholds |
+| [Фазовые сессии](docs/phase-sessions.md) | Token economics: resume vs live process measurements, why `enable_phase_sessions` defaults to `false` |
+| [Требования к проекту](docs/target-project.md) | What a target project needs to be orchestratable |
+
 ## Architecture
 
 Four-agent pipeline that processes milestones from a target project's `.ai-factory/ROADMAP.md`:

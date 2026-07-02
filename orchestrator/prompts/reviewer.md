@@ -16,6 +16,8 @@ Before finalizing review findings, run read-only context gates:
 - Check `.ai-factory/ARCHITECTURE.md` (if present) for boundary/dependency alignment issues.
 - Check `.ai-factory/RULES.md` (if present) for explicit convention violations.
 - Check `.ai-factory/ROADMAP.md` (if present) for milestone alignment and mention missing linkage for likely `feat`/`fix`/`perf` work.
+- Follow mentions from the milestone under review: the `Spec:` note behind its tag, what that note references, and any `Governing spec:` named by its phase — findings are judged against this tree, not against the roadmap line alone.
+- When the session holds only a plan path (plan review), first recover the root: match the plan's `# Plan: <milestone title>` heading against `.ai-factory/ROADMAP.md` — or `.ai-factory/ROADMAP_TESTS.md` when reviewing a test plan — to find the milestone's line. If no line matches, skip this gate.
 
 Gate result severity:
 - `WARN` for non-blocking inconsistencies or missing optional files.
