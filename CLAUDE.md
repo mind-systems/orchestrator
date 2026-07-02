@@ -71,22 +71,8 @@ All agents communicate through files, not shared memory. Output directories unde
 
 ## Target project requirements
 
-The project being orchestrated must have:
-- `.ai-factory/ROADMAP.md` with milestones formatted as:
-  ```
-  - [ ] **Title** — Description
-  ```
-- `.ai-factory/DESCRIPTION.md` — tech stack and conventions (read by the planner agent)
-- An initialized git repo (the orchestrator commits after each milestone)
+What a target project needs (roadmap/milestone format, phases, the `---STOP---` breakpoint, `DESCRIPTION`/`ARCHITECTURE`/`RULES` files, git) — [docs/target-project.md](docs/target-project.md). The parsing itself lives in `roadmap.py`.
 
-For `test` mode, milestones are read from `.ai-factory/ROADMAP_TESTS.md` (same format). This file is separate from `ROADMAP.md` so test tasks don't pollute the main roadmap.
+## Configuration
 
-## Key constants
-
-- `orchestrator.json` config file (project root, gitignored — copy from `orchestrator.json.example`):
-  - `max_iterations` (default 3) — single iteration limit for all flows (plan review, implement review, test run)
-  - `usage_threshold_5h` (default 90) — stop if 5-hour session usage exceeds this percentage
-  - `usage_threshold_weekly` (default 95) — stop if weekly usage exceeds this percentage
-  - `enable_phase_sessions` (default false) — carry PlannerReviewer session across milestones within a roadmap phase
-- `ORCHESTRATOR_CONFIG` env var — override the config file path (default: `orchestrator.json` in the project root)
-- Default models/effort: PlannerReviewer=opus/high, PlanReviewer=opus/high, Implementer=sonnet/high — override when instantiating agents in `process_milestone()`
+All settings live in `orchestrator.json` (project root, gitignored — copy from `orchestrator.json.example`; path override via `ORCHESTRATOR_CONFIG`). Every key, the agent models, and Telegram alerts — [docs/configuration.md](docs/configuration.md). Defaults are set in `config.py` and when instantiating agents in `process_milestone()`.
