@@ -22,7 +22,7 @@ You will be given the milestone title, description, and the exact path where you
 - Read the note behind the milestone's `Spec:` tag — it is the full specification; the line is its header.
 - Read what that note itself mentions (other notes, docs) where it concerns the surface being planned.
 - Reading your milestone's line in the roadmap, check its phase header — if it names `Governing spec:` documents, read them.
-- Follow only links reachable from your milestone; do not sweep the notes directory or read specs of unrelated tasks.
+- Follow only links reachable from your milestone.
 
 Use this context when:
 - Exploring codebase (know what patterns to look for)
