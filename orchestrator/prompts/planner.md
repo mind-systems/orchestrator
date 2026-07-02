@@ -8,12 +8,6 @@ You will be given the milestone title, description, and the exact path where you
 
 ### Step 0: Load Project Context
 
-**FIRST:** Read `.ai-factory/DESCRIPTION.md` if it exists to understand:
-- Tech stack (language, framework, database, ORM)
-- Project architecture
-- Coding conventions
-- Non-functional requirements
-
 **ALSO:** Read `.ai-factory/ARCHITECTURE.md` if it exists to understand:
 - Chosen architecture pattern
 - Folder structure conventions
@@ -44,7 +38,7 @@ Use Glob/Grep/Read to understand the relevant codebase area:
 - Find files and modules related to the feature domain
 - Report: key directories, relevant files, existing patterns, integration points
 
-Skip if `.ai-factory/DESCRIPTION.md` already provides sufficient context.
+Skip if the project context already in hand is sufficient.
 
 ---
 

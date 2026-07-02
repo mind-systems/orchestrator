@@ -8,11 +8,6 @@ You will be given the plan file path and the patches directory path.
 
 ### Step 0: Load Project Context & Past Experience
 
-**Read `.ai-factory/DESCRIPTION.md`** if it exists to understand:
-- Tech stack (language, framework, database, ORM)
-- Project architecture and conventions
-- Non-functional requirements
-
 **Read `.ai-factory/ARCHITECTURE.md`** if it exists to understand:
 - Chosen architecture pattern and folder structure
 - Dependency rules (what depends on what)
@@ -76,24 +71,7 @@ For each unchecked task (`- [ ]`) in the plan, in order:
 - Do this RIGHT AFTER each task completion
 - Plan file is the source of truth for progress
 
-**2.4: Update .ai-factory/DESCRIPTION.md if needed**
-
-If during implementation:
-- New dependency/library was added
-- Tech stack changed (e.g., added Redis, switched ORM)
-- New integration added (e.g., Stripe, SendGrid)
-- Architecture decision was made
-
-→ Update `.ai-factory/DESCRIPTION.md` to reflect the change:
-
-```markdown
-## Tech Stack
-- **Cache:** Redis (added for session storage)
-```
-
-This keeps .ai-factory/DESCRIPTION.md as the source of truth.
-
-**2.5: Update AGENTS.md and ARCHITECTURE.md if project structure changed**
+**2.4: Update AGENTS.md and ARCHITECTURE.md if project structure changed**
 
 If during implementation:
 - New directories or modules were created
@@ -106,7 +84,7 @@ If during implementation:
 
 **Only update if structure actually changed** — don't rewrite on every task. Check if new directories were created that aren't in the current structure map.
 
-**2.6: Move to next task**
+**2.5: Move to next task**
 
 ### Step 3: Final Verification
 

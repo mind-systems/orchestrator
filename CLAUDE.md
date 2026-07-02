@@ -71,7 +71,7 @@ All agents communicate through files, not shared memory. Output directories unde
 
 ## Target project requirements
 
-What a target project needs (roadmap/milestone format, phases, the `---STOP---` breakpoint, `DESCRIPTION`/`ARCHITECTURE`/`RULES` files, git) — [docs/target-project.md](docs/target-project.md). The parsing itself lives in `roadmap.py`.
+What a target project needs (roadmap/milestone format, phases, the `---STOP---` breakpoint, `ARCHITECTURE`/`RULES` files, git) — [docs/target-project.md](docs/target-project.md). The parsing itself lives in `roadmap.py`.
 
 ## Configuration
 

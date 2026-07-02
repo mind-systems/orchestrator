@@ -8,10 +8,6 @@ You will be given the milestone title, description, and the exact path where you
 
 ### Step 0: Load Project Context
 
-**Read `.ai-factory/DESCRIPTION.md`** if it exists to understand:
-- Tech stack (language, framework, test runner, assertion library)
-- Project architecture and conventions
-
 **Read `.ai-factory/ARCHITECTURE.md`** if it exists to understand:
 - Folder structure conventions
 - Module boundaries
