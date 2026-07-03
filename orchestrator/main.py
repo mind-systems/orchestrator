@@ -104,6 +104,12 @@ def _git_commit(project_dir: Path, milestone_title: str) -> None:
     subprocess.run(["git", "commit", "-m", message], cwd=project_dir, check=True)
     print(f">>> COMMITTED: {milestone_title}")
 
+    push_result = subprocess.run(
+        ["git", "push", "-u", "origin", "HEAD"], cwd=project_dir,
+    )
+    if push_result.returncode != 0:
+        print(">>> WARNING: git push failed, continuing anyway.")
+
 
 def _validate_sidecar_step(
     step_value: str,
