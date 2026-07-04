@@ -366,7 +366,7 @@ class PlanReviewer:
 
 
 class Implementer:
-    """Implements the plan, then applies fixes from patches. Same session."""
+    """Implements the plan, then applies the review feedback for the current iteration. Same session."""
 
     def __init__(
         self,
@@ -381,20 +381,14 @@ class Implementer:
         self.model = model
         self.effort = effort
 
-    def implement(self, plan_path: Path, patches_dir: Path, roadmap_path: Path | None = None, line_number: int | None = None) -> None:
+    def implement(self, plan_path: Path, feedback_path: Path | None = None, roadmap_path: Path | None = None, line_number: int | None = None) -> None:
         if self.session_id:
-            # Continuing — apply fixes from patches
+            # Continuing — apply the review feedback
             prompt = (
-                f"Review feedback has been written to {patches_dir}. "
-                f"Read the latest patch file there and apply the fixes."
+                f"Review feedback has been written to {feedback_path}. "
+                f"Read it and apply the fixes."
             )
         else:
-            patches_note = ""
-            if patches_dir.exists():
-                patch_files = sorted(patches_dir.glob("*.md"))
-                if patch_files:
-                    patches_note = f"\n\nCheck for review feedback in: {patches_dir}"
-
             roadmap_line = ""
             if roadmap_path is not None and line_number is not None:
                 roadmap_line = f"Roadmap: {roadmap_path} (line {line_number + 1})\n"
@@ -402,7 +396,6 @@ class Implementer:
             prompt = (
                 f"{roadmap_line}"
                 f"Implement the plan at: {plan_path}"
-                f"{patches_note}"
             )
 
         _, self.session_id = _run_claude(

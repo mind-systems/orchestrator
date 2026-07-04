@@ -254,11 +254,9 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
     max_iterations = config.max_iterations
     ai_factory = project_dir / ".ai-factory"
     plans_dir = ai_factory / "plans"
-    patches_dir = ai_factory / "patches"
     reviews_dir = ai_factory / "reviews"
     plan_reviews_dir = ai_factory / "plan-reviews"
     plans_dir.mkdir(parents=True, exist_ok=True)
-    patches_dir.mkdir(parents=True, exist_ok=True)
     reviews_dir.mkdir(parents=True, exist_ok=True)
     plan_reviews_dir.mkdir(parents=True, exist_ok=True)
 
@@ -366,7 +364,8 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
             pass
         else:
             print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
-            implementer.implement(plan_path, patches_dir, roadmap_path=roadmap_path, line_number=milestone.line_number)
+            feedback_path = reviews_dir / f"{seq}-{milestone.slug}-review-{iteration - 1}.md" if iteration > 1 else None
+            implementer.implement(plan_path, feedback_path=feedback_path, roadmap_path=roadmap_path, line_number=milestone.line_number)
             _write_session(plan_path, "step", "implemented")
             _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
@@ -516,10 +515,9 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, c
     max_iterations = config.max_iterations
     ai_factory = project_dir / ".ai-factory"
     plans_dir = ai_factory / "plans"
-    patches_dir = ai_factory / "patches"
     test_runs_dir = ai_factory / "test-runs"
     plan_reviews_dir = ai_factory / "plan-reviews"
-    for d in (plans_dir, patches_dir, test_runs_dir, plan_reviews_dir):
+    for d in (plans_dir, test_runs_dir, plan_reviews_dir):
         d.mkdir(parents=True, exist_ok=True)
 
     roadmap_path = project_dir / ".ai-factory" / "ROADMAP_TESTS.md"
@@ -624,7 +622,8 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, c
             pass
         else:
             print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
-            implementer.implement(plan_path, patches_dir, roadmap_path=roadmap_path, line_number=milestone.line_number)
+            feedback_path = test_runs_dir / f"{seq}-{milestone.slug}-test-{iteration - 1}.txt" if iteration > 1 else None
+            implementer.implement(plan_path, feedback_path=feedback_path, roadmap_path=roadmap_path, line_number=milestone.line_number)
             _write_session(plan_path, "step", "implemented")
             _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
@@ -639,9 +638,6 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, c
             break
         else:
             print(f">>> Tests failed — see {test_run_path}")
-            # Bridge test output to patches_dir so Implementer reads it on next iteration
-            patch_path = patches_dir / f"{seq}-{milestone.slug}-patch-{iteration}.md"
-            patch_path.write_text(test_run_path.read_text())
             _write_session(plan_path, "step", f"test_run_failed:{iteration}")
             if iteration == max_iterations:
                 raise PipelineStopError(

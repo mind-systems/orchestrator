@@ -65,7 +65,7 @@ PlannerReviewer.plan()      ← uses test-planner prompt
                     └─► mark_done() + git commit
 ```
 
-All agents communicate through files, not shared memory. Output directories under `.ai-factory/`: `plans/`, `plan-reviews/`, `reviews/`, `patches/`, `test-runs/`.
+All agents communicate through files, not shared memory. Output directories under `.ai-factory/`: `plans/`, `plan-reviews/`, `reviews/`, `test-runs/`.
 
 Consumer skills in `~/projects/skills` mirror this file protocol in their `orchestrator-artifacts` engine — any change to the protocol (directory layout, artifact naming, PASS signals, sidecar fields, review-section format) must be reflected there.
 
