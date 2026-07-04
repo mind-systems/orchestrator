@@ -11,7 +11,7 @@ cd orchestrator && uv sync
 # Config file (required before first run)
 cp orchestrator.json.example orchestrator.json  # edit as needed
 
-# Plan + implement milestones (no review pass)
+# Plan + implement milestones
 uv run orchestrator implement /path/to/project
 
 # Write tests for milestones from ROADMAP_TESTS.md

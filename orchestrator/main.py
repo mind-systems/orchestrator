@@ -356,7 +356,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
     if impl_start > max_iterations:
         raise PipelineStopError(
             f"Resume at iteration {impl_start} exceeds max_iterations "
-            f"({max_iterations}). Raise max_iterations in ~/.orchestrator.json to continue."
+            f"({max_iterations}). Raise max_iterations in orchestrator.json to continue."
         )
     for iteration in range(impl_start, max_iterations + 1):
         if step == "review" and iteration == counter:
@@ -615,7 +615,7 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, c
     if impl_start > max_iterations:
         raise PipelineStopError(
             f"Resume at iteration {impl_start} exceeds max_iterations "
-            f"({max_iterations}). Raise max_iterations in ~/.orchestrator.json to continue."
+            f"({max_iterations}). Raise max_iterations in orchestrator.json to continue."
         )
     for iteration in range(impl_start, max_iterations + 1):
         if step == "test_run" and iteration == counter:

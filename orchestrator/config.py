@@ -20,7 +20,7 @@ class OrchestratorConfig:
 
 
 def load_config() -> OrchestratorConfig:
-    """Load and validate config from ~/.orchestrator.json (or ORCHESTRATOR_CONFIG override)."""
+    """Load and validate config from orchestrator.json in the project root (or ORCHESTRATOR_CONFIG override)."""
     default = Path(__file__).parent.parent / "orchestrator.json"
     path = Path(os.environ.get("ORCHESTRATOR_CONFIG", str(default)))
 
