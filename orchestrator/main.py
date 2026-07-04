@@ -373,7 +373,12 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
         print(f"\n>>> REVIEWING (iteration {iteration})...")
         subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
         review_path = reviews_dir / f"{seq}-{milestone.slug}-review-{iteration}.md"
-        passed = planner_reviewer.review(plan_path, review_path)
+        prev_review_path = None
+        if iteration > 1:
+            prev = reviews_dir / f"{seq}-{milestone.slug}-review-{iteration - 1}.md"
+            if prev.exists():
+                prev_review_path = prev
+        passed = planner_reviewer.review(plan_path, review_path, prev_review_path=prev_review_path)
         _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
         if passed:

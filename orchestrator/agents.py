@@ -280,17 +280,33 @@ class PlannerReviewer:
         )
         _write_session(plan_path, "planner", self.session_id)
 
-    def review(self, plan_path: Path, review_path: Path) -> bool:
+    def review(self, plan_path: Path, review_path: Path, prev_review_path: Path | None = None) -> bool:
         """Review code changes. Uses same session as planner for deep context."""
-        prompt = (
-            f"The plan for context is at: {plan_path}\n"
-            f"Review the CODE CHANGES for bugs, security issues, and correctness problems.\n"
-            f"Run `git diff HEAD` and `git status` to see ALL changes.\n"
-            f"Read each changed/new file IN FULL — understand the surrounding code, not just the diff.\n"
-            f"Think about what will break at runtime: missing migrations, type mismatches, race conditions, etc.\n"
-            f"Write your full review to: {review_path}\n"
-            f"If you have no findings at all, end the review file with REVIEW_PASS on its own line.\n"
-        )
+        if prev_review_path:
+            prompt = (
+                f"This is a RE-REVIEW after fixes were applied to address the previous review at: {prev_review_path}\n"
+                f"Do NOT trust your session memory about file contents — the code has changed since your last pass.\n"
+                f"For each finding in the previous review, re-read the cited file via Read, quote the CURRENT "
+                f"content of the cited lines, and give a verdict: Fixed or Not fixed, with the quote as evidence.\n\n"
+                f"Then run the normal full review for new issues:\n"
+                f"The plan for context is at: {plan_path}\n"
+                f"Review the CODE CHANGES for bugs, security issues, and correctness problems.\n"
+                f"Run `git diff HEAD` and `git status` to see ALL changes.\n"
+                f"Read each changed/new file IN FULL — understand the surrounding code, not just the diff.\n"
+                f"Think about what will break at runtime: missing migrations, type mismatches, race conditions, etc.\n"
+                f"Write your full review (per-finding verdicts plus any new issues) to: {review_path}\n"
+                f"If you have no findings at all, end the review file with REVIEW_PASS on its own line.\n"
+            )
+        else:
+            prompt = (
+                f"The plan for context is at: {plan_path}\n"
+                f"Review the CODE CHANGES for bugs, security issues, and correctness problems.\n"
+                f"Run `git diff HEAD` and `git status` to see ALL changes.\n"
+                f"Read each changed/new file IN FULL — understand the surrounding code, not just the diff.\n"
+                f"Think about what will break at runtime: missing migrations, type mismatches, race conditions, etc.\n"
+                f"Write your full review to: {review_path}\n"
+                f"If you have no findings at all, end the review file with REVIEW_PASS on its own line.\n"
+            )
 
         output, self.session_id = _run_claude(
             prompt=prompt,
