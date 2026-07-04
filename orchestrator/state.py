@@ -5,3 +5,4 @@ import subprocess
 
 stop_requested: bool = False
 active_proc: subprocess.Popen | None = None
+run_started: float | None = None

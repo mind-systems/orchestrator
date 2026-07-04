@@ -409,6 +409,12 @@ def _fmt_elapsed(seconds: int) -> str:
     return f"{hours}h {mins}m {secs}s" if hours else f"{mins}m {secs}s"
 
 
+def _run_elapsed() -> str:
+    if state.run_started is None:
+        return "unknown"
+    return _fmt_elapsed(int(time.monotonic() - state.run_started))
+
+
 def _with_caffeinate(func, *args, **kwargs):
     """Run a function with macOS sleep prevention (degrades gracefully on non-macOS)."""
     start = time.monotonic()
@@ -682,7 +688,7 @@ def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: Orchestrato
         result = parse_roadmap(roadmap_path)
         pending = [m for m in result.milestones if not m.done]
         if not pending:
-            notify(config, f"All milestones done: {project_dir.name}", "done")
+            notify(config, f"All milestones done: {project_dir.name}\nRan for {_run_elapsed()}", "done")
             break
 
         milestone = pending[0]
@@ -735,6 +741,7 @@ def _implement_loop(project_dir: Path, config: OrchestratorConfig, planner_promp
 
 def run_implement(project_dir: Path, config: OrchestratorConfig) -> None:
     """Implement only — plan + implement milestones, no review pass."""
+    state.run_started = time.monotonic()
     signal.signal(signal.SIGINT, _handle_sigint)
     time_str = _with_caffeinate(_implement_loop, project_dir, config)
     print(f"\n{'='*60}")
@@ -744,6 +751,7 @@ def run_implement(project_dir: Path, config: OrchestratorConfig) -> None:
 
 def run_test(project_dir: Path, config: OrchestratorConfig) -> None:
     """Test mode — plan + implement tests, gate on real test runner output."""
+    state.run_started = time.monotonic()
     signal.signal(signal.SIGINT, _handle_sigint)
     time_str = _with_caffeinate(_test_loop, project_dir, config)
     print(f"\n{'='*60}")
@@ -777,14 +785,14 @@ def cli() -> None:
         print(f"STOPPED — {e}")
         print(f"{'='*60}")
         msg = str(e).splitlines()[0]
-        notify(config, f"Orchestrator stopped: {project_dir.name}\n{msg}", "stop")
+        notify(config, f"Orchestrator stopped: {project_dir.name}\n{msg}\nRan for {_run_elapsed()}", "stop")
         sys.exit(0)
     except RateLimitError as e:
         print(f"\n{'='*60}")
         print(f"STOPPED — Claude rate limit reached: {e}")
         print(f"{'='*60}")
         msg = str(e).splitlines()[0]
-        notify(config, f"Orchestrator rate-limited: {project_dir.name}\n{msg}", "stop")
+        notify(config, f"Orchestrator rate-limited: {project_dir.name}\n{msg}\nRan for {_run_elapsed()}", "stop")
         sys.exit(0)
 
 
