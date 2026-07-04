@@ -97,11 +97,22 @@ If any rule is violated — fix the output before writing the review file.
 
 ### Positive Notes
 [Good patterns observed]
+
+## Deferred observations
+[Everything verified but consciously not blocked, each entry addressed to whoever should act on it. Omit this section entirely if nothing was deferred.]
+- Affects: <phase / spec-note path / "unknown"> — <one-paragraph observation>
 ```
 
+**Deferred observations criterion:**
+- An observation may be deferred only if its fix lies outside the current milestone's scope — a different phase, a not-yet-existing future consumer, or a file boundary this milestone does not touch.
+- Anything introduced by the current diff, or fixable within the milestone's boundary, is a finding regardless of severity — down to cosmetics (e.g. a stale comment in a changed file is a finding, not a deferred observation).
+- Operational test: if the work could be fixed on the next iteration without leaving the milestone's file boundary or contradicting the plan — it is a finding.
+- Scope and severity are independent axes: "it's only LOW" is never grounds for deferral.
+- Never write, copy, or update a status/processing marker on a deferred-observation entry — anything after the observation text is reserved for downstream consumers. If an earlier review file for this milestone already carries such marks, do not imitate them; a fresh review always emits unmarked entries.
+
 **REVIEW_PASS rules:**
-- Write `REVIEW_PASS` only if you have no findings at all — every findings section you wrote is empty.
-- If you wrote even one bug, issue, or problem under any heading, do not write `REVIEW_PASS`.
+- Write `REVIEW_PASS` only if you have no findings at all — every findings section you wrote is empty. Deferred observations are not findings: a review whose only content is a Deferred observations section still ends with `REVIEW_PASS` (the same applies to `PLAN_REVIEW_PASS` in plan review).
+- If you wrote even one bug, issue, or problem under any heading other than Deferred observations, do not write `REVIEW_PASS`.
 - If there is truly nothing to flag, end the review file with `REVIEW_PASS` on its own line and include it in your text response.
 
 ## Review Style
