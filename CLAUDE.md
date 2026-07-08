@@ -19,9 +19,12 @@ uv run orchestrator test /path/to/project
 
 # Default (implement) on current directory
 uv run orchestrator
+
+# Run the unit tests
+uv run pytest
 ```
 
-No test suite or linter is configured.
+Unit tests live in `tests/` (pytest, a dev dependency) and cover the pure, silent-failure surfaces — roadmap parsing, sidecar step-detection / resume dispatch, and usage-percentage parsing. No linter is configured.
 
 ## Documentation
 
