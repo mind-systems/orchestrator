@@ -30,6 +30,7 @@ No test suite or linter is configured.
 | [Workflow](docs/workflow.md) | The established working pattern: roadmap filling → implement → test coverage → prune |
 | [How it works](docs/how-it-works.md) | Agent pipeline mechanics, sessions, resume after interruption, file protocol, signals |
 | [Context model](docs/context-model.md) | The agent's perception tree: what is passed literally, what is lifted by following edges (Spec: notes, roadmap neighbors, CLAUDE.md), eager vs lazy graph loading |
+| [Failures and halts](docs/failures-and-halts.md) | The failure-vs-halt axis: what counts as a milestone failure vs an operational halt, the invariants (bounded attempts, transient absorption, resumability, fail-safe side effects), outcome signalling |
 | [Non-convergence](docs/non-convergence.md) | The two terminal-stop patterns (convergence without a signature vs escalation around one blocker), how to read review tails, resolutions outside the loop |
 | [Test mode](docs/test-mode.md) | Writing tests through the orchestrator; real test runs as the final check |
 | [Configuration](docs/configuration.md) | Config file, agent models, iteration limits, usage thresholds |
