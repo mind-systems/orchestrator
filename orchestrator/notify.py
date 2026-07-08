@@ -11,13 +11,18 @@ if TYPE_CHECKING:
     from .config import OrchestratorConfig
 
 
+# Alert types that report a failure/stop rather than a success.
+_FAIL_ALERTS = {"stop"}
+
+
 def notify(config: "OrchestratorConfig", text: str, alert_type: str) -> None:
     """Send a Telegram notification if alert_type is listed in config.telegram_alerts."""
     if alert_type not in config.telegram_alerts:
         return
     if not config.telegram_bot_token or not config.telegram_chat_id:
         return
-    send_telegram(config.telegram_bot_token, config.telegram_chat_id, text)
+    emoji = "🔴" if alert_type in _FAIL_ALERTS else "🟢"
+    send_telegram(config.telegram_bot_token, config.telegram_chat_id, f"{emoji} {text}")
 
 
 def send_telegram(token: str, chat_id: str, text: str) -> None:
