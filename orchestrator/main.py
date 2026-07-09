@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import re
 import signal
 import subprocess
 import sys
@@ -11,10 +10,13 @@ import time
 from pathlib import Path
 from typing import NamedTuple
 
-from .agents import HaltError, Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, TestRunner, _read_sessions, _write_session, kill_active_child
+from .agents import HaltError, Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, TestRunner, _read_sessions, _write_session
 from .config import OrchestratorConfig, load_config
 from .notify import notify
+from .resume import _detect_step
 from .roadmap import ParseResult, mark_done, mark_skipped, parse_roadmap
+from .runtime import _handle_sigint, _run_elapsed, _with_caffeinate
+from .usage import _check_usage_limits
 from . import state
 
 
@@ -68,59 +70,6 @@ TEST_MODE = Mode(
 )
 
 
-def _handle_sigint(sig, frame):
-    if state.stop_requested:
-        print("\n>>> Force quit.")
-        kill_active_child()
-        if state.config is not None and state.project_dir is not None:
-            notify(state.config, f"Orchestrator force-quit: {state.project_dir.name}\nRan for {_run_elapsed()}", "halt")
-        sys.exit(1)
-    state.stop_requested = True
-    print("\n>>> Will stop after the current milestone finishes. Press Ctrl+C again to force quit.")
-
-
-def _parse_pct(text: str, pattern: str) -> float | None:
-    """Return the first captured group of pattern as float, or None if no match."""
-    m = re.search(pattern, text)
-    return float(m.group(1)) if m else None
-
-
-def _check_usage_limits(config: OrchestratorConfig) -> None:
-    """Run `claude /usage`, log current usage, and stop if either threshold is breached."""
-    try:
-        result = subprocess.run(["claude", "/usage"], capture_output=True, text=True, timeout=30)
-        output = result.stdout
-    except Exception:
-        print("  [usage check: could not parse output, continuing]")
-        return
-
-    session_pct = _parse_pct(output, r"Current session:\s+(\d+(?:\.\d+)?)%")
-    weekly_pct = _parse_pct(output, r"Current week \(all models\):\s+(\d+(?:\.\d+)?)%")
-
-    parts = []
-    if session_pct is not None:
-        parts.append(f"session {session_pct:.0f}%")
-    if weekly_pct is not None:
-        parts.append(f"week {weekly_pct:.0f}%")
-    if parts:
-        print(f"  [usage: {' · '.join(parts)}]")
-    else:
-        print("  [usage check: could not parse output, continuing]")
-        return
-
-    session_threshold = config.usage_threshold_5h
-    weekly_threshold = config.usage_threshold_weekly
-
-    if session_pct is not None and session_pct >= session_threshold:
-        raise HaltError(
-            f"Session usage at {session_pct:.0f}% — stopping (threshold: {session_threshold:.0f}%)."
-        )
-    if weekly_pct is not None and weekly_pct >= weekly_threshold:
-        raise HaltError(
-            f"Weekly usage at {weekly_pct:.0f}% — stopping (threshold: {weekly_threshold:.0f}%)."
-        )
-
-
 def _run_loop(items, process_fn) -> None:
     """Iterate over items, checking stop_requested before each."""
     for i, item in enumerate(items):
@@ -161,168 +110,6 @@ def _git_commit(project_dir: Path, milestone_title: str) -> None:
     )
     if push_result.returncode != 0:
         print(">>> WARNING: git push failed, continuing anyway.")
-
-
-def _validate_sidecar_step(
-    step_value: str,
-    seq: str,
-    slug: str,
-    plan_reviews_dir: Path,
-    artifact_dir: Path,
-    fail_prefix: str,
-    fail_suffix: str,
-) -> str:
-    """Return step_value if the referenced artifact exists on disk, or "" if stale.
-
-    Clears step_value when:
-    - plan_review_failed:N and the corresponding plan-review file is missing.
-    - plan_reviewed and no plan-review file ends with PLAN_REVIEW_PASS.
-    - <fail_prefix>N and the corresponding artifact (artifact_dir / seq-slug<fail_suffix>) is missing.
-    "planned" and "implemented" have no artifact reference and are always valid.
-    Malformed :N parses also clear step_value so execution falls through to the heuristic.
-    """
-    if not step_value:
-        return step_value
-    if step_value in ("planned", "implemented"):
-        return step_value
-    if step_value.startswith("plan_review_failed:"):
-        try:
-            n = int(step_value.split(":")[1])
-            if not (plan_reviews_dir / f"{seq}-{slug}-plan-review-{n}.md").exists():
-                return ""
-        except (IndexError, ValueError):
-            return ""
-        return step_value
-    if step_value == "plan_reviewed":
-        if not any(
-            f.read_text().strip().endswith("PLAN_REVIEW_PASS")
-            for f in plan_reviews_dir.glob(f"{seq}-{slug}-plan-review-*.md")
-        ):
-            return ""
-        return step_value
-    if step_value.startswith(fail_prefix):
-        try:
-            n = int(step_value.split(":")[1])
-            if not (artifact_dir / f"{seq}-{slug}{fail_suffix.format(n=n)}").exists():
-                return ""
-        except (IndexError, ValueError):
-            return ""
-        return step_value
-    # unrecognized → return as-is; dispatch will fall through to heuristic
-    return step_value
-
-
-def _detect_step(
-    project_dir: Path, seq: str, slug: str,
-    plan_path: Path, plan_reviews_dir: Path, output_dir: Path,
-    verify_step: str, verify_fail_tag: str, output_suffix: str, pass_signal: str,
-) -> tuple[str, int, Path]:
-    """Detect where a previous run stopped and return (step, counter, plan_path) to resume from.
-
-    Steps: "plan", "plan_review", "implement", <verify_step>, "done".
-    Counter is the attempt/iteration number to use next.
-    The returned plan_path is the canonical path discovered from the lowest-seq file matching
-    the slug (handles the case where a previous run was interrupted and the current run computes
-    a different seq via _next_number).
-    """
-    # Resolve canonical seq and plan_path by scanning for existing files with this slug.
-    # This handles interrupted runs where _next_number() would otherwise produce a different seq.
-    plans_dir = plan_path.parent
-    slug_matches = sorted(plans_dir.glob(f"*-{slug}.md"))
-    if slug_matches:
-        best: Path | None = None
-        best_num: int | None = None
-        for f in slug_matches:
-            parts = f.stem.split("-", 1)
-            if parts[0].isdigit():
-                num = int(parts[0])
-                if best_num is None or num < best_num:
-                    best_num = num
-                    best = f
-        if best is not None:
-            seq = f"{best_num:02d}"
-            plan_path = best
-
-    # 1. Plan doesn't exist → start fresh
-    if not plan_path.exists():
-        return ("plan", 1, plan_path)
-
-    # 2. Check explicit step tracking from JSON sidecar
-    sessions = _read_sessions(plan_path)
-    step_value = _validate_sidecar_step(
-        sessions.get("step", ""), seq, slug, plan_reviews_dir, output_dir,
-        verify_fail_tag, output_suffix,
-    )
-    if step_value:
-        if step_value == "planned":
-            return ("plan_review", 1, plan_path)
-        elif step_value.startswith("plan_review_failed:"):
-            n = int(step_value.split(":")[1])
-            return ("plan", n + 1, plan_path)
-        elif step_value == "plan_reviewed":
-            return ("implement", 1, plan_path)
-        elif step_value == "implemented":
-            return (verify_step, 1, plan_path)
-        elif step_value.startswith(verify_fail_tag):
-            n = int(step_value.split(":")[1])
-            return ("implement", n + 1, plan_path)
-        # unrecognized → fall through to heuristic
-
-    # 3. No plan-review files → need to do first plan review
-    plan_review_files = sorted(plan_reviews_dir.glob(f"{seq}-{slug}-plan-review-*.md"))
-    if not plan_review_files:
-        return ("plan_review", 1, plan_path)
-
-    # 4. Latest plan-review didn't pass → plan needs revision
-    if not plan_review_files[-1].read_text().strip().endswith("PLAN_REVIEW_PASS"):
-        return ("plan", len(plan_review_files) + 1, plan_path)
-
-    # 5. Working tree is clean (excluding .ai-factory/ artifacts) → need to implement
-    diff = subprocess.run(
-        ["git", "diff", "HEAD", "--", ".", ":!.ai-factory"],
-        cwd=project_dir, capture_output=True, text=True,
-    )
-    status = subprocess.run(
-        ["git", "status", "--porcelain", "--", ".", ":!.ai-factory"],
-        cwd=project_dir, capture_output=True, text=True,
-    )
-    if not diff.stdout.strip() and not status.stdout.strip():
-        return ("implement", 1, plan_path)
-
-    # 6. No verify-output files → need to do first verify pass
-    output_files = sorted(output_dir.glob(f"{seq}-{slug}{output_suffix.format(n='*')}"))
-    if not output_files:
-        return (verify_step, 1, plan_path)
-
-    # 7. Latest verify-output passed → all steps complete; else need to re-implement
-    if output_files[-1].read_text().strip().endswith(pass_signal):
-        return ("done", 0, plan_path)
-
-    return ("implement", len(output_files) + 1, plan_path)
-
-
-def _detect_milestone_step(
-    project_dir: Path, seq: str, slug: str,
-    plan_path: Path, plan_reviews_dir: Path, reviews_dir: Path,
-) -> tuple[str, int, Path]:
-    """Detect where a previous implement run stopped. Thin wrapper over `_detect_step`."""
-    return _detect_step(
-        project_dir, seq, slug, plan_path, plan_reviews_dir, reviews_dir,
-        IMPLEMENT_MODE.verify_step, IMPLEMENT_MODE.verify_fail_tag,
-        IMPLEMENT_MODE.output_suffix, IMPLEMENT_MODE.pass_signal,
-    )
-
-
-def _detect_test_milestone_step(
-    project_dir: Path, seq: str, slug: str,
-    plan_path: Path, plan_reviews_dir: Path, test_runs_dir: Path,
-) -> tuple[str, int, Path]:
-    """Detect where a previous test run stopped. Thin wrapper over `_detect_step`."""
-    return _detect_step(
-        project_dir, seq, slug, plan_path, plan_reviews_dir, test_runs_dir,
-        TEST_MODE.verify_step, TEST_MODE.verify_fail_tag,
-        TEST_MODE.output_suffix, TEST_MODE.pass_signal,
-    )
 
 
 def process_milestone(project_dir: Path, milestone, milestone_index: int, config: OrchestratorConfig, mode: Mode = IMPLEMENT_MODE, phase_session_id: str | None = None) -> str | None:
@@ -485,46 +272,6 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
     mins, secs = divmod(elapsed, 60)
     print(f">>> Milestone done [{mins}m {secs}s]")
     return planner_reviewer.session_id
-
-
-def _fmt_elapsed(seconds: int) -> str:
-    mins, secs = divmod(seconds, 60)
-    hours, mins = divmod(mins, 60)
-    return f"{hours}h {mins}m {secs}s" if hours else f"{mins}m {secs}s"
-
-
-def _run_elapsed() -> str:
-    if state.run_started is None:
-        return "unknown"
-    return _fmt_elapsed(int(time.monotonic() - state.run_started))
-
-
-def _with_caffeinate(func, *args, **kwargs):
-    """Run a function with macOS sleep prevention (degrades gracefully on non-macOS)."""
-    start = time.monotonic()
-    try:
-        caffeinate = subprocess.Popen(["caffeinate", "-ims"])
-    except FileNotFoundError:
-        # caffeinate not available (non-macOS); run without sleep prevention
-        try:
-            func(*args, **kwargs)
-        except Exception:
-            elapsed = int(time.monotonic() - start)
-            print(f">>> Ran for {_fmt_elapsed(elapsed)} before stopping.")
-            raise
-        return _fmt_elapsed(int(time.monotonic() - start))
-
-    try:
-        func(*args, **kwargs)
-    except Exception:
-        elapsed = int(time.monotonic() - start)
-        print(f">>> Ran for {_fmt_elapsed(elapsed)} before stopping.")
-        raise
-    finally:
-        caffeinate.send_signal(signal.SIGTERM)
-        caffeinate.wait()
-
-    return _fmt_elapsed(int(time.monotonic() - start))
 
 
 def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: OrchestratorConfig, process_fn) -> None:

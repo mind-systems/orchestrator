@@ -9,16 +9,16 @@ from pathlib import Path
 
 from orchestrator import agents as agents_module
 from orchestrator import main as main_module
+from orchestrator import usage as usage_module
 from orchestrator.agents import PipelineStopError, RateLimitError
 from orchestrator.config import OrchestratorConfig
-from orchestrator.main import (
-    _check_usage_limits,
+from orchestrator.main import process_milestone
+from orchestrator.resume import (
     _detect_milestone_step,
     _detect_test_milestone_step,
-    _parse_pct,
     _validate_sidecar_step,
-    process_milestone,
 )
+from orchestrator.usage import _check_usage_limits, _parse_pct
 
 # ---------------------------------------------------------------------------
 # Helpers / constants shared across _validate_sidecar_step tests
@@ -753,7 +753,7 @@ def test_check_usage_limits_raises_halt_error_over_threshold(monkeypatch):
     class _Result:
         stdout = "Current session: 99%"
 
-    monkeypatch.setattr(main_module.subprocess, "run", lambda *a, **kw: _Result())
+    monkeypatch.setattr(usage_module.subprocess, "run", lambda *a, **kw: _Result())
 
     with pytest.raises(Exception) as exc:
         _check_usage_limits(config)
