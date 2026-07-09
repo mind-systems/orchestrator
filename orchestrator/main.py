@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import NamedTuple
 
 from .agents import HaltError, Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, TestRunner, _read_sessions, _write_session, kill_active_child
 from .config import OrchestratorConfig, load_config
@@ -16,6 +17,55 @@ from .notify import notify
 from .roadmap import ParseResult, mark_done, mark_skipped, parse_roadmap
 from . import state
 
+
+class Mode(NamedTuple):
+    """Static per-mode divergences between the implement and test pipelines."""
+    roadmap_filename: str
+    header_label: str
+    planner_prompt_name: str
+    output_dirname: str
+    output_suffix: str  # artifact tail with an {n} placeholder, e.g. "-review-{n}.md"
+    verify_step: str
+    verify_fail_tag: str
+    pass_signal: str
+    skip_message: str
+    verify_running_header: str
+    pass_line_label: str
+    fail_line_label: str
+    max_iterations_message: str  # template with {n}, {path}, {content} placeholders
+
+
+IMPLEMENT_MODE = Mode(
+    roadmap_filename="ROADMAP.md",
+    header_label="MILESTONE",
+    planner_prompt_name="planner",
+    output_dirname="reviews",
+    output_suffix="-review-{n}.md",
+    verify_step="review",
+    verify_fail_tag="review_failed:",
+    pass_signal="REVIEW_PASS",
+    skip_message="Planner did not create a plan (milestone may already be done). Skipping.",
+    verify_running_header="REVIEWING",
+    pass_line_label="REVIEW PASSED",
+    fail_line_label="Review found issues",
+    max_iterations_message="Max iterations ({n}) reached without REVIEW_PASS.\n\nLast review: {path}\n\n{content}",
+)
+
+TEST_MODE = Mode(
+    roadmap_filename="ROADMAP_TESTS.md",
+    header_label="TEST MILESTONE",
+    planner_prompt_name="test-planner",
+    output_dirname="test-runs",
+    output_suffix="-test-{n}.txt",
+    verify_step="test_run",
+    verify_fail_tag="test_run_failed:",
+    pass_signal="TEST_PASS",
+    skip_message="Planner did not create a plan. Skipping.",
+    verify_running_header="RUNNING TESTS",
+    pass_line_label="TESTS PASSED",
+    fail_line_label="Tests failed",
+    max_iterations_message="Tests failed after {n} iteration(s).\n\nLast run: {path}\n\n{content}",
+)
 
 
 def _handle_sigint(sig, frame):
@@ -162,13 +212,14 @@ def _validate_sidecar_step(
     return step_value
 
 
-def _detect_milestone_step(
+def _detect_step(
     project_dir: Path, seq: str, slug: str,
-    plan_path: Path, plan_reviews_dir: Path, reviews_dir: Path,
+    plan_path: Path, plan_reviews_dir: Path, output_dir: Path,
+    verify_step: str, verify_fail_tag: str, output_suffix: str, pass_signal: str,
 ) -> tuple[str, int, Path]:
     """Detect where a previous run stopped and return (step, counter, plan_path) to resume from.
 
-    Steps: "plan", "plan_review", "implement", "review", "done".
+    Steps: "plan", "plan_review", "implement", <verify_step>, "done".
     Counter is the attempt/iteration number to use next.
     The returned plan_path is the canonical path discovered from the lowest-seq file matching
     the slug (handles the case where a previous run was interrupted and the current run computes
@@ -199,8 +250,8 @@ def _detect_milestone_step(
     # 2. Check explicit step tracking from JSON sidecar
     sessions = _read_sessions(plan_path)
     step_value = _validate_sidecar_step(
-        sessions.get("step", ""), seq, slug, plan_reviews_dir, reviews_dir,
-        "review_failed:", "-review-{n}.md",
+        sessions.get("step", ""), seq, slug, plan_reviews_dir, output_dir,
+        verify_fail_tag, output_suffix,
     )
     if step_value:
         if step_value == "planned":
@@ -211,8 +262,8 @@ def _detect_milestone_step(
         elif step_value == "plan_reviewed":
             return ("implement", 1, plan_path)
         elif step_value == "implemented":
-            return ("review", 1, plan_path)
-        elif step_value.startswith("review_failed:"):
+            return (verify_step, 1, plan_path)
+        elif step_value.startswith(verify_fail_tag):
             n = int(step_value.split(":")[1])
             return ("implement", n + 1, plan_path)
         # unrecognized → fall through to heuristic
@@ -238,38 +289,64 @@ def _detect_milestone_step(
     if not diff.stdout.strip() and not status.stdout.strip():
         return ("implement", 1, plan_path)
 
-    # 6. No review files → need to do first review
-    review_files = sorted(reviews_dir.glob(f"{seq}-{slug}-review-*.md"))
-    if not review_files:
-        return ("review", 1, plan_path)
+    # 6. No verify-output files → need to do first verify pass
+    output_files = sorted(output_dir.glob(f"{seq}-{slug}{output_suffix.format(n='*')}"))
+    if not output_files:
+        return (verify_step, 1, plan_path)
 
-    # 7. Latest review didn't pass → need to re-implement
-    if not review_files[-1].read_text().strip().endswith("REVIEW_PASS"):
-        return ("implement", len(review_files) + 1, plan_path)
+    # 7. Latest verify-output passed → all steps complete; else need to re-implement
+    if output_files[-1].read_text().strip().endswith(pass_signal):
+        return ("done", 0, plan_path)
 
-    # 8. All steps complete
-    return ("done", 0, plan_path)
+    return ("implement", len(output_files) + 1, plan_path)
 
 
-def process_milestone(project_dir: Path, milestone, milestone_index: int, config: OrchestratorConfig, planner_prompt_name: str = "planner", roadmap_filename: str = "ROADMAP.md", phase_session_id: str | None = None) -> str | None:
-    """Plan → implement → review loop for a single milestone."""
+def _detect_milestone_step(
+    project_dir: Path, seq: str, slug: str,
+    plan_path: Path, plan_reviews_dir: Path, reviews_dir: Path,
+) -> tuple[str, int, Path]:
+    """Detect where a previous implement run stopped. Thin wrapper over `_detect_step`."""
+    return _detect_step(
+        project_dir, seq, slug, plan_path, plan_reviews_dir, reviews_dir,
+        IMPLEMENT_MODE.verify_step, IMPLEMENT_MODE.verify_fail_tag,
+        IMPLEMENT_MODE.output_suffix, IMPLEMENT_MODE.pass_signal,
+    )
+
+
+def _detect_test_milestone_step(
+    project_dir: Path, seq: str, slug: str,
+    plan_path: Path, plan_reviews_dir: Path, test_runs_dir: Path,
+) -> tuple[str, int, Path]:
+    """Detect where a previous test run stopped. Thin wrapper over `_detect_step`."""
+    return _detect_step(
+        project_dir, seq, slug, plan_path, plan_reviews_dir, test_runs_dir,
+        TEST_MODE.verify_step, TEST_MODE.verify_fail_tag,
+        TEST_MODE.output_suffix, TEST_MODE.pass_signal,
+    )
+
+
+def process_milestone(project_dir: Path, milestone, milestone_index: int, config: OrchestratorConfig, mode: Mode = IMPLEMENT_MODE, phase_session_id: str | None = None) -> str | None:
+    """Plan → implement → verify loop for a single milestone (verify = review, or a real test run in test mode)."""
     max_iterations = config.max_iterations
     ai_factory = project_dir / ".ai-factory"
     plans_dir = ai_factory / "plans"
-    reviews_dir = ai_factory / "reviews"
+    output_dir = ai_factory / mode.output_dirname
     plan_reviews_dir = ai_factory / "plan-reviews"
     plans_dir.mkdir(parents=True, exist_ok=True)
-    reviews_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
     plan_reviews_dir.mkdir(parents=True, exist_ok=True)
 
-    roadmap_path = project_dir / ".ai-factory" / roadmap_filename
+    roadmap_path = project_dir / ".ai-factory" / mode.roadmap_filename
     seq = f"{milestone_index:02d}"
     plan_path = plans_dir / f"{seq}-{milestone.slug}.md"
     print(f"\n{'='*60}")
-    print(f"MILESTONE: {milestone.title}")
+    print(f"{mode.header_label}: {milestone.title}")
     print(f"{'='*60}")
 
-    step, counter, plan_path = _detect_milestone_step(project_dir, seq, milestone.slug, plan_path, plan_reviews_dir, reviews_dir)
+    step, counter, plan_path = _detect_step(
+        project_dir, seq, milestone.slug, plan_path, plan_reviews_dir, output_dir,
+        mode.verify_step, mode.verify_fail_tag, mode.output_suffix, mode.pass_signal,
+    )
     seq = plan_path.stem.split("-", 1)[0]
 
     elapsed_offset = 0
@@ -292,8 +369,14 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
         return phase_session_id
 
     # Create agents
-    planner_reviewer = PlannerReviewer(project_dir, planner_prompt_name=planner_prompt_name)
+    planner_reviewer = PlannerReviewer(project_dir, planner_prompt_name=mode.planner_prompt_name)
     implementer = Implementer(project_dir)
+    test_runner = TestRunner() if mode.verify_step == "test_run" else None
+
+    def _verify(out_path: Path, prev_out_path: Path | None) -> bool:
+        if test_runner is not None:
+            return test_runner.run(plan_path, out_path, project_dir)
+        return planner_reviewer.review(plan_path, out_path, prev_review_path=prev_out_path)
 
     if sessions and sessions.get("planner"):
         planner_reviewer.session_id = sessions.get("planner")
@@ -311,7 +394,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
             planner_reviewer.plan(milestone.title, milestone.description, plan_path, roadmap_path=roadmap_path, line_number=milestone.line_number)
 
         if not plan_path.exists():
-            print(f">>> Planner did not create a plan (milestone may already be done). Skipping.")
+            print(f">>> {mode.skip_message}")
             mark_skipped(roadmap_path, milestone)
             return planner_reviewer.session_id
 
@@ -353,45 +436,44 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
             f"No passing plan review found for milestone {seq}-{milestone.slug}. Cannot proceed to implementation."
         )
 
-    # Step 2-3: Implement → Review loop
-    impl_start = counter if step in ("implement", "review") else 1
+    # Step 2-3: Implement → Verify loop
+    impl_start = counter if step in ("implement", mode.verify_step) else 1
     if impl_start > max_iterations:
         raise HaltError(
             f"Resume at iteration {impl_start} exceeds max_iterations "
             f"({max_iterations}). Raise max_iterations in orchestrator.json to continue."
         )
     for iteration in range(impl_start, max_iterations + 1):
-        if step == "review" and iteration == counter:
-            # Resuming mid-review: implementation already done, go straight to review
+        if step == mode.verify_step and iteration == counter:
+            # Resuming mid-verify: implementation already done, go straight to verify
             pass
         else:
             print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
-            feedback_path = reviews_dir / f"{seq}-{milestone.slug}-review-{iteration - 1}.md" if iteration > 1 else None
+            feedback_path = output_dir / f"{seq}-{milestone.slug}{mode.output_suffix.format(n=iteration - 1)}" if iteration > 1 else None
             implementer.implement(plan_path, feedback_path=feedback_path, roadmap_path=roadmap_path, line_number=milestone.line_number)
             _write_session(plan_path, "step", "implemented")
             _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
-        print(f"\n>>> REVIEWING (iteration {iteration})...")
+        print(f"\n>>> {mode.verify_running_header} (iteration {iteration})...")
         subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
-        review_path = reviews_dir / f"{seq}-{milestone.slug}-review-{iteration}.md"
-        prev_review_path = None
-        if iteration > 1:
-            prev = reviews_dir / f"{seq}-{milestone.slug}-review-{iteration - 1}.md"
+        out_path = output_dir / f"{seq}-{milestone.slug}{mode.output_suffix.format(n=iteration)}"
+        prev_out_path = None
+        if mode.verify_step == "review" and iteration > 1:
+            prev = output_dir / f"{seq}-{milestone.slug}{mode.output_suffix.format(n=iteration - 1)}"
             if prev.exists():
-                prev_review_path = prev
-        passed = planner_reviewer.review(plan_path, review_path, prev_review_path=prev_review_path)
+                prev_out_path = prev
+        passed = _verify(out_path, prev_out_path)
         _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
 
         if passed:
-            print(f">>> REVIEW PASSED — see {review_path}")
+            print(f">>> {mode.pass_line_label} — see {out_path}")
             break
         else:
-            print(f">>> Review found issues — see {review_path}")
-            _write_session(plan_path, "step", f"review_failed:{iteration}")
+            print(f">>> {mode.fail_line_label} — see {out_path}")
+            _write_session(plan_path, "step", f"{mode.verify_fail_tag}{iteration}")
             if iteration == max_iterations:
                 raise PipelineStopError(
-                    f"Max iterations ({max_iterations}) reached without REVIEW_PASS.\n\n"
-                    f"Last review: {review_path}\n\n{review_path.read_text()}"
+                    mode.max_iterations_message.format(n=max_iterations, path=out_path, content=out_path.read_text())
                 )
 
     # Step 4: Mark done + commit
@@ -443,225 +525,6 @@ def _with_caffeinate(func, *args, **kwargs):
         caffeinate.wait()
 
     return _fmt_elapsed(int(time.monotonic() - start))
-
-
-def _detect_test_milestone_step(
-    project_dir: Path, seq: str, slug: str,
-    plan_path: Path, plan_reviews_dir: Path, test_runs_dir: Path,
-) -> tuple[str, int, Path]:
-    """Detect where a previous test run stopped. Steps: plan, plan_review, implement, test_run, done."""
-    plans_dir = plan_path.parent
-    slug_matches = sorted(plans_dir.glob(f"*-{slug}.md"))
-    if slug_matches:
-        best: Path | None = None
-        best_num: int | None = None
-        for f in slug_matches:
-            parts = f.stem.split("-", 1)
-            if parts[0].isdigit():
-                num = int(parts[0])
-                if best_num is None or num < best_num:
-                    best_num = num
-                    best = f
-        if best is not None:
-            seq = f"{best_num:02d}"
-            plan_path = best
-
-    if not plan_path.exists():
-        return ("plan", 1, plan_path)
-
-    # Check explicit step tracking from JSON sidecar
-    sessions = _read_sessions(plan_path)
-    step_value = _validate_sidecar_step(
-        sessions.get("step", ""), seq, slug, plan_reviews_dir, test_runs_dir,
-        "test_run_failed:", "-test-{n}.txt",
-    )
-    if step_value:
-        if step_value == "planned":
-            return ("plan_review", 1, plan_path)
-        elif step_value.startswith("plan_review_failed:"):
-            n = int(step_value.split(":")[1])
-            return ("plan", n + 1, plan_path)
-        elif step_value == "plan_reviewed":
-            return ("implement", 1, plan_path)
-        elif step_value == "implemented":
-            return ("test_run", 1, plan_path)
-        elif step_value.startswith("test_run_failed:"):
-            n = int(step_value.split(":")[1])
-            return ("implement", n + 1, plan_path)
-        # unrecognized → fall through to heuristic
-
-    plan_review_files = sorted(plan_reviews_dir.glob(f"{seq}-{slug}-plan-review-*.md"))
-    if not plan_review_files:
-        return ("plan_review", 1, plan_path)
-
-    if not plan_review_files[-1].read_text().strip().endswith("PLAN_REVIEW_PASS"):
-        return ("plan", len(plan_review_files) + 1, plan_path)
-
-    diff = subprocess.run(
-        ["git", "diff", "HEAD", "--", ".", ":!.ai-factory"],
-        cwd=project_dir, capture_output=True, text=True,
-    )
-    status = subprocess.run(
-        ["git", "status", "--porcelain", "--", ".", ":!.ai-factory"],
-        cwd=project_dir, capture_output=True, text=True,
-    )
-    if not diff.stdout.strip() and not status.stdout.strip():
-        return ("implement", 1, plan_path)
-
-    test_run_files = sorted(test_runs_dir.glob(f"{seq}-{slug}-test-*.txt"))
-    if not test_run_files:
-        return ("test_run", 1, plan_path)
-
-    if test_run_files[-1].read_text().strip().endswith("TEST_PASS"):
-        return ("done", 0, plan_path)
-
-    return ("implement", len(test_run_files) + 1, plan_path)
-
-
-def process_test_milestone(project_dir: Path, milestone, milestone_index: int, config: OrchestratorConfig, phase_session_id: str | None = None) -> str | None:
-    """Plan → implement → test-run loop for a single test milestone."""
-    max_iterations = config.max_iterations
-    ai_factory = project_dir / ".ai-factory"
-    plans_dir = ai_factory / "plans"
-    test_runs_dir = ai_factory / "test-runs"
-    plan_reviews_dir = ai_factory / "plan-reviews"
-    for d in (plans_dir, test_runs_dir, plan_reviews_dir):
-        d.mkdir(parents=True, exist_ok=True)
-
-    roadmap_path = project_dir / ".ai-factory" / "ROADMAP_TESTS.md"
-    seq = f"{milestone_index:02d}"
-    plan_path = plans_dir / f"{seq}-{milestone.slug}.md"
-    print(f"\n{'='*60}")
-    print(f"TEST MILESTONE: {milestone.title}")
-    print(f"{'='*60}")
-
-    step, counter, plan_path = _detect_test_milestone_step(project_dir, seq, milestone.slug, plan_path, plan_reviews_dir, test_runs_dir)
-    seq = plan_path.stem.split("-", 1)[0]
-
-    elapsed_offset = 0
-    sessions: dict[str, str] = {}
-    if plan_path.exists():
-        sessions = _read_sessions(plan_path)
-        elapsed_offset = int(sessions.get("elapsed", "0"))
-    milestone_start = time.monotonic() - elapsed_offset
-
-    if step != "plan":
-        print(f">>> Resuming from step '{step}' (counter={counter})")
-
-    if step == "done":
-        elapsed = int(time.monotonic() - milestone_start)
-        mark_done(roadmap_path, milestone, elapsed)
-        _git_commit(project_dir, milestone.title)
-        notify(config, f"{project_dir.name}: Milestone done: {milestone.title}", "milestone")
-        mins, secs = divmod(elapsed, 60)
-        print(f">>> Milestone done [{mins}m {secs}s]")
-        return phase_session_id
-
-    planner_reviewer = PlannerReviewer(project_dir, planner_prompt_name="test-planner")
-    implementer = Implementer(project_dir)
-    test_runner = TestRunner()
-
-    if sessions and sessions.get("planner"):
-        planner_reviewer.session_id = sessions.get("planner")
-    elif phase_session_id:
-        planner_reviewer.session_id = phase_session_id
-    implementer.session_id = sessions.get("implementer") if sessions else None
-
-    # Step 1: Plan
-    if step == "plan":
-        print("\n>>> PLANNING...")
-        if counter > 1:
-            prev_plan_review = plan_reviews_dir / f"{seq}-{milestone.slug}-plan-review-{counter - 1}.md"
-            planner_reviewer.plan(milestone.title, milestone.description, plan_path, roadmap_path=roadmap_path, line_number=milestone.line_number, plan_review_path=prev_plan_review)
-        else:
-            planner_reviewer.plan(milestone.title, milestone.description, plan_path, roadmap_path=roadmap_path, line_number=milestone.line_number)
-
-        if not plan_path.exists():
-            print(">>> Planner did not create a plan. Skipping.")
-            mark_skipped(roadmap_path, milestone)
-            return planner_reviewer.session_id
-
-        step = "plan_review"
-        _write_session(plan_path, "step", "planned")
-        _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
-
-    # Step 1.5: Iterative plan review
-    if step in ("plan", "plan_review"):
-        for attempt in range(counter, max_iterations + 1):
-            print(f"\n>>> REVIEWING PLAN (attempt {attempt})...")
-            plan_reviewer = PlanReviewer(project_dir)
-            plan_review_path = plan_reviews_dir / f"{seq}-{milestone.slug}-plan-review-{attempt}.md"
-            plan_passed = plan_reviewer.review_plan(plan_path, plan_review_path)
-            _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
-
-            if plan_passed:
-                print(f">>> Plan review passed — see {plan_review_path}")
-                _write_session(plan_path, "step", "plan_reviewed")
-                break
-
-            if attempt == max_iterations:
-                raise PipelineStopError(
-                    f"Plan failed review after {max_iterations} attempt(s).\n\n"
-                    f"Last review: {plan_review_path}\n\n{plan_review_path.read_text()}"
-                )
-
-            print(">>> Plan has issues — revising plan...")
-            _write_session(plan_path, "step", f"plan_review_failed:{attempt}")
-            planner_reviewer.plan(
-                milestone.title, milestone.description, plan_path,
-                plan_review_path=plan_review_path,
-            )
-
-    _plan_review_files = sorted(plan_reviews_dir.glob(f"{seq}-{milestone.slug}-plan-review-*.md"))
-    if not _plan_review_files or not _plan_review_files[-1].read_text().strip().endswith("PLAN_REVIEW_PASS"):
-        raise PipelineStopError(
-            f"No passing plan review found for milestone {seq}-{milestone.slug}. Cannot proceed to implementation."
-        )
-
-    # Step 2-3: Implement → TestRun loop
-    impl_start = counter if step in ("implement", "test_run") else 1
-    if impl_start > max_iterations:
-        raise HaltError(
-            f"Resume at iteration {impl_start} exceeds max_iterations "
-            f"({max_iterations}). Raise max_iterations in orchestrator.json to continue."
-        )
-    for iteration in range(impl_start, max_iterations + 1):
-        if step == "test_run" and iteration == counter:
-            pass
-        else:
-            print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
-            feedback_path = test_runs_dir / f"{seq}-{milestone.slug}-test-{iteration - 1}.txt" if iteration > 1 else None
-            implementer.implement(plan_path, feedback_path=feedback_path, roadmap_path=roadmap_path, line_number=milestone.line_number)
-            _write_session(plan_path, "step", "implemented")
-            _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
-
-        print(f"\n>>> RUNNING TESTS (iteration {iteration})...")
-        subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
-        test_run_path = test_runs_dir / f"{seq}-{milestone.slug}-test-{iteration}.txt"
-        passed = test_runner.run(plan_path, test_run_path, project_dir)
-        _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
-
-        if passed:
-            print(f">>> TESTS PASSED — see {test_run_path}")
-            break
-        else:
-            print(f">>> Tests failed — see {test_run_path}")
-            _write_session(plan_path, "step", f"test_run_failed:{iteration}")
-            if iteration == max_iterations:
-                raise PipelineStopError(
-                    f"Tests failed after {max_iterations} iteration(s).\n\n"
-                    f"Last run: {test_run_path}\n\n{test_run_path.read_text()}"
-                )
-
-    # Step 4: Mark done + commit
-    elapsed = int(time.monotonic() - milestone_start)
-    mark_done(roadmap_path, milestone, elapsed)
-    _git_commit(project_dir, milestone.title)
-    notify(config, f"{project_dir.name}: Milestone done: {milestone.title}", "milestone")
-
-    mins, secs = divmod(elapsed, 60)
-    print(f">>> Milestone done [{mins}m {secs}s]")
-    return planner_reviewer.session_id
 
 
 def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: OrchestratorConfig, process_fn) -> None:
@@ -724,9 +587,10 @@ def _test_loop(project_dir: Path, config: OrchestratorConfig) -> None:
     if not roadmap_path.exists():
         print(f"ERROR: No ROADMAP_TESTS.md found at {roadmap_path}")
         sys.exit(1)
+    mode = TEST_MODE
     _run_dynamic_loop(
         project_dir, roadmap_path, config,
-        lambda m, i, sid: process_test_milestone(project_dir, m, i, config, phase_session_id=sid),
+        lambda m, i, sid: process_milestone(project_dir, m, i, config, mode, phase_session_id=sid),
     )
 
 
@@ -736,9 +600,10 @@ def _implement_loop(project_dir: Path, config: OrchestratorConfig, planner_promp
     if not roadmap_path.exists():
         print(f"ERROR: No ROADMAP.md found at {roadmap_path}")
         sys.exit(1)
+    mode = IMPLEMENT_MODE._replace(planner_prompt_name=planner_prompt_name, roadmap_filename=roadmap_filename)
     _run_dynamic_loop(
         project_dir, roadmap_path, config,
-        lambda m, i, sid: process_milestone(project_dir, m, i, config, planner_prompt_name, roadmap_filename, phase_session_id=sid),
+        lambda m, i, sid: process_milestone(project_dir, m, i, config, mode, phase_session_id=sid),
     )
 
 
