@@ -711,28 +711,28 @@ def _run_cli_with(monkeypatch, exc):
     return recorded
 
 
-def test_cli_pipeline_stop_error_routes_to_stop(monkeypatch):
-    """Should record alert_type 'stop' and exit via SystemExit when run_implement raises PipelineStopError."""
+def test_cli_pipeline_stop_error_routes_to_milestone_fail(monkeypatch):
+    """Should record alert_type 'milestone-fail' and exit via SystemExit when run_implement raises PipelineStopError."""
     recorded = _run_cli_with(monkeypatch, PipelineStopError("boom"))
+    with pytest.raises(SystemExit):
+        main_module.cli()
+    assert recorded[-1][1] == "milestone-fail"
+
+
+def test_cli_rate_limit_error_routes_to_stop(monkeypatch):
+    """Should record alert_type 'stop' when run_implement raises RateLimitError."""
+    recorded = _run_cli_with(monkeypatch, RateLimitError("boom"))
     with pytest.raises(SystemExit):
         main_module.cli()
     assert recorded[-1][1] == "stop"
 
 
-def test_cli_rate_limit_error_routes_to_halt(monkeypatch):
-    """Should record alert_type 'halt' when run_implement raises RateLimitError (red now — currently routes to 'stop')."""
-    recorded = _run_cli_with(monkeypatch, RateLimitError("boom"))
-    with pytest.raises(SystemExit):
-        main_module.cli()
-    assert recorded[-1][1] == "halt"
-
-
-def test_cli_generic_exception_routes_to_halt_and_reraises(monkeypatch):
-    """Should record alert_type 'halt' and re-raise a generic Exception (red now — cli() has no except Exception today)."""
+def test_cli_generic_exception_routes_to_stop_and_reraises(monkeypatch):
+    """Should record alert_type 'stop' and re-raise a generic Exception."""
     recorded = _run_cli_with(monkeypatch, ValueError("boom"))
     with pytest.raises(ValueError):
         main_module.cli()
-    assert recorded and recorded[-1][1] == "halt"
+    assert recorded and recorded[-1][1] == "stop"
 
 
 # ---------------------------------------------------------------------------

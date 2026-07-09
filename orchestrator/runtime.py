@@ -17,7 +17,7 @@ def _handle_sigint(sig, frame):
         print("\n>>> Force quit.")
         kill_active_child()
         if state.config is not None and state.project_dir is not None:
-            notify(state.config, f"Orchestrator force-quit: {state.project_dir.name}\nRan for {_run_elapsed()}", "halt")
+            notify(state.config, f"Orchestrator force-quit: {state.project_dir.name}\nRan for {_run_elapsed()}", "stop")
         sys.exit(1)
     state.stop_requested = True
     print("\n>>> Will stop after the current milestone finishes. Press Ctrl+C again to force quit.")

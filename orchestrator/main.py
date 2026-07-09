@@ -325,7 +325,7 @@ def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: Orchestrato
 
     if state.stop_requested:
         print("\n>>> Stop requested — halting.")
-        notify(config, f"Orchestrator stopped (manual): {project_dir.name}\nRan for {_run_elapsed()}", "halt")
+        notify(config, f"Orchestrator stopped (manual): {project_dir.name}\nRan for {_run_elapsed()}", "stop")
 
 
 def _test_loop(project_dir: Path, config: OrchestratorConfig) -> None:
@@ -404,20 +404,20 @@ def cli() -> None:
         print(f"STOPPED — {e}")
         print(f"{'='*60}")
         msg = str(e).splitlines()[0]
-        notify(config, f"Orchestrator stopped: {project_dir.name}\n{msg}\nRan for {_run_elapsed()}", "stop")
+        notify(config, f"Orchestrator stopped: {project_dir.name}\n{msg}\nRan for {_run_elapsed()}", "milestone-fail")
         sys.exit(0)
     except HaltError as e:
         print(f"\n{'='*60}")
         print(f"HALTED — {e}")
         print(f"{'='*60}")
         msg = str(e).splitlines()[0]
-        notify(config, f"Orchestrator halted: {project_dir.name}\n{msg}\nRan for {_run_elapsed()}", "halt")
+        notify(config, f"Orchestrator halted: {project_dir.name}\n{msg}\nRan for {_run_elapsed()}", "stop")
         sys.exit(0)
     except Exception as e:
         notify(
             config,
             f"Orchestrator error: {project_dir.name}\n{type(e).__name__}: {str(e).splitlines()[0] if str(e) else ''}\nRan for {_run_elapsed()}",
-            "halt",
+            "stop",
         )
         raise
 

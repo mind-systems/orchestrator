@@ -66,7 +66,7 @@ ORCHESTRATOR_CONFIG=/path/to/my-config.json uv run orchestrator implement /path/
 {
   "telegram_bot_token": "1234567890:AAF...",
   "telegram_chat_id": "-1001234567890",
-  "telegram_alerts": ["stop", "halt", "milestone", "done"]
+  "telegram_alerts": ["milestone-fail", "stop", "milestone", "done"]
 }
 ```
 
@@ -76,9 +76,11 @@ ORCHESTRATOR_CONFIG=/path/to/my-config.json uv run orchestrator implement /path/
 
 | Тип | Цвет | Когда отправляется |
 |---|---|---|
-| `stop` | 🔴 | Отказ — milestone не сошёлся за лимит итераций |
-| `halt` | 🟡 | Остановка — исчерпан лимит/внешний ресурс, инфра-сбой или ручная остановка |
+| `milestone-fail` | 🔴 | Отказ — milestone не сошёлся за лимит итераций |
+| `stop` | 🟡 | Остановка — исчерпан лимит/внешний ресурс, инфра-сбой или ручная остановка |
 | `milestone` | 🟢 | Milestone успешно завершён и закоммичен |
 | `done` | 🟢 | Все milestone-ы в роадмапе выполнены |
+
+Важно при обновлении: литерал `stop` поменял смысл — раньше это был 🔴 отказ, теперь это 🟡 операционная остановка. Автоматической миграции нет: если в `telegram_alerts` уже был `"stop"`, его нужно осознанно пересмотреть под новый набор (например, `["milestone-fail", "stop", "done"]`).
 
 Пустой список `[]` отключает все уведомления даже при заполненных учётных данных. Сетевая ошибка при отправке не останавливает прогон.

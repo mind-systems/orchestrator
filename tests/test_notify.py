@@ -35,20 +35,20 @@ def sent(monkeypatch):
 # Task 1: Emoji-prefix mapping
 # ---------------------------------------------------------------------------
 
-ALL_ALERTS = ["stop", "halt", "milestone", "done", "whatever"]
+ALL_ALERTS = ["milestone-fail", "stop", "milestone", "done", "whatever"]
 
 
-def test_stop_alert_prefixed_red(sent):
-    """Should prefix the message with 🔴 for alert_type 'stop'."""
+def test_milestone_fail_alert_prefixed_red(sent):
+    """Should prefix the message with 🔴 for alert_type 'milestone-fail'."""
     config = _config(ALL_ALERTS)
-    notify(config, "some message", "stop")
+    notify(config, "some message", "milestone-fail")
     assert sent[0].startswith("🔴")
 
 
-def test_halt_alert_prefixed_yellow(sent):
-    """Should prefix the message with 🟡 for alert_type 'halt' (red now — current code has no _HALT_ALERTS)."""
+def test_stop_alert_prefixed_yellow(sent):
+    """Should prefix the message with 🟡 for alert_type 'stop'."""
     config = _config(ALL_ALERTS)
-    notify(config, "some message", "halt")
+    notify(config, "some message", "stop")
     assert sent[0].startswith("🟡")
 
 

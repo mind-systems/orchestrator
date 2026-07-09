@@ -11,11 +11,11 @@ if TYPE_CHECKING:
     from .config import OrchestratorConfig
 
 
-# Alert types that report a failure/stop rather than a success.
-_FAIL_ALERTS = {"stop"}
+# Alert types that report a milestone failure rather than a success.
+_FAIL_ALERTS = {"milestone-fail"}
 
-# Alert types that report an operational halt — not a milestone failure.
-_HALT_ALERTS = {"halt"}
+# Alert types that report an operational stop — not a milestone failure.
+_HALT_ALERTS = {"stop"}
 
 
 def notify(config: "OrchestratorConfig", text: str, alert_type: str) -> None:
