@@ -2,11 +2,23 @@
 
 import json
 import subprocess
+import sys
 
 import pytest
 from pathlib import Path
 
-from orchestrator.main import _parse_pct, _validate_sidecar_step, _detect_milestone_step, _detect_test_milestone_step
+from orchestrator import agents as agents_module
+from orchestrator import main as main_module
+from orchestrator.agents import PipelineStopError, RateLimitError
+from orchestrator.config import OrchestratorConfig
+from orchestrator.main import (
+    _check_usage_limits,
+    _detect_milestone_step,
+    _detect_test_milestone_step,
+    _parse_pct,
+    _validate_sidecar_step,
+    process_milestone,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers / constants shared across _validate_sidecar_step tests
@@ -435,3 +447,117 @@ def test_detect_test_milestone_step_dirty_tree_passing_test_run_returns_done(tmp
     assert step == "done"
     assert counter == 0
     assert returned_path == plan_path
+
+
+# ---------------------------------------------------------------------------
+# cli() exception-routing tests
+# ---------------------------------------------------------------------------
+
+
+def _cli_config() -> OrchestratorConfig:
+    return OrchestratorConfig(
+        max_iterations=3,
+        usage_threshold_5h=90,
+        usage_threshold_weekly=95,
+        enable_phase_sessions=False,
+    )
+
+
+def _run_cli_with(monkeypatch, exc):
+    """Patch load_config/run_implement/notify/argv; return the list notify() calls get recorded into."""
+    recorded = []
+
+    monkeypatch.setattr(main_module, "load_config", lambda: _cli_config())
+
+    def _raise_run_implement(project_dir, config):
+        raise exc
+
+    monkeypatch.setattr(main_module, "run_implement", _raise_run_implement)
+
+    def _fake_notify(config, text, alert_type):
+        recorded.append((text, alert_type))
+
+    monkeypatch.setattr(main_module, "notify", _fake_notify)
+    monkeypatch.setattr(sys, "argv", ["orchestrator", "implement", "."])
+    return recorded
+
+
+def test_cli_pipeline_stop_error_routes_to_stop(monkeypatch):
+    """Should record alert_type 'stop' and exit via SystemExit when run_implement raises PipelineStopError."""
+    recorded = _run_cli_with(monkeypatch, PipelineStopError("boom"))
+    with pytest.raises(SystemExit):
+        main_module.cli()
+    assert recorded[-1][1] == "stop"
+
+
+def test_cli_rate_limit_error_routes_to_halt(monkeypatch):
+    """Should record alert_type 'halt' when run_implement raises RateLimitError (red now — currently routes to 'stop')."""
+    recorded = _run_cli_with(monkeypatch, RateLimitError("boom"))
+    with pytest.raises(SystemExit):
+        main_module.cli()
+    assert recorded[-1][1] == "halt"
+
+
+def test_cli_generic_exception_routes_to_halt_and_reraises(monkeypatch):
+    """Should record alert_type 'halt' and re-raise a generic Exception (red now — cli() has no except Exception today)."""
+    recorded = _run_cli_with(monkeypatch, ValueError("boom"))
+    with pytest.raises(ValueError):
+        main_module.cli()
+    assert recorded and recorded[-1][1] == "halt"
+
+
+# ---------------------------------------------------------------------------
+# Source-level exception-type tests: both currently raise PipelineStopError,
+# both should raise HaltError once task 05 lands.
+# ---------------------------------------------------------------------------
+
+
+def test_check_usage_limits_raises_halt_error_over_threshold(monkeypatch):
+    """Should raise HaltError when session usage crosses usage_threshold_5h (red now — currently raises PipelineStopError)."""
+    config = OrchestratorConfig(
+        max_iterations=3,
+        usage_threshold_5h=90,
+        usage_threshold_weekly=95,
+        enable_phase_sessions=False,
+    )
+
+    class _Result:
+        stdout = "Current session: 99%"
+
+    monkeypatch.setattr(main_module.subprocess, "run", lambda *a, **kw: _Result())
+
+    with pytest.raises(Exception) as exc:
+        _check_usage_limits(config)
+
+    HaltError = getattr(agents_module, "HaltError", None)
+    assert HaltError is not None and isinstance(exc.value, HaltError)
+
+
+def test_process_milestone_resume_past_max_iterations_raises_halt_error(tmp_path):
+    """Should raise HaltError when resuming at an iteration beyond max_iterations (red now — currently raises PipelineStopError)."""
+    prd, rv, plan_path = _dms_dirs(tmp_path)
+    plan_path.write_text("# Plan content")
+    plan_path.with_suffix(".json").write_text(json.dumps({"step": "review_failed:3"}))
+    (rv / f"{DMS_SEQ}-{DMS_SLUG}-review-3.md").write_text("review content")
+    (prd / f"{DMS_SEQ}-{DMS_SLUG}-plan-review-1.md").write_text(
+        "Review notes\n\nPLAN_REVIEW_PASS"
+    )
+
+    config = OrchestratorConfig(
+        max_iterations=3,
+        usage_threshold_5h=90,
+        usage_threshold_weekly=95,
+        enable_phase_sessions=False,
+    )
+
+    class _MilestoneStub:
+        slug = DMS_SLUG
+        title = "Some milestone"
+        description = "Some description"
+        line_number = 0
+
+    with pytest.raises(Exception) as exc:
+        process_milestone(tmp_path, _MilestoneStub(), 1, config)
+
+    HaltError = getattr(agents_module, "HaltError", None)
+    assert HaltError is not None and isinstance(exc.value, HaltError)
