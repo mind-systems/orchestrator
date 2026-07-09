@@ -10,7 +10,7 @@ import sys
 import time
 from pathlib import Path
 
-from .agents import Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, RateLimitError, TestRunner, _read_sessions, _write_session, kill_active_child
+from .agents import HaltError, Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, TestRunner, _read_sessions, _write_session, kill_active_child
 from .config import OrchestratorConfig, load_config
 from .notify import notify
 from .roadmap import ParseResult, mark_done, mark_skipped, parse_roadmap
@@ -22,6 +22,8 @@ def _handle_sigint(sig, frame):
     if state.stop_requested:
         print("\n>>> Force quit.")
         kill_active_child()
+        if state.config is not None and state.project_dir is not None:
+            notify(state.config, f"Orchestrator force-quit: {state.project_dir.name}\nRan for {_run_elapsed()}", "halt")
         sys.exit(1)
     state.stop_requested = True
     print("\n>>> Will stop after the current milestone finishes. Press Ctrl+C again to force quit.")
@@ -60,11 +62,11 @@ def _check_usage_limits(config: OrchestratorConfig) -> None:
     weekly_threshold = config.usage_threshold_weekly
 
     if session_pct is not None and session_pct >= session_threshold:
-        raise PipelineStopError(
+        raise HaltError(
             f"Session usage at {session_pct:.0f}% — stopping (threshold: {session_threshold:.0f}%)."
         )
     if weekly_pct is not None and weekly_pct >= weekly_threshold:
-        raise PipelineStopError(
+        raise HaltError(
             f"Weekly usage at {weekly_pct:.0f}% — stopping (threshold: {weekly_threshold:.0f}%)."
         )
 
@@ -354,7 +356,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
     # Step 2-3: Implement → Review loop
     impl_start = counter if step in ("implement", "review") else 1
     if impl_start > max_iterations:
-        raise PipelineStopError(
+        raise HaltError(
             f"Resume at iteration {impl_start} exceeds max_iterations "
             f"({max_iterations}). Raise max_iterations in orchestrator.json to continue."
         )
@@ -619,7 +621,7 @@ def process_test_milestone(project_dir: Path, milestone, milestone_index: int, c
     # Step 2-3: Implement → TestRun loop
     impl_start = counter if step in ("implement", "test_run") else 1
     if impl_start > max_iterations:
-        raise PipelineStopError(
+        raise HaltError(
             f"Resume at iteration {impl_start} exceeds max_iterations "
             f"({max_iterations}). Raise max_iterations in orchestrator.json to continue."
         )
@@ -713,6 +715,7 @@ def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: Orchestrato
 
     if state.stop_requested:
         print("\n>>> Stop requested — halting.")
+        notify(config, f"Orchestrator stopped (manual): {project_dir.name}\nRan for {_run_elapsed()}", "halt")
 
 
 def _test_loop(project_dir: Path, config: OrchestratorConfig) -> None:
@@ -741,6 +744,8 @@ def _implement_loop(project_dir: Path, config: OrchestratorConfig, planner_promp
 
 def run_implement(project_dir: Path, config: OrchestratorConfig) -> None:
     """Implement only — plan + implement milestones, no review pass."""
+    state.config = config
+    state.project_dir = project_dir
     state.run_started = time.monotonic()
     signal.signal(signal.SIGINT, _handle_sigint)
     time_str = _with_caffeinate(_implement_loop, project_dir, config)
@@ -751,6 +756,8 @@ def run_implement(project_dir: Path, config: OrchestratorConfig) -> None:
 
 def run_test(project_dir: Path, config: OrchestratorConfig) -> None:
     """Test mode — plan + implement tests, gate on real test runner output."""
+    state.config = config
+    state.project_dir = project_dir
     state.run_started = time.monotonic()
     signal.signal(signal.SIGINT, _handle_sigint)
     time_str = _with_caffeinate(_test_loop, project_dir, config)
@@ -787,13 +794,20 @@ def cli() -> None:
         msg = str(e).splitlines()[0]
         notify(config, f"Orchestrator stopped: {project_dir.name}\n{msg}\nRan for {_run_elapsed()}", "stop")
         sys.exit(0)
-    except RateLimitError as e:
+    except HaltError as e:
         print(f"\n{'='*60}")
-        print(f"STOPPED — Claude rate limit reached: {e}")
+        print(f"HALTED — {e}")
         print(f"{'='*60}")
         msg = str(e).splitlines()[0]
-        notify(config, f"Orchestrator rate-limited: {project_dir.name}\n{msg}\nRan for {_run_elapsed()}", "stop")
+        notify(config, f"Orchestrator halted: {project_dir.name}\n{msg}\nRan for {_run_elapsed()}", "halt")
         sys.exit(0)
+    except Exception as e:
+        notify(
+            config,
+            f"Orchestrator error: {project_dir.name}\n{type(e).__name__}: {str(e).splitlines()[0] if str(e) else ''}\nRan for {_run_elapsed()}",
+            "halt",
+        )
+        raise
 
 
 if __name__ == "__main__":

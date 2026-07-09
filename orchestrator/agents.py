@@ -66,7 +66,11 @@ def _write_session(plan_path: Path, key: str, value: str) -> None:
     os.replace(tmp, p)
 
 
-class RateLimitError(Exception):
+class HaltError(Exception):
+    """An operational halt that is not a milestone failure — 🟡."""
+
+
+class RateLimitError(HaltError):
     """Raised when the Claude API rate limit / daily quota is exhausted."""
 
 
