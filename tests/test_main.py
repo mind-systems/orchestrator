@@ -454,6 +454,133 @@ def test_detect_milestone_step_dirty_tree_review_passing_returns_done(tmp_path):
     assert counter == 0
     assert returned_path == plan_path
 
+# ---------------------------------------------------------------------------
+# Resume adoption gate: tracked+clean plans are stale and skipped;
+# only in-flight (untracked/modified/staged) plans are adoptable.
+# ---------------------------------------------------------------------------
+
+
+def test_detect_milestone_step_committed_clean_plan_is_skipped(tmp_path):
+    """A tracked+clean plan (committed milestone) must not be adopted, even when the
+    heuristic would otherwise resolve it all the way to "done"."""
+    prd, rv, plan_path = _dms_dirs(tmp_path)
+    plan_path.write_text("# Plan content")
+    (prd / f"{DMS_SEQ}-{DMS_SLUG}-plan-review-1.md").write_text(
+        "Review notes\n\nPLAN_REVIEW_PASS"
+    )
+    (rv / f"{DMS_SEQ}-{DMS_SLUG}-review-1.md").write_text("Review notes\n\nREVIEW_PASS")
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        [
+            "git", "-c", "user.email=t@t.com", "-c", "user.name=T",
+            "commit", "--allow-empty", "-m", "init",
+        ],
+        cwd=tmp_path, check=True, capture_output=True,
+    )
+    subprocess.run(["git", "add", str(plan_path)], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        [
+            "git", "-c", "user.email=t@t.com", "-c", "user.name=T",
+            "commit", "-m", "commit plan",
+        ],
+        cwd=tmp_path, check=True, capture_output=True,
+    )
+    # Dirty the tree outside .ai-factory/, mirroring the in-flight heuristic path that would
+    # otherwise be reached if this stale plan were (wrongly) adopted.
+    (tmp_path / "src.py").write_text("x = 1\n")
+    fresh_seq = "02"
+    fresh_plan_path = plan_path.parent / f"{fresh_seq}-{DMS_SLUG}.md"
+    step, counter, returned_path = _detect_milestone_step(
+        tmp_path, fresh_seq, DMS_SLUG, fresh_plan_path, prd, rv
+    )
+    assert step == "plan"
+    assert counter == 1
+    assert returned_path != plan_path
+    assert returned_path == fresh_plan_path
+
+
+def test_detect_milestone_step_untracked_plan_is_adopted(tmp_path):
+    """An untracked plan (no commit yet) is in-flight and must be adopted, resuming per
+    today's behavior."""
+    prd, rv, plan_path = _dms_dirs(tmp_path)
+    plan_path.write_text("# Plan content")
+    plan_path.with_suffix(".json").write_text(json.dumps({"step": "planned"}))
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        [
+            "git", "-c", "user.email=t@t.com", "-c", "user.name=T",
+            "commit", "--allow-empty", "-m", "init",
+        ],
+        cwd=tmp_path, check=True, capture_output=True,
+    )
+    # plan_path intentionally left untracked
+    step, counter, returned_path = _detect_milestone_step(
+        tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
+    )
+    assert step == "plan_review"
+    assert counter == 1
+    assert returned_path == plan_path
+
+
+def test_detect_milestone_step_staged_plan_is_adopted(tmp_path):
+    """A staged-but-uncommitted plan is in-flight and must be adopted, resuming per today's
+    behavior."""
+    prd, rv, plan_path = _dms_dirs(tmp_path)
+    plan_path.write_text("# Plan content")
+    plan_path.with_suffix(".json").write_text(json.dumps({"step": "planned"}))
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        [
+            "git", "-c", "user.email=t@t.com", "-c", "user.name=T",
+            "commit", "--allow-empty", "-m", "init",
+        ],
+        cwd=tmp_path, check=True, capture_output=True,
+    )
+    subprocess.run(["git", "add", str(plan_path)], cwd=tmp_path, check=True, capture_output=True)
+    # plan_path staged but not committed
+    step, counter, returned_path = _detect_milestone_step(
+        tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
+    )
+    assert step == "plan_review"
+    assert counter == 1
+    assert returned_path == plan_path
+
+
+def test_detect_milestone_step_survivor_over_lowest(tmp_path):
+    """When a lower-seq slug match is committed+clean and a higher-seq slug match is in-flight,
+    the higher (survivor) candidate is adopted — not the lowest-overall."""
+    prd, rv, plan_path_01 = _dms_dirs(tmp_path)
+    plan_path_01.write_text("# Plan content v1")
+    plans_dir = plan_path_01.parent
+    plan_path_02 = plans_dir / "02-slug.md"
+    plan_path_02.write_text("# Plan content v2")
+    plan_path_02.with_suffix(".json").write_text(json.dumps({"step": "planned"}))
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        [
+            "git", "-c", "user.email=t@t.com", "-c", "user.name=T",
+            "commit", "--allow-empty", "-m", "init",
+        ],
+        cwd=tmp_path, check=True, capture_output=True,
+    )
+    subprocess.run(["git", "add", str(plan_path_01)], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        [
+            "git", "-c", "user.email=t@t.com", "-c", "user.name=T",
+            "commit", "-m", "commit plan 01",
+        ],
+        cwd=tmp_path, check=True, capture_output=True,
+    )
+    # plan_path_02 intentionally left untracked (in-flight survivor)
+    fresh_seq = "03"
+    fresh_plan_path = plans_dir / f"{fresh_seq}-{DMS_SLUG}.md"
+    step, counter, returned_path = _detect_milestone_step(
+        tmp_path, fresh_seq, DMS_SLUG, fresh_plan_path, prd, rv
+    )
+    assert step == "plan_review"
+    assert counter == 1
+    assert returned_path == plan_path_02
+
 
 # ---------------------------------------------------------------------------
 # _detect_test_milestone_step tests

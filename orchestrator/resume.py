@@ -57,6 +57,25 @@ def _validate_sidecar_step(
     return step_value
 
 
+def _plan_is_stale(project_dir: Path, plan_file: Path) -> bool:
+    """Return True only when plan_file is tracked by git and clean (belongs to a completed milestone).
+
+    Fails open toward adoption/re-planning: untracked (`??`), modified, staged-but-uncommitted,
+    a non-zero git return code (e.g. not a git repo), or a raised exception (e.g. git missing)
+    all return False.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain", "--", str(plan_file)],
+            cwd=project_dir, capture_output=True, text=True,
+        )
+    except Exception:
+        return False
+    if result.returncode != 0:
+        return False
+    return not result.stdout.strip()
+
+
 def _detect_step(
     project_dir: Path, seq: str, slug: str,
     plan_path: Path, plan_reviews_dir: Path, output_dir: Path,
@@ -74,19 +93,20 @@ def _detect_step(
     # This handles interrupted runs where _next_number() would otherwise produce a different seq.
     plans_dir = plan_path.parent
     slug_matches = sorted(plans_dir.glob(f"*-{slug}.md"))
-    if slug_matches:
-        best: Path | None = None
-        best_num: int | None = None
-        for f in slug_matches:
-            parts = f.stem.split("-", 1)
-            if parts[0].isdigit():
-                num = int(parts[0])
-                if best_num is None or num < best_num:
-                    best_num = num
-                    best = f
-        if best is not None:
-            seq = f"{best_num:02d}"
-            plan_path = best
+    candidates: list[tuple[int, Path]] = []
+    for f in slug_matches:
+        parts = f.stem.split("-", 1)
+        if parts[0].isdigit():
+            candidates.append((int(parts[0]), f))
+    candidates.sort(key=lambda c: c[0])
+    # Adopt the first (lowest-numbered) in-flight candidate. A tracked+clean plan belongs to
+    # a completed milestone and is skipped; if every candidate is stale, plan_path/seq stay at
+    # the fresh-plan values computed by the caller (falls to step 1 in the check below).
+    for num, f in candidates:
+        if not _plan_is_stale(project_dir, f):
+            seq = f"{num:02d}"
+            plan_path = f
+            break
 
     # 1. Plan doesn't exist → start fresh
     if not plan_path.exists():
