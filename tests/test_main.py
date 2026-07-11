@@ -10,9 +10,14 @@ from pathlib import Path
 from orchestrator import agents as agents_module
 from orchestrator import main as main_module
 from orchestrator import usage as usage_module
-from orchestrator.agents import PipelineStopError, RateLimitError
+from orchestrator.agents import HaltError, PipelineStopError, RateLimitError
 from orchestrator.config import OrchestratorConfig
-from orchestrator.main import process_milestone
+from orchestrator.main import (
+    _derive_identity_slug,
+    _resolve_roadmap_relpath,
+    _tests_sibling,
+    process_milestone,
+)
 from orchestrator.resume import (
     _detect_milestone_step,
     _detect_test_milestone_step,
@@ -790,3 +795,152 @@ def test_process_milestone_resume_past_max_iterations_raises_halt_error(tmp_path
 
     HaltError = getattr(agents_module, "HaltError", None)
     assert HaltError is not None and isinstance(exc.value, HaltError)
+
+
+# ---------------------------------------------------------------------------
+# _derive_identity_slug: pure slug derivation from git identity
+# ---------------------------------------------------------------------------
+
+
+def test_derive_identity_slug_canonical_example():
+    """Should slugify the email local-part per the spec's canonical example."""
+    assert _derive_identity_slug("kg.wmservice@gmail.com", None) == "kg-wmservice"
+
+
+def test_derive_identity_slug_punctuation_runs_collapse():
+    """Should collapse a run of non-alphanumeric characters to a single hyphen."""
+    assert _derive_identity_slug("a..b__c@example.com", None) == "a-b-c"
+
+
+def test_derive_identity_slug_empty_email_falls_back_to_name():
+    """Should slugify name when email is empty/None."""
+    assert _derive_identity_slug(None, "Alice Wonderland") == "alice-wonderland"
+    assert _derive_identity_slug("", "Alice Wonderland") == "alice-wonderland"
+
+
+def test_derive_identity_slug_both_empty_returns_none():
+    """Should return None when both email and name are empty/None (derivation failure)."""
+    assert _derive_identity_slug(None, None) is None
+    assert _derive_identity_slug("", "") is None
+
+
+# ---------------------------------------------------------------------------
+# _resolve_roadmap_relpath: three-state resolution + owner-line gate
+# ---------------------------------------------------------------------------
+
+
+def _config_with_roadmap_path(roadmap_path):
+    return OrchestratorConfig(
+        max_iterations=3,
+        usage_threshold_5h=90,
+        usage_threshold_weekly=95,
+        enable_phase_sessions=False,
+        roadmap_path=roadmap_path,
+    )
+
+
+def _fake_git_config(email=None, name=None):
+    """Build a subprocess.run stand-in answering `git config user.email`/`user.name`."""
+    class _Result:
+        def __init__(self, returncode, stdout):
+            self.returncode = returncode
+            self.stdout = stdout
+
+    def _run(cmd, cwd=None, capture_output=None, text=None):
+        key = cmd[-1]
+        value = email if key == "user.email" else name if key == "user.name" else None
+        if value is None:
+            return _Result(1, "")
+        return _Result(0, value)
+
+    return _run
+
+
+def test_resolve_roadmap_relpath_absent_returns_default(tmp_path):
+    """Should return 'ROADMAP.md' when roadmap_path is absent (byte-stable default)."""
+    config = _config_with_roadmap_path(None)
+    assert _resolve_roadmap_relpath(config, tmp_path) == "ROADMAP.md"
+
+
+def test_resolve_roadmap_relpath_my_present_matching_owner(tmp_path, monkeypatch):
+    """Should return the named relpath when the file exists and its owner line matches."""
+    roadmaps_dir = tmp_path / ".ai-factory" / "roadmaps"
+    roadmaps_dir.mkdir(parents=True)
+    (roadmaps_dir / "kg-wmservice.md").write_text("> Owner: kg.wmservice@gmail.com\n\n- [ ] Task\n")
+    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="kg.wmservice@gmail.com"))
+
+    config = _config_with_roadmap_path("my")
+    assert _resolve_roadmap_relpath(config, tmp_path) == "roadmaps/kg-wmservice.md"
+
+
+def test_resolve_roadmap_relpath_my_name_derived_owner_matches(tmp_path, monkeypatch):
+    """Should match the owner line against `name` when git email is unset (name-fallback derivation)."""
+    roadmaps_dir = tmp_path / ".ai-factory" / "roadmaps"
+    roadmaps_dir.mkdir(parents=True)
+    (roadmaps_dir / "alice.md").write_text("> Owner: Alice\n\n- [ ] Task\n")
+    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email=None, name="Alice"))
+
+    config = _config_with_roadmap_path("my")
+    assert _resolve_roadmap_relpath(config, tmp_path) == "roadmaps/alice.md"
+
+
+def test_resolve_roadmap_relpath_my_missing_file_falls_back(tmp_path, monkeypatch):
+    """Should fall back to 'ROADMAP.md' with a loud message when the named roadmap is missing."""
+    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="kg.wmservice@gmail.com"))
+
+    config = _config_with_roadmap_path("my")
+    assert _resolve_roadmap_relpath(config, tmp_path) == "ROADMAP.md"
+
+
+def test_resolve_roadmap_relpath_my_owner_mismatch_raises_halt(tmp_path, monkeypatch):
+    """Should raise HaltError when the owner line names a different identity."""
+    roadmaps_dir = tmp_path / ".ai-factory" / "roadmaps"
+    roadmaps_dir.mkdir(parents=True)
+    (roadmaps_dir / "kg-wmservice.md").write_text("> Owner: someone.else@gmail.com\n\n- [ ] Task\n")
+    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="kg.wmservice@gmail.com"))
+
+    config = _config_with_roadmap_path("my")
+    with pytest.raises(HaltError):
+        _resolve_roadmap_relpath(config, tmp_path)
+
+
+def test_resolve_roadmap_relpath_my_malformed_first_line_raises_halt(tmp_path, monkeypatch):
+    """Should raise HaltError when the file's first line isn't a well-formed owner line."""
+    roadmaps_dir = tmp_path / ".ai-factory" / "roadmaps"
+    roadmaps_dir.mkdir(parents=True)
+    (roadmaps_dir / "kg-wmservice.md").write_text("# Not an owner line\n\n- [ ] Task\n")
+    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="kg.wmservice@gmail.com"))
+
+    config = _config_with_roadmap_path("my")
+    with pytest.raises(HaltError):
+        _resolve_roadmap_relpath(config, tmp_path)
+
+
+def test_resolve_roadmap_relpath_my_derivation_failure_raises_halt(tmp_path, monkeypatch):
+    """Should raise HaltError when neither git email nor name is set (derivation failure)."""
+    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email=None, name=None))
+
+    config = _config_with_roadmap_path("my")
+    with pytest.raises(HaltError):
+        _resolve_roadmap_relpath(config, tmp_path)
+
+
+def test_resolve_roadmap_relpath_explicit_returned_verbatim(tmp_path):
+    """Should return an explicit value verbatim, with no owner check."""
+    config = _config_with_roadmap_path("roadmaps/alice.md")
+    assert _resolve_roadmap_relpath(config, tmp_path) == "roadmaps/alice.md"
+
+
+# ---------------------------------------------------------------------------
+# _tests_sibling: derive the test-roadmap sibling from the roadmap in play
+# ---------------------------------------------------------------------------
+
+
+def test_tests_sibling_default_pair_is_special_cased():
+    """Should map 'ROADMAP.md' to 'ROADMAP_TESTS.md' (not '-tests' suffixing)."""
+    assert _tests_sibling("ROADMAP.md") == "ROADMAP_TESTS.md"
+
+
+def test_tests_sibling_named_roadmap_uses_suffix():
+    """Should map a named roadmap to its '-tests' suffixed sibling in the same directory."""
+    assert _tests_sibling("roadmaps/kg-wmservice.md") == "roadmaps/kg-wmservice-tests.md"

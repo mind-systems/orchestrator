@@ -17,6 +17,7 @@ class OrchestratorConfig:
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
     telegram_alerts: list[str] = field(default_factory=list)
+    roadmap_path: str | None = None
 
 
 def load_config() -> OrchestratorConfig:
@@ -41,6 +42,10 @@ def load_config() -> OrchestratorConfig:
         if key not in data:
             raise SystemExit(f"Missing required key '{key}' in {path}")
 
+    roadmap_path = data.get("roadmap_path") or None
+    if roadmap_path is not None and (Path(roadmap_path).is_absolute() or ".." in Path(roadmap_path).parts):
+        raise SystemExit(f"Invalid 'roadmap_path' in {path}: {roadmap_path!r} (must be a relative path with no '..' segments)")
+
     return OrchestratorConfig(
         max_iterations=int(data["max_iterations"]),
         usage_threshold_5h=float(data["usage_threshold_5h"]),
@@ -49,4 +54,5 @@ def load_config() -> OrchestratorConfig:
         telegram_bot_token=data.get("telegram_bot_token") or None,
         telegram_chat_id=data.get("telegram_chat_id") or None,
         telegram_alerts=data.get("telegram_alerts") or [],
+        roadmap_path=roadmap_path,
     )

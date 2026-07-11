@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import signal
 import subprocess
 import sys
@@ -22,7 +23,7 @@ from . import state
 
 class Mode(NamedTuple):
     """Static per-mode divergences between the implement and test pipelines."""
-    roadmap_filename: str
+    roadmap_relpath: str  # path relative to `.ai-factory/`
     header_label: str
     planner_prompt_name: str
     output_dirname: str
@@ -38,7 +39,7 @@ class Mode(NamedTuple):
 
 
 IMPLEMENT_MODE = Mode(
-    roadmap_filename="ROADMAP.md",
+    roadmap_relpath="ROADMAP.md",
     header_label="MILESTONE",
     planner_prompt_name="planner",
     output_dirname="reviews",
@@ -54,7 +55,7 @@ IMPLEMENT_MODE = Mode(
 )
 
 TEST_MODE = Mode(
-    roadmap_filename="ROADMAP_TESTS.md",
+    roadmap_relpath="ROADMAP_TESTS.md",
     header_label="TEST MILESTONE",
     planner_prompt_name="test-planner",
     output_dirname="test-runs",
@@ -91,6 +92,76 @@ def _next_number(directory: Path) -> int:
     return len(existing) + 1
 
 
+def _derive_identity_slug(email: str | None, name: str | None) -> str | None:
+    """Slug from the email local-part, falling back to name; None if both are empty."""
+    def _slugify(value: str) -> str | None:
+        slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+        return slug or None
+
+    if email:
+        slug = _slugify(email.split("@", 1)[0])
+        if slug:
+            return slug
+    if name:
+        slug = _slugify(name)
+        if slug:
+            return slug
+    return None
+
+
+def _git_config_value(project_dir: Path, key: str) -> str | None:
+    """Read a single git config value in project_dir; None on any failure or empty value."""
+    result = subprocess.run(
+        ["git", "config", key], cwd=project_dir, capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        return None
+    value = result.stdout.strip()
+    return value or None
+
+
+def _resolve_roadmap_relpath(config: OrchestratorConfig, project_dir: Path) -> str:
+    """Three explicit states keyed on config.roadmap_path: absent, 'my', or an explicit path."""
+    if config.roadmap_path is None:
+        return "ROADMAP.md"
+
+    if config.roadmap_path == "my":
+        email = _git_config_value(project_dir, "user.email")
+        name = _git_config_value(project_dir, "user.name")
+        slug = _derive_identity_slug(email, name)
+        if slug is None:
+            raise HaltError(
+                "roadmap_path is 'my' but no git identity is set — "
+                "set git user.email or user.name, or use an explicit roadmap_path."
+            )
+        relpath = f"roadmaps/{slug}.md"
+        roadmap_file = project_dir / ".ai-factory" / relpath
+        if not roadmap_file.exists():
+            print(f">>> Named roadmap {relpath} not found — falling back to ROADMAP.md")
+            return "ROADMAP.md"
+
+        lines = roadmap_file.read_text().splitlines()
+        first_line = lines[0] if lines else ""
+        identity = email or name
+        expected_owner = f"> Owner: {identity}"
+        if first_line.strip() != expected_owner:
+            raise HaltError(
+                f"Named roadmap {relpath} owner line ({first_line!r}) does not match "
+                f"the current git identity ({expected_owner!r})."
+            )
+        return relpath
+
+    return config.roadmap_path
+
+
+def _tests_sibling(relpath: str) -> str:
+    """Derive the test-roadmap sibling path from the roadmap in play."""
+    if relpath == "ROADMAP.md":
+        return "ROADMAP_TESTS.md"
+    path = Path(relpath)
+    return str(path.parent / f"{path.stem}-tests{path.suffix}")
+
+
 def _git_commit(project_dir: Path, milestone_title: str) -> None:
     """Stage all changes and commit after a completed milestone."""
     subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
@@ -123,7 +194,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
     output_dir.mkdir(parents=True, exist_ok=True)
     plan_reviews_dir.mkdir(parents=True, exist_ok=True)
 
-    roadmap_path = project_dir / ".ai-factory" / mode.roadmap_filename
+    roadmap_path = project_dir / ".ai-factory" / mode.roadmap_relpath
     seq = f"{milestone_index:02d}"
     plan_path = plans_dir / f"{seq}-{milestone.slug}.md"
     print(f"\n{'='*60}")
@@ -329,25 +400,28 @@ def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: Orchestrato
 
 
 def _test_loop(project_dir: Path, config: OrchestratorConfig) -> None:
-    """Write tests for all pending milestones from ROADMAP_TESTS.md."""
-    roadmap_path = project_dir / ".ai-factory" / "ROADMAP_TESTS.md"
+    """Write tests for all pending milestones from the roadmap's test sibling."""
+    main_relpath = _resolve_roadmap_relpath(config, project_dir)
+    relpath = _tests_sibling(main_relpath)
+    roadmap_path = project_dir / ".ai-factory" / relpath
     if not roadmap_path.exists():
-        print(f"ERROR: No ROADMAP_TESTS.md found at {roadmap_path}")
+        print(f"ERROR: No roadmap found at {roadmap_path}")
         sys.exit(1)
-    mode = TEST_MODE
+    mode = TEST_MODE._replace(roadmap_relpath=relpath)
     _run_dynamic_loop(
         project_dir, roadmap_path, config,
         lambda m, i, sid: process_milestone(project_dir, m, i, config, mode, phase_session_id=sid),
     )
 
 
-def _implement_loop(project_dir: Path, config: OrchestratorConfig, planner_prompt_name: str = "planner", roadmap_filename: str = "ROADMAP.md") -> None:
+def _implement_loop(project_dir: Path, config: OrchestratorConfig, planner_prompt_name: str = "planner", roadmap_relpath: str | None = None) -> None:
     """Plan + implement all pending milestones. No review."""
-    roadmap_path = project_dir / ".ai-factory" / roadmap_filename
+    relpath = roadmap_relpath or _resolve_roadmap_relpath(config, project_dir)
+    roadmap_path = project_dir / ".ai-factory" / relpath
     if not roadmap_path.exists():
-        print(f"ERROR: No ROADMAP.md found at {roadmap_path}")
+        print(f"ERROR: No roadmap found at {roadmap_path}")
         sys.exit(1)
-    mode = IMPLEMENT_MODE._replace(planner_prompt_name=planner_prompt_name, roadmap_filename=roadmap_filename)
+    mode = IMPLEMENT_MODE._replace(planner_prompt_name=planner_prompt_name, roadmap_relpath=relpath)
     _run_dynamic_loop(
         project_dir, roadmap_path, config,
         lambda m, i, sid: process_milestone(project_dir, m, i, config, mode, phase_session_id=sid),
