@@ -16,7 +16,7 @@ from .config import OrchestratorConfig, load_config
 from .notify import notify
 from .resume import _detect_step
 from .roadmap import ParseResult, mark_done, mark_skipped, parse_roadmap
-from .runtime import _handle_sigint, _run_elapsed, _with_caffeinate
+from .runtime import _handle_sigint, _run_summary, _with_caffeinate
 from .usage import _check_usage_limits
 from . import state
 
@@ -52,7 +52,7 @@ IMPLEMENT_MODE = Mode(
     verify_running_header="REVIEWING",
     pass_line_label="REVIEW PASSED",
     fail_line_label="Review found issues",
-    max_iterations_message="Max iterations ({n}) reached without REVIEW_PASS.\n\nLast review: {path}\n\n{content}",
+    max_iterations_message="Implement failed\n\nLast review: {path}\n\n{content}",
 )
 
 TEST_MODE = Mode(
@@ -68,7 +68,7 @@ TEST_MODE = Mode(
     verify_running_header="RUNNING TESTS",
     pass_line_label="TESTS PASSED",
     fail_line_label="Tests failed",
-    max_iterations_message="Tests failed after {n} iteration(s).\n\nLast run: {path}\n\n{content}",
+    max_iterations_message="Test failed\n\nLast run: {path}\n\n{content}",
 )
 
 
@@ -232,6 +232,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
     if step == "done":
         elapsed = int(time.monotonic() - milestone_start)
         mark_done(roadmap_path, milestone, elapsed)
+        state.milestones_done += 1
         _git_commit(project_dir, milestone.title)
         notify(config, f"{project_dir.name}: Milestone done: {milestone.title}", "milestone")
         mins, secs = divmod(elapsed, 60)
@@ -288,7 +289,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
 
             if attempt == max_iterations:
                 raise PipelineStopError(
-                    f"Plan failed review after {max_iterations} attempt(s).\n\n"
+                    f"Plan failed\n\n"
                     f"Last review: {plan_review_path}\n\n{plan_review_path.read_text()}"
                 )
 
@@ -349,6 +350,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
     # Step 4: Mark done + commit
     elapsed = int(time.monotonic() - milestone_start)
     mark_done(roadmap_path, milestone, elapsed)
+    state.milestones_done += 1
     _git_commit(project_dir, milestone.title)
     notify(config, f"{project_dir.name}: Milestone done: {milestone.title}", "milestone")
 
@@ -385,7 +387,7 @@ def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: Orchestrato
         result = parse_roadmap(roadmap_path)
         pending = [m for m in result.milestones if not m.done]
         if not pending:
-            notify(config, f"All milestones done: {project_dir.name}\nRan for {_run_elapsed()}", "done")
+            notify(config, f"All milestones done: {project_dir.name}\n{_run_summary()}", "done")
             break
 
         milestone = pending[0]
@@ -410,7 +412,7 @@ def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: Orchestrato
 
     if state.stop_requested:
         print("\n>>> Stop requested — halting.")
-        notify(config, f"Orchestrator stopped (manual): {project_dir.name}\nRan for {_run_elapsed()}", "stop")
+        notify(config, f"Orchestrator stopped (manual): {project_dir.name}\n{_run_summary()}", "stop")
 
 
 def _test_loop(project_dir: Path, config: OrchestratorConfig) -> None:
@@ -449,6 +451,7 @@ def run_implement(project_dir: Path, config: OrchestratorConfig) -> None:
     state.config = config
     state.project_dir = project_dir
     state.run_started = time.monotonic()
+    state.milestones_done = 0
     signal.signal(signal.SIGINT, _handle_sigint)
     time_str = _with_caffeinate(_implement_loop, project_dir, config)
     print(f"\n{'='*60}")
@@ -461,6 +464,7 @@ def run_test(project_dir: Path, config: OrchestratorConfig) -> None:
     state.config = config
     state.project_dir = project_dir
     state.run_started = time.monotonic()
+    state.milestones_done = 0
     signal.signal(signal.SIGINT, _handle_sigint)
     time_str = _with_caffeinate(_test_loop, project_dir, config)
     print(f"\n{'='*60}")
@@ -494,19 +498,19 @@ def cli() -> None:
         print(f"STOPPED — {e}")
         print(f"{'='*60}")
         msg = str(e).splitlines()[0]
-        notify(config, f"Orchestrator stopped: {project_dir.name}\n{msg}\nRan for {_run_elapsed()}", "milestone-fail")
+        notify(config, f"Orchestrator stopped: {project_dir.name}\n{msg}\n{_run_summary()}", "milestone-fail")
         sys.exit(0)
     except HaltError as e:
         print(f"\n{'='*60}")
         print(f"HALTED — {e}")
         print(f"{'='*60}")
         msg = str(e).splitlines()[0]
-        notify(config, f"Orchestrator halted: {project_dir.name}\n{msg}\nRan for {_run_elapsed()}", "stop")
+        notify(config, f"Orchestrator halted: {project_dir.name}\n{msg}\n{_run_summary()}", "stop")
         sys.exit(0)
     except Exception as e:
         notify(
             config,
-            f"Orchestrator error: {project_dir.name}\n{type(e).__name__}: {str(e).splitlines()[0] if str(e) else ''}\nRan for {_run_elapsed()}",
+            f"Orchestrator error: {project_dir.name}\n{type(e).__name__}: {str(e).splitlines()[0] if str(e) else ''}\n{_run_summary()}",
             "stop",
         )
         raise

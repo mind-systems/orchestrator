@@ -12,5 +12,6 @@ if TYPE_CHECKING:
 stop_requested: bool = False
 active_proc: subprocess.Popen | None = None
 run_started: float | None = None
+milestones_done: int = 0
 config: "OrchestratorConfig | None" = None
 project_dir: "Path | None" = None

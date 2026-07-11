@@ -17,7 +17,7 @@ def _handle_sigint(sig, frame):
         print("\n>>> Force quit.")
         kill_active_child()
         if state.config is not None and state.project_dir is not None:
-            notify(state.config, f"Orchestrator force-quit: {state.project_dir.name}\nRan for {_run_elapsed()}", "stop")
+            notify(state.config, f"Orchestrator force-quit: {state.project_dir.name}\n{_run_summary()}", "stop")
         sys.exit(1)
     state.stop_requested = True
     print("\n>>> Will stop after the current milestone finishes. Press Ctrl+C again to force quit.")
@@ -33,6 +33,10 @@ def _run_elapsed() -> str:
     if state.run_started is None:
         return "unknown"
     return _fmt_elapsed(int(time.monotonic() - state.run_started))
+
+
+def _run_summary() -> str:
+    return f"Ran for {_run_elapsed()} · {state.milestones_done} milestones done"
 
 
 def _with_caffeinate(func, *args, **kwargs):
