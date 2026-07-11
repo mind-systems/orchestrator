@@ -13,6 +13,7 @@ from orchestrator import usage as usage_module
 from orchestrator.agents import HaltError, PipelineStopError, RateLimitError
 from orchestrator.config import OrchestratorConfig
 from orchestrator.main import (
+    _artifact_subdir,
     _derive_identity_slug,
     _resolve_roadmap_relpath,
     _tests_sibling,
@@ -944,3 +945,57 @@ def test_tests_sibling_default_pair_is_special_cased():
 def test_tests_sibling_named_roadmap_uses_suffix():
     """Should map a named roadmap to its '-tests' suffixed sibling in the same directory."""
     assert _tests_sibling("roadmaps/kg-wmservice.md") == "roadmaps/kg-wmservice-tests.md"
+
+
+# ---------------------------------------------------------------------------
+# _artifact_subdir: key artifact dirs by the roadmap file's stem; default pair stays flat
+# ---------------------------------------------------------------------------
+
+
+def test_artifact_subdir_default_roadmap_is_flat():
+    """Should return None for the default 'ROADMAP.md' (byte-stable flat layout)."""
+    assert _artifact_subdir("ROADMAP.md") is None
+
+
+def test_artifact_subdir_default_tests_roadmap_is_flat():
+    """Should return None for the default 'ROADMAP_TESTS.md' (byte-stable flat layout)."""
+    assert _artifact_subdir("ROADMAP_TESTS.md") is None
+
+
+def test_artifact_subdir_named_roadmap_uses_stem():
+    """Should key a named roadmap's artifacts by its stem."""
+    assert _artifact_subdir("roadmaps/kg-wmservice.md") == "kg-wmservice"
+
+
+def test_artifact_subdir_named_tests_roadmap_uses_stem():
+    """Should key a named test-roadmap sibling by its own stem."""
+    assert _artifact_subdir("roadmaps/kg-wmservice-tests.md") == "kg-wmservice-tests"
+
+
+def test_artifact_subdir_track_file_uses_stem():
+    """Should key any other roadmap file (e.g. a track file) by its stem."""
+    assert _artifact_subdir("ROADMAP.watch.md") == "ROADMAP.watch"
+
+
+# ---------------------------------------------------------------------------
+# _detect_milestone_step over subdir'd artifact dirs — dispatch unchanged one level deeper
+# ---------------------------------------------------------------------------
+
+
+def test_detect_milestone_step_subdird_dirs_dispatches_same_as_flat(tmp_path):
+    """Should dispatch identically to the flat case when plans/plan-reviews/reviews are nested one level deeper under a per-roadmap subdir."""
+    plans_dir = tmp_path / ".ai-factory" / "plans" / "kg-wmservice"
+    plan_reviews_dir = tmp_path / ".ai-factory" / "plan-reviews" / "kg-wmservice"
+    reviews_dir = tmp_path / ".ai-factory" / "reviews" / "kg-wmservice"
+    plans_dir.mkdir(parents=True)
+    plan_reviews_dir.mkdir(parents=True)
+    reviews_dir.mkdir(parents=True)
+    plan_path = plans_dir / f"{DMS_SEQ}-{DMS_SLUG}.md"
+    plan_path.write_text("# Plan content")
+    plan_path.with_suffix(".json").write_text(json.dumps({"step": "implemented"}))
+    step, counter, returned_path = _detect_milestone_step(
+        tmp_path, DMS_SEQ, DMS_SLUG, plan_path, plan_reviews_dir, reviews_dir
+    )
+    assert step == "review"
+    assert counter == 1
+    assert returned_path == plan_path

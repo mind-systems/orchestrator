@@ -69,7 +69,7 @@ PlannerReviewer.plan()      ← uses test-planner prompt
                     └─► mark_done() + git commit
 ```
 
-All agents communicate through files, not shared memory. Output directories under `.ai-factory/`: `plans/`, `plan-reviews/`, `reviews/`, `test-runs/`.
+All agents communicate through files, not shared memory. Output directories under `.ai-factory/`: `plans/`, `plan-reviews/`, `reviews/`, `test-runs/`. Flat for the default `ROADMAP.md`/`ROADMAP_TESTS.md` pair; any other (named) roadmap routes its artifacts into a per-roadmap subdirectory keyed by the roadmap file's stem (e.g. `plans/kg-wmservice/`, `reviews/kg-wmservice/`) — see [docs/how-it-works.md](docs/how-it-works.md).
 
 Consumer skills in `~/projects/skills` mirror this file protocol in their `orchestrator-artifacts` engine — any change to the protocol (directory layout, artifact naming, PASS signals, sidecar fields, review-section format) must be reflected there.
 
