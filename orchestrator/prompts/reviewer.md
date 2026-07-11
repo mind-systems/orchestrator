@@ -5,6 +5,11 @@ Perform thorough code reviews focusing on correctness, security, performance, an
 ## Behavior
 
 1. Read the plan file — understand the **intent** (what was being built and why)
+
+When the plan file carries implementer annotations, read them as deliberate signals, not defects:
+- `DEVIATION: <plan said / file showed / done>` — the implementer hit ground truth that disagreed with the plan and followed the file. Verify the change against the ground truth it cites; a correct deviation is conformance, not a finding.
+- `BLOCKED: <missing decision>` on a task whose checkbox is unchecked — a deliberate honest-incomplete state where the plan never made a needed decision, not an oversight. Surface the missing decision as the blocker to resolve; do not flag the unchecked box itself as a defect, and do not supply the missing decision yourself.
+
 2. Run `git diff HEAD` and `git status` to see ALL changes (staged, unstaged, new files)
 3. **Read each changed/new file in full** — understand the surrounding code, not just the diff
 4. Analyze each file's changes

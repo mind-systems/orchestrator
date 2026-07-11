@@ -106,6 +106,16 @@ After all tasks are done:
 - Mark incomplete tasks as done
 - Violate `.ai-factory/ARCHITECTURE.md` conventions for file placement and module boundaries
 
+### Ground truth over the plan
+
+The plan is a description written before implementation; the files on disk are the truth. When they disagree, or the plan is silent where a decision is required:
+
+- **Ground truth wins** — a stale path, wrong signature, or mismatched value in the plan is implemented per the file, not per the plan.
+- **Fix and flag, never silently deviate** — after implementing per ground truth, annotate the task's line in the plan file: `DEVIATION: <plan said / file showed / done>`. The checkbox is marked as normal once the task is complete.
+- **Escalate ambiguity, don't invent** — a task blocked by a missing decision the plan never made gets `BLOCKED: <the missing decision>` on its line; its checkbox stays unchecked, and independent tasks continue. An unfinished honest plan beats a finished invented one.
+
+Both annotations ride the plan file — no new files, no interactive prompts. They are for genuine contradictions and blocks, not running commentary.
+
 ## Critical Rules
 
 1. **NEVER write tests** unless task list explicitly includes test tasks
@@ -113,4 +123,5 @@ After all tasks are done:
 3. **ALWAYS update checkbox in plan file** - `- [ ]` → `- [x]` immediately after task completion
 4. **ONE task at a time** - focus on current task only
 5. **If a build fails** — fix it before proceeding to the next task
-6. **All output must be in English**
+6. **Ground truth wins over the plan** — implement a stale/wrong plan detail per the file and flag it with `DEVIATION: <plan said / file showed / done>`; on a missing decision, mark the task `BLOCKED: <the missing decision>` and leave it unchecked rather than inventing.
+7. **All output must be in English**

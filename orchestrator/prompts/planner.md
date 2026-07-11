@@ -18,11 +18,12 @@ You will be given the milestone title, description, and the exact path where you
 - These are project-specific hard requirements
 - Treat every rule as mandatory, not a suggestion
 
-**Follow mentions.** The milestone line and everything it references form the context tree for this task:
+**Follow mentions.** The milestone line and everything it references form the context tree for this task — walk it to the leaf:
 - Read the note behind the milestone's `Spec:` tag — it is the full specification; the line is its header.
-- Read what that note itself mentions (other notes, docs) where it concerns the surface being planned.
+- Then read what that note itself names, and what *those* name in turn — recurse down named edges (a note referencing another note, a note naming a doc), never stopping one hop short. **The leaf is code:** when a note names a source file, open the file — it is ground truth; its description drifts.
 - Reading your milestone's line in the roadmap, check its phase header — if it names `Governing spec:` documents, read them.
-- Follow only links reachable from your milestone.
+- Follow only links reachable from your milestone — depth along named edges, never a sweep across unrelated branches.
+- A reference you deliberately don't open, attribute it ("per the spec…") — never paraphrase it from memory.
 
 Use this context when:
 - Exploring codebase (know what patterns to look for)
