@@ -3,6 +3,8 @@
   "usage_threshold_5h": 90,
   "usage_threshold_weekly": 95,
   "enable_phase_sessions": false,
+  "roadmap_path": "",
+  "roadmap_path_example_values": ["my", "roadmaps/kg-wmservice.md"],
   "telegram_bot_token": "",
   "telegram_chat_id": "",
   "telegram_alerts": [],
