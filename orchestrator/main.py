@@ -167,7 +167,8 @@ def _artifact_subdir(relpath: str) -> str | None:
     """Key artifact dirs by the roadmap file's stem; the default pair stays flat (None)."""
     if relpath in ("ROADMAP.md", "ROADMAP_TESTS.md"):
         return None
-    return Path(relpath).stem
+    stem = Path(relpath).stem.removesuffix("-tests")
+    return stem or Path(relpath).stem
 
 
 def _git_commit(project_dir: Path, milestone_title: str) -> None:
