@@ -1095,8 +1095,13 @@ def test_artifact_subdir_named_roadmap_uses_stem():
 
 
 def test_artifact_subdir_named_tests_roadmap_uses_stem():
-    """Should key a named test-roadmap sibling by its own stem."""
-    assert _artifact_subdir("roadmaps/kg-wmservice-tests.md") == "kg-wmservice-tests"
+    """Should key a named test-roadmap sibling by its main roadmap's stem (one stem per roadmap pair)."""
+    assert _artifact_subdir("roadmaps/kg-wmservice-tests.md") == "kg-wmservice"
+
+
+def test_artifact_subdir_explicit_path_tests_sibling_uses_stem():
+    """Should key an explicit, non-'roadmaps/' roadmap's test sibling by its main roadmap's stem."""
+    assert _artifact_subdir("custom-tests.md") == "custom"
 
 
 def test_artifact_subdir_track_file_uses_stem():
