@@ -1,11 +1,16 @@
-"""Unit tests for _has_signal, TestRunner._extract_test_command, and _resolve_claude."""
+"""Unit tests for _has_signal, TestRunner._extract_test_command, _resolve_claude,
+sidecar session I/O (_read_sessions/_write_session), and kill_active_child."""
 
+import json
+import os
+import subprocess
+import time
 from pathlib import Path
 
 import pytest
 
-from orchestrator import agents
-from orchestrator.agents import _has_signal, TestRunner
+from orchestrator import agents, state
+from orchestrator.agents import _has_signal, _read_sessions, _write_session, kill_active_child, TestRunner
 
 
 # ---------------------------------------------------------------------------
@@ -294,3 +299,226 @@ def test_sorted_nvm_node_dirs_unparseable_sorts_last():
 def test_sorted_nvm_node_dirs_empty_list_never_raises():
     """An empty input list returns an empty list without raising."""
     assert agents._sorted_nvm_node_dirs([]) == []
+
+
+# ---------------------------------------------------------------------------
+# --- _read_sessions ---
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Task 1: _read_sessions reads and degrades the sidecar
+# ---------------------------------------------------------------------------
+
+
+def test_read_sessions_missing_file_returns_empty_dict(tmp_path):
+    """Should return {} when the sidecar file does not exist."""
+    plan_path = tmp_path / "01-foo-plan.md"
+    assert _read_sessions(plan_path) == {}
+
+
+def test_read_sessions_valid_json_roundtrips(tmp_path):
+    """Should return the parsed dict when the sidecar contains valid JSON."""
+    plan_path = tmp_path / "01-foo-plan.md"
+    sidecar = tmp_path / "01-foo-plan.json"
+    sidecar.write_text(json.dumps({"planner": "sid-123", "step": "planned"}))
+    assert _read_sessions(plan_path) == {"planner": "sid-123", "step": "planned"}
+
+
+def test_read_sessions_malformed_json_returns_empty_silently(tmp_path):
+    """Should return {} silently when the sidecar contains malformed JSON.
+
+    Observed (not necessarily desired) behavior: a corrupted sidecar is swallowed
+    via `except (json.JSONDecodeError, OSError)` and treated identically to a
+    missing file, with no exception raised and no warning surfaced.
+    """
+    plan_path = tmp_path / "01-foo-plan.md"
+    sidecar = tmp_path / "01-foo-plan.json"
+    sidecar.write_text("{not valid json")
+    assert _read_sessions(plan_path) == {}
+
+
+def test_read_sessions_derives_sidecar_path_via_with_suffix(tmp_path):
+    """Should derive the sidecar path via .with_suffix('.json'), not by appending
+    onto the plan file's own suffix."""
+    plan_path = tmp_path / "03-bar-plan.md"
+    sidecar = tmp_path / "03-bar-plan.json"
+    sidecar.write_text(json.dumps({"step": "planned"}))
+    assert _read_sessions(plan_path) == {"step": "planned"}
+
+
+# ---------------------------------------------------------------------------
+# --- _write_session ---
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Task 2: _write_session create, merge, and overwrite
+# ---------------------------------------------------------------------------
+
+
+def test_write_session_creates_fresh_sidecar_with_only_new_key(tmp_path):
+    """Should create a fresh sidecar containing only the new key when none exists yet."""
+    plan_path = tmp_path / "01-foo-plan.md"
+    _write_session(plan_path, "planner", "sid-abc")
+    sidecar = tmp_path / "01-foo-plan.json"
+    assert sidecar.exists()
+    assert json.loads(sidecar.read_text()) == {"planner": "sid-abc"}
+
+
+def test_write_session_merges_without_clobbering_other_keys(tmp_path):
+    """Should merge the new key into an existing sidecar without clobbering other keys."""
+    plan_path = tmp_path / "01-foo-plan.md"
+    sidecar = tmp_path / "01-foo-plan.json"
+    sidecar.write_text(json.dumps({"planner": "sid-abc", "step": "planned"}))
+    _write_session(plan_path, "implementer", "sid-xyz")
+    assert json.loads(sidecar.read_text()) == {
+        "planner": "sid-abc",
+        "step": "planned",
+        "implementer": "sid-xyz",
+    }
+
+
+def test_write_session_overwrites_existing_key(tmp_path):
+    """Should overwrite the value of an existing key when writing the same key again."""
+    plan_path = tmp_path / "01-foo-plan.md"
+    sidecar = tmp_path / "01-foo-plan.json"
+    sidecar.write_text(json.dumps({"planner": "sid-old"}))
+    _write_session(plan_path, "planner", "sid-new")
+    assert json.loads(sidecar.read_text()) == {"planner": "sid-new"}
+
+
+# ---------------------------------------------------------------------------
+# Task 3: _write_session corruption fallback and atomic write
+# ---------------------------------------------------------------------------
+
+
+def test_write_session_corruption_drops_prior_data(tmp_path):
+    """Should fall back to a fresh dict, dropping all prior data, when the existing
+    sidecar is corrupted JSON.
+
+    This is the real data-loss silent-failure surface: a genuinely corrupted sidecar
+    mid-run loses whatever session IDs it held on the very next write — no recovery,
+    no merge, and no exception raised. Observed behavior, not necessarily desired.
+    """
+    plan_path = tmp_path / "01-foo-plan.md"
+    sidecar = tmp_path / "01-foo-plan.json"
+    sidecar.write_text("{not valid json")
+    _write_session(plan_path, "step", "planned")
+    assert json.loads(sidecar.read_text()) == {"step": "planned"}
+
+
+def test_write_session_leaves_no_tmp_file_behind(tmp_path):
+    """Should write via a temp file and atomically replace it, leaving no .tmp file
+    behind after a successful write."""
+    plan_path = tmp_path / "01-foo-plan.md"
+    _write_session(plan_path, "planner", "sid-abc")
+    tmp_sidecar = plan_path.with_suffix(".json.tmp")
+    sidecar = plan_path.with_suffix(".json")
+    assert not tmp_sidecar.exists()
+    assert sidecar.exists()
+
+
+def test_write_session_content_is_rereadable_via_read_sessions(tmp_path):
+    """Should produce sidecar content that is re-readable via _read_sessions —
+    the two functions agree on path derivation and format."""
+    plan_path = tmp_path / "01-foo-plan.md"
+    _write_session(plan_path, "planner", "sid-abc")
+    _write_session(plan_path, "implementer", "sid-xyz")
+    assert _read_sessions(plan_path) == {"planner": "sid-abc", "implementer": "sid-xyz"}
+
+
+# ---------------------------------------------------------------------------
+# --- kill_active_child ---
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def clean_active_proc():
+    """Reset the shared state.active_proc global to None before and after each
+    test — it's a module-level global, not per-instance, so leftover state would
+    silently corrupt unrelated tests."""
+    state.active_proc = None
+    try:
+        yield
+    finally:
+        state.active_proc = None
+
+
+# ---------------------------------------------------------------------------
+# Task 4: kill_active_child no-op branches
+# ---------------------------------------------------------------------------
+
+
+def test_kill_active_child_noop_when_already_none(clean_active_proc):
+    """Should be a no-op and leave state.active_proc as None when it is already None."""
+    state.active_proc = None
+    kill_active_child()
+    assert state.active_proc is None
+
+
+def test_kill_active_child_clears_already_exited_process(clean_active_proc):
+    """Should clear state.active_proc without signalling when the tracked process
+    has already exited (covers the `proc.poll() is not None` short-circuit —
+    os.killpg is not reached)."""
+    proc = subprocess.Popen(["true"])
+    proc.wait()
+    state.active_proc = proc
+    kill_active_child()
+    assert state.active_proc is None
+
+
+# ---------------------------------------------------------------------------
+# Task 5: kill_active_child kills a live process group
+# ---------------------------------------------------------------------------
+
+
+def test_kill_active_child_kills_live_process_group(clean_active_proc):
+    """Should kill the live process group and clear state.active_proc when the
+    process is still running."""
+    proc = subprocess.Popen(["sleep", "5"], preexec_fn=os.setsid)
+    state.active_proc = proc
+    try:
+        kill_active_child()
+        deadline = time.monotonic() + 1.0
+        while proc.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert proc.poll() is not None
+        assert state.active_proc is None
+    finally:
+        proc.wait()
+
+
+# ---------------------------------------------------------------------------
+# Task 6: kill_active_child killpg-failure fallback
+# ---------------------------------------------------------------------------
+
+
+class _FakeProc:
+    """Minimal stand-in for subprocess.Popen exposing only what kill_active_child
+    touches: .poll(), .pid, and .kill()."""
+
+    def __init__(self):
+        self.pid = 99999
+        self.killed = False
+
+    def poll(self):
+        return None
+
+    def kill(self):
+        self.killed = True
+
+
+def test_kill_active_child_falls_back_to_kill_on_killpg_failure(monkeypatch, clean_active_proc):
+    """Should fall back to proc.kill() and still clear state.active_proc when
+    os.killpg raises ProcessLookupError."""
+
+    def raise_process_lookup_error(pgid, sig):
+        raise ProcessLookupError()
+
+    monkeypatch.setattr(agents.os, "killpg", raise_process_lookup_error)
+    fake = _FakeProc()
+    state.active_proc = fake
+    kill_active_child()
+    assert fake.killed is True
+    assert state.active_proc is None
