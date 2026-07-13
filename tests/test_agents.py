@@ -1,7 +1,10 @@
-"""Unit tests for _has_signal and TestRunner._extract_test_command."""
+"""Unit tests for _has_signal, TestRunner._extract_test_command, and _resolve_claude."""
+
+from pathlib import Path
 
 import pytest
 
+from orchestrator import agents
 from orchestrator.agents import _has_signal, TestRunner
 
 
@@ -129,3 +132,143 @@ def test_extract_test_command_empty_section(tmp_path):
     p = tmp_path / "plan.md"
     p.write_text("## Test Command\n\n## Next Section\nuv run pytest")
     assert TestRunner._extract_test_command(p) is None
+
+
+# ---------------------------------------------------------------------------
+# --- _resolve_claude ---
+# ---------------------------------------------------------------------------
+
+
+def _make_claude_bin(node_dir: Path) -> Path:
+    """Create `node_dir/bin/claude` as an empty file and return its path.
+
+    Content is irrelevant — `_resolve_claude` only calls `.exists()` on it.
+    """
+    bin_dir = node_dir / "bin"
+    bin_dir.mkdir(parents=True)
+    claude_bin = bin_dir / "claude"
+    claude_bin.write_text("")
+    return claude_bin
+
+
+# ---------------------------------------------------------------------------
+# Task 2: PATH-hit tests
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_claude_path_hit(monkeypatch):
+    """Returns the PATH-resolved path directly when shutil.which finds it."""
+    monkeypatch.setattr(agents.shutil, "which", lambda name: "/usr/local/bin/claude")
+    assert agents._resolve_claude() == "/usr/local/bin/claude"
+
+
+def test_resolve_claude_path_hit_short_circuits_nvm(monkeypatch, tmp_path):
+    """A PATH hit short-circuits the nvm fallback — no FileNotFoundError even
+    though the patched home has no `.nvm` at all."""
+    monkeypatch.setattr(agents.shutil, "which", lambda name: "/usr/local/bin/claude")
+    monkeypatch.setattr(agents.Path, "home", lambda: tmp_path / "nonexistent_home")
+    assert agents._resolve_claude() == "/usr/local/bin/claude"
+
+
+# ---------------------------------------------------------------------------
+# Task 3: not-found tests -> FileNotFoundError with install message
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_claude_no_nvm_dir_raises(monkeypatch, tmp_path):
+    """Raises when the fake home exists but has no `.nvm` inside it at all."""
+    fakehome = tmp_path / "fakehome"
+    fakehome.mkdir()
+    monkeypatch.setattr(agents.shutil, "which", lambda name: None)
+    monkeypatch.setattr(agents.Path, "home", lambda: fakehome)
+    with pytest.raises(FileNotFoundError, match="npm install -g @anthropic-ai/claude-code"):
+        agents._resolve_claude()
+
+
+def test_resolve_claude_empty_node_versions_dir_raises(monkeypatch, tmp_path):
+    """Raises when `.nvm/versions/node/` exists but is empty."""
+    fakehome = tmp_path / "fakehome"
+    (fakehome / ".nvm" / "versions" / "node").mkdir(parents=True)
+    monkeypatch.setattr(agents.shutil, "which", lambda name: None)
+    monkeypatch.setattr(agents.Path, "home", lambda: fakehome)
+    with pytest.raises(FileNotFoundError, match="npm install -g @anthropic-ai/claude-code"):
+        agents._resolve_claude()
+
+
+def test_resolve_claude_no_bin_claude_in_any_version_raises(monkeypatch, tmp_path):
+    """Raises when version dirs exist but none has a `bin/claude` file."""
+    fakehome = tmp_path / "fakehome"
+    node_dir = fakehome / ".nvm" / "versions" / "node"
+    (node_dir / "v18.0.0").mkdir(parents=True)
+    (node_dir / "v20.1.0").mkdir(parents=True)
+    monkeypatch.setattr(agents.shutil, "which", lambda name: None)
+    monkeypatch.setattr(agents.Path, "home", lambda: fakehome)
+    with pytest.raises(FileNotFoundError, match="npm install -g @anthropic-ai/claude-code"):
+        agents._resolve_claude()
+
+
+# ---------------------------------------------------------------------------
+# Task 4: nvm candidate selection -- multi-candidate, partial-install,
+# non-dir tolerance
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_claude_multi_candidate_returns_highest(monkeypatch, tmp_path):
+    """When multiple version dirs each have `bin/claude`, and the sort happens
+    to agree with semver order, the highest-sorting one is returned."""
+    fakehome = tmp_path / "fakehome"
+    node_dir = fakehome / ".nvm" / "versions" / "node"
+    _make_claude_bin(node_dir / "v18.0.0")
+    v20 = _make_claude_bin(node_dir / "v20.1.0")
+    monkeypatch.setattr(agents.shutil, "which", lambda name: None)
+    monkeypatch.setattr(agents.Path, "home", lambda: fakehome)
+    assert agents._resolve_claude() == str(v20)
+
+
+def test_resolve_claude_partial_install_skipped(monkeypatch, tmp_path):
+    """A version dir with no `bin/claude` is skipped in favor of the next
+    candidate that has one, with no raise."""
+    fakehome = tmp_path / "fakehome"
+    node_dir = fakehome / ".nvm" / "versions" / "node"
+    (node_dir / "v20.1.0").mkdir(parents=True)
+    v18 = _make_claude_bin(node_dir / "v18.0.0")
+    monkeypatch.setattr(agents.shutil, "which", lambda name: None)
+    monkeypatch.setattr(agents.Path, "home", lambda: fakehome)
+    assert agents._resolve_claude() == str(v18)
+
+
+def test_resolve_claude_non_dir_entry_tolerated(monkeypatch, tmp_path):
+    """A plain file sorting ahead of the valid version dir under
+    reverse=True is visited first and tolerated without a crash, and the
+    valid candidate is still returned."""
+    fakehome = tmp_path / "fakehome"
+    node_dir = fakehome / ".nvm" / "versions" / "node"
+    node_dir.mkdir(parents=True)
+    (node_dir / "zzstray").write_text("")  # sorts before v18.0.0 under reverse=True
+    v18 = _make_claude_bin(node_dir / "v18.0.0")
+    monkeypatch.setattr(agents.shutil, "which", lambda name: None)
+    monkeypatch.setattr(agents.Path, "home", lambda: fakehome)
+    assert agents._resolve_claude() == str(v18)
+
+
+# ---------------------------------------------------------------------------
+# Task 5: RED case -- semver ordering (fixed in milestone 2.2)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.xfail(
+    reason="lexicographic sort picks v9.0.0 over v20.11.0 — fixed in 2.2",
+    strict=True,
+)
+def test_resolve_claude_semver_ordering_picks_true_latest(monkeypatch, tmp_path):
+    """The true-latest version (v20.11.0) should win over v9.0.0. Today's
+    `sorted(..., reverse=True)` compares directory names lexicographically,
+    so it picks v9.0.0 instead -- this assertion encodes the correct
+    behavior and is expected to fail until the sort is semver-aware."""
+    fakehome = tmp_path / "fakehome"
+    node_dir = fakehome / ".nvm" / "versions" / "node"
+    _make_claude_bin(node_dir / "v9.0.0")
+    v20 = _make_claude_bin(node_dir / "v20.11.0")
+    monkeypatch.setattr(agents.shutil, "which", lambda name: None)
+    monkeypatch.setattr(agents.Path, "home", lambda: fakehome)
+    assert agents._resolve_claude() == str(v20)
