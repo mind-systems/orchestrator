@@ -83,13 +83,16 @@ def _run_loop(items, process_fn) -> None:
 
 def _next_number(directory: Path) -> int:
     """Return the next sequential number based on existing files in directory."""
-    existing = sorted(directory.glob("*.md"))
+    existing = list(directory.glob("*.md"))
     if not existing:
         return 1
-    for f in reversed(existing):
-        parts = f.stem.split("-", 1)
-        if parts[0].isdigit():
-            return int(parts[0]) + 1
+    numbers = [
+        int(parts[0])
+        for f in existing
+        if (parts := f.stem.split("-", 1))[0].isdigit()
+    ]
+    if numbers:
+        return max(numbers) + 1
     return len(existing) + 1
 
 

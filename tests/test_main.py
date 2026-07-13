@@ -1165,20 +1165,18 @@ def test_next_number_gap_returns_one_past_highest(tmp_path):
 
 
 def test_next_number_skips_later_sorting_non_digit_stem(tmp_path):
-    """Should skip a lexicographically-later non-digit stem and fall through to the digit stem
-    when it sorts first (sorted: ["01-a.md","zz-notes.md"]; reversed visits zz first, skips it,
-    then matches 01)."""
+    """Should ignore a non-digit stem regardless of position and take the digit stem's value
+    into the max: only "01-a.md" contributes a number, so the result is 1 + 1 == 2."""
     (tmp_path / "01-a.md").write_text("")
     (tmp_path / "zz-notes.md").write_text("")
     assert _next_number(tmp_path) == 2
 
 
 def test_next_number_skips_earlier_sorting_non_digit_stem(tmp_path):
-    """Should skip a lexicographically-earlier non-digit stem when the digit stem sorts last
-    (sorted: ["02-b.md","aa-notes.md"]; reversed visits aa first, skips it, then matches 02).
-    Deliberate complement to the zz-notes case above — exercises the opposite lexicographic
-    placement of the stray non-digit file, confirming the loop does not stop at the first
-    non-digit stem regardless of where it sorts."""
+    """Should ignore a non-digit stem regardless of position and take the digit stem's value
+    into the max: only "02-b.md" contributes a number, so the result is 2 + 1 == 3.
+    Deliberate complement to the zz-notes case above — exercises the opposite placement of
+    the stray non-digit file, confirming non-digit stems are excluded irrespective of order."""
     (tmp_path / "aa-notes.md").write_text("")
     (tmp_path / "02-b.md").write_text("")
     assert _next_number(tmp_path) == 3
@@ -1198,9 +1196,8 @@ def test_next_number_no_digit_stems_falls_back_to_count_plus_one(tmp_path):
 
 
 def test_next_number_rolls_from_single_to_double_digit(tmp_path):
-    """Should roll from single- to double-digit numbering within a zero-padded two-digit width
-    (asserts the padded convention under which lexicographic and numeric order agree, so
-    max-detection holds — the risk is in the sort, not the int() parse)."""
+    """Should roll from single- to double-digit numbering: the max over the parsed values
+    [8, 9] yields 10, independent of any sort order or digit width."""
     (tmp_path / "08-a.md").write_text("")
     (tmp_path / "09-b.md").write_text("")
     assert _next_number(tmp_path) == 10
@@ -1213,12 +1210,18 @@ def test_next_number_sole_double_digit_entry(tmp_path):
     assert _next_number(tmp_path) == 11
 
 
-def test_next_number_mixed_width_string_sort_boundary_characterization(tmp_path):
-    """CHARACTERIZATION test — pins the currently-produced value for a mixed-width set where
-    '10' sorts before '9' as strings (sorted: ["10-b.md","9-a.md"]; reversed visits 9-a.md
-    first and returns 10, colliding with the existing 10-b.md). This asserts the currently
-    *broken* (non-padded) behavior as a pin, not as correct behavior — a future change that
-    drops zero-padding should trip this test rather than silently colliding."""
+def test_next_number_mixed_width_resolves_numerically(tmp_path):
+    """Should resolve a mixed-width set by numeric value, not string order: "9-a.md" and
+    "10-b.md" yield max(9, 10) + 1 == 11, regardless of how the stems would sort as strings."""
     (tmp_path / "9-a.md").write_text("")
     (tmp_path / "10-b.md").write_text("")
-    assert _next_number(tmp_path) == 10
+    assert _next_number(tmp_path) == 11
+
+
+def test_next_number_three_digit_width_boundary(tmp_path):
+    """Should resolve past the two-to-three-digit width boundary numerically: "99-x.md" and
+    "100-y.md" yield max(99, 100) + 1 == 101, not the already-used 100 that a lexicographic
+    (string-sort) comparison would collide on."""
+    (tmp_path / "99-x.md").write_text("")
+    (tmp_path / "100-y.md").write_text("")
+    assert _next_number(tmp_path) == 101
