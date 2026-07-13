@@ -238,13 +238,13 @@ def test_resolve_claude_partial_install_skipped(monkeypatch, tmp_path):
 
 
 def test_resolve_claude_non_dir_entry_tolerated(monkeypatch, tmp_path):
-    """A plain file sorting ahead of the valid version dir under
-    reverse=True is visited first and tolerated without a crash, and the
-    valid candidate is still returned."""
+    """A stray non-version entry (unparseable name, sorts last) is
+    tolerated without a crash, and the valid version dir is still
+    returned."""
     fakehome = tmp_path / "fakehome"
     node_dir = fakehome / ".nvm" / "versions" / "node"
     node_dir.mkdir(parents=True)
-    (node_dir / "zzstray").write_text("")  # sorts before v18.0.0 under reverse=True
+    (node_dir / "zzstray").write_text("")  # unparseable name, sorts last / is skipped
     v18 = _make_claude_bin(node_dir / "v18.0.0")
     monkeypatch.setattr(agents.shutil, "which", lambda name: None)
     monkeypatch.setattr(agents.Path, "home", lambda: fakehome)
@@ -256,10 +256,6 @@ def test_resolve_claude_non_dir_entry_tolerated(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="lexicographic sort picks v9.0.0 over v20.11.0 — fixed in 2.2",
-    strict=True,
-)
 def test_resolve_claude_semver_ordering_picks_true_latest(monkeypatch, tmp_path):
     """The true-latest version (v20.11.0) should win over v9.0.0. Today's
     `sorted(..., reverse=True)` compares directory names lexicographically,
@@ -272,3 +268,29 @@ def test_resolve_claude_semver_ordering_picks_true_latest(monkeypatch, tmp_path)
     monkeypatch.setattr(agents.shutil, "which", lambda name: None)
     monkeypatch.setattr(agents.Path, "home", lambda: fakehome)
     assert agents._resolve_claude() == str(v20)
+
+
+# ---------------------------------------------------------------------------
+# Task 2: _sorted_nvm_node_dirs -- direct unit cases on the pure helper
+# ---------------------------------------------------------------------------
+
+
+def test_sorted_nvm_node_dirs_orders_by_semver_not_lexicographic():
+    """Single- vs double-digit majors order semantically: v20 and v10 both
+    outrank v9, which a plain lexicographic sort would get wrong."""
+    dirs = [Path("v9.0.0"), Path("v20.11.0"), Path("v10.0.0")]
+    result = agents._sorted_nvm_node_dirs(dirs)
+    assert [d.name for d in result] == ["v20.11.0", "v10.0.0", "v9.0.0"]
+
+
+def test_sorted_nvm_node_dirs_unparseable_sorts_last():
+    """Unparseable names (no leading decimal segment) sort after every
+    parseable version, ordered among themselves by string name."""
+    dirs = [Path("v18.20.4"), Path("system"), Path("v20.1.0")]
+    result = agents._sorted_nvm_node_dirs(dirs)
+    assert [d.name for d in result] == ["v20.1.0", "v18.20.4", "system"]
+
+
+def test_sorted_nvm_node_dirs_empty_list_never_raises():
+    """An empty input list returns an empty list without raising."""
+    assert agents._sorted_nvm_node_dirs([]) == []

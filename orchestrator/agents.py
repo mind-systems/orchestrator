@@ -78,6 +78,41 @@ class PipelineStopError(Exception):
     """Raised to request a graceful halt of the pipeline."""
 
 
+def _sorted_nvm_node_dirs(dirs: list[Path]) -> list[Path]:
+    """Sort nvm version directories highest-version-first, semver-aware.
+
+    Parses each `Path.name` by stripping a leading "v" and taking the
+    leading run of all-decimal ("." separated) segments into an int tuple
+    (e.g. "v18.20.4" -> (18, 20, 4)). Directories with at least one
+    parseable leading segment always outrank ones with none; unparseable
+    names (e.g. "system", "lts", a stray file) sort last, ordered among
+    themselves by their string name. Never raises, including on an empty
+    list or names with mixed/trailing non-integer segments.
+    """
+
+    def parse_version(d: Path) -> tuple[int, ...] | None:
+        name = d.name[1:] if d.name.startswith("v") else d.name
+        version: list[int] = []
+        for segment in name.split("."):
+            if not segment.isdecimal():
+                break
+            version.append(int(segment))
+        return tuple(version) if version else None
+
+    parseable: list[tuple[tuple[int, ...], Path]] = []
+    unparseable: list[Path] = []
+    for d in dirs:
+        version = parse_version(d)
+        if version is not None:
+            parseable.append((version, d))
+        else:
+            unparseable.append(d)
+
+    parseable.sort(key=lambda pair: pair[0], reverse=True)
+    unparseable.sort(key=lambda d: d.name)
+    return [d for _, d in parseable] + unparseable
+
+
 def _resolve_claude() -> str:
     """Return the absolute path to the claude CLI, or raise if not found."""
     path = shutil.which("claude")
@@ -86,7 +121,7 @@ def _resolve_claude() -> str:
     # nvm installs into a versioned directory that may not be in a subprocess PATH
     nvm_base = Path.home() / ".nvm" / "versions" / "node"
     if nvm_base.is_dir():
-        for node_dir in sorted(nvm_base.iterdir(), reverse=True):
+        for node_dir in _sorted_nvm_node_dirs(list(nvm_base.iterdir())):
             candidate = node_dir / "bin" / "claude"
             if candidate.exists():
                 return str(candidate)
