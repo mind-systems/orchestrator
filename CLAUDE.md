@@ -37,6 +37,7 @@ Unit tests live in `tests/` (pytest, a dev dependency) and cover the pure, silen
 | [Non-convergence](docs/non-convergence.md) | The two terminal-stop patterns (convergence without a signature vs escalation around one blocker), how to read review tails, resolutions outside the loop |
 | [Test mode](docs/test-mode.md) | Writing tests through the orchestrator; real test runs as the final check |
 | [Configuration](docs/configuration.md) | Config file, agent models, iteration limits, usage thresholds |
+| [Migrate to named roadmap](docs/migrate-to-named-roadmap.md) | Step-by-step: switch a project from the shared ROADMAP.md to a user-scoped named roadmap |
 | [Phase sessions](docs/phase-sessions.md) | Token economics: resume vs live process measurements, why `enable_phase_sessions` defaults to `false` |
 | [Target project](docs/target-project.md) | What a target project needs to be orchestratable |
 
@@ -69,7 +70,7 @@ PlannerReviewer.plan()      ← uses test-planner prompt
                     └─► mark_done() + git commit
 ```
 
-All agents communicate through files, not shared memory. Output directories under `.ai-factory/`: `plans/`, `plan-reviews/`, `reviews/`, `test-runs/`. Flat for the default `ROADMAP.md`/`ROADMAP_TESTS.md` pair; any other (named) roadmap routes its artifacts into a per-roadmap subdirectory keyed by the roadmap file's stem (e.g. `plans/kg-wmservice/`, `reviews/kg-wmservice/`) — see [docs/how-it-works.md](docs/how-it-works.md).
+All agents communicate through files, not shared memory. Output directories under `.ai-factory/`: `plans/`, `plan-reviews/`, `reviews/`, `test-runs/`. Flat for the default `ROADMAP.md`/`ROADMAP_TESTS.md` pair; any other (named) roadmap routes its artifacts into a per-roadmap subdirectory keyed by the roadmap file's stem (e.g. `plans/john-doe/`, `reviews/john-doe/`) — see [docs/how-it-works.md](docs/how-it-works.md).
 
 Consumer skills in `~/projects/skills` mirror this file protocol in their `orchestrator-artifacts` engine — any change to the protocol (directory layout, artifact naming, PASS signals, sidecar fields, review-section format) must be reflected there.
 

@@ -933,7 +933,7 @@ def test_process_milestone_resume_past_max_iterations_raises_halt_error(tmp_path
 
 def test_derive_identity_slug_canonical_example():
     """Should slugify the email local-part per the spec's canonical example."""
-    assert _derive_identity_slug("kg.wmservice@gmail.com", None) == "kg-wmservice"
+    assert _derive_identity_slug("john.doe@example.com", None) == "john-doe"
 
 
 def test_derive_identity_slug_punctuation_runs_collapse():
@@ -995,11 +995,11 @@ def test_resolve_roadmap_relpath_my_present_matching_owner(tmp_path, monkeypatch
     """Should return the named relpath when the file exists and its owner line matches."""
     roadmaps_dir = tmp_path / ".ai-factory" / "roadmaps"
     roadmaps_dir.mkdir(parents=True)
-    (roadmaps_dir / "kg-wmservice.md").write_text("> Owner: kg.wmservice@gmail.com\n\n- [ ] Task\n")
-    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="kg.wmservice@gmail.com"))
+    (roadmaps_dir / "john-doe.md").write_text("> Owner: john.doe@example.com\n\n- [ ] Task\n")
+    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="john.doe@example.com"))
 
     config = _config_with_roadmap_path("my")
-    assert _resolve_roadmap_relpath(config, tmp_path) == "roadmaps/kg-wmservice.md"
+    assert _resolve_roadmap_relpath(config, tmp_path) == "roadmaps/john-doe.md"
 
 
 def test_resolve_roadmap_relpath_my_name_derived_owner_matches(tmp_path, monkeypatch):
@@ -1015,7 +1015,7 @@ def test_resolve_roadmap_relpath_my_name_derived_owner_matches(tmp_path, monkeyp
 
 def test_resolve_roadmap_relpath_my_missing_file_falls_back(tmp_path, monkeypatch):
     """Should fall back to 'ROADMAP.md' with a loud message when the named roadmap is missing."""
-    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="kg.wmservice@gmail.com"))
+    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="john.doe@example.com"))
 
     config = _config_with_roadmap_path("my")
     assert _resolve_roadmap_relpath(config, tmp_path) == "ROADMAP.md"
@@ -1025,8 +1025,8 @@ def test_resolve_roadmap_relpath_my_owner_mismatch_raises_halt(tmp_path, monkeyp
     """Should raise HaltError when the owner line names a different identity."""
     roadmaps_dir = tmp_path / ".ai-factory" / "roadmaps"
     roadmaps_dir.mkdir(parents=True)
-    (roadmaps_dir / "kg-wmservice.md").write_text("> Owner: someone.else@gmail.com\n\n- [ ] Task\n")
-    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="kg.wmservice@gmail.com"))
+    (roadmaps_dir / "john-doe.md").write_text("> Owner: someone.else@gmail.com\n\n- [ ] Task\n")
+    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="john.doe@example.com"))
 
     config = _config_with_roadmap_path("my")
     with pytest.raises(HaltError):
@@ -1037,8 +1037,8 @@ def test_resolve_roadmap_relpath_my_malformed_first_line_raises_halt(tmp_path, m
     """Should raise HaltError when the file's first line isn't a well-formed owner line."""
     roadmaps_dir = tmp_path / ".ai-factory" / "roadmaps"
     roadmaps_dir.mkdir(parents=True)
-    (roadmaps_dir / "kg-wmservice.md").write_text("# Not an owner line\n\n- [ ] Task\n")
-    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="kg.wmservice@gmail.com"))
+    (roadmaps_dir / "john-doe.md").write_text("# Not an owner line\n\n- [ ] Task\n")
+    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="john.doe@example.com"))
 
     config = _config_with_roadmap_path("my")
     with pytest.raises(HaltError):
@@ -1072,7 +1072,7 @@ def test_tests_sibling_default_pair_is_special_cased():
 
 def test_tests_sibling_named_roadmap_uses_suffix():
     """Should map a named roadmap to its '-tests' suffixed sibling in the same directory."""
-    assert _tests_sibling("roadmaps/kg-wmservice.md") == "roadmaps/kg-wmservice-tests.md"
+    assert _tests_sibling("roadmaps/john-doe.md") == "roadmaps/john-doe-tests.md"
 
 
 # ---------------------------------------------------------------------------
@@ -1092,12 +1092,12 @@ def test_artifact_subdir_default_tests_roadmap_is_flat():
 
 def test_artifact_subdir_named_roadmap_uses_stem():
     """Should key a named roadmap's artifacts by its stem."""
-    assert _artifact_subdir("roadmaps/kg-wmservice.md") == "kg-wmservice"
+    assert _artifact_subdir("roadmaps/john-doe.md") == "john-doe"
 
 
 def test_artifact_subdir_named_tests_roadmap_uses_stem():
     """Should key a named test-roadmap sibling by its main roadmap's stem (one stem per roadmap pair)."""
-    assert _artifact_subdir("roadmaps/kg-wmservice-tests.md") == "kg-wmservice"
+    assert _artifact_subdir("roadmaps/john-doe-tests.md") == "john-doe"
 
 
 def test_artifact_subdir_explicit_path_tests_sibling_uses_stem():
@@ -1117,9 +1117,9 @@ def test_artifact_subdir_track_file_uses_stem():
 
 def test_detect_milestone_step_subdird_dirs_dispatches_same_as_flat(tmp_path):
     """Should dispatch identically to the flat case when plans/plan-reviews/reviews are nested one level deeper under a per-roadmap subdir."""
-    plans_dir = tmp_path / ".ai-factory" / "plans" / "kg-wmservice"
-    plan_reviews_dir = tmp_path / ".ai-factory" / "plan-reviews" / "kg-wmservice"
-    reviews_dir = tmp_path / ".ai-factory" / "reviews" / "kg-wmservice"
+    plans_dir = tmp_path / ".ai-factory" / "plans" / "john-doe"
+    plan_reviews_dir = tmp_path / ".ai-factory" / "plan-reviews" / "john-doe"
+    reviews_dir = tmp_path / ".ai-factory" / "reviews" / "john-doe"
     plans_dir.mkdir(parents=True)
     plan_reviews_dir.mkdir(parents=True)
     reviews_dir.mkdir(parents=True)
