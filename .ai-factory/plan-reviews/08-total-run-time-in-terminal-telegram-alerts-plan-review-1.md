@@ -29,6 +29,6 @@ None.
 - `time.monotonic()` (not wall-clock) is used consistently with the existing per-milestone timing, immune to clock adjustments.
 
 ## Deferred observations
-- Affects: `ARCHITECTURE.md` (file boundary this milestone does not touch; plan Settings mark Docs: no) — the module map comment at `ARCHITECTURE.md:24` describes `state.py` as "Global flag: stop_requested (Ctrl+C)" and will not mention the new `run_started` global. Marginal and outside the two-file boundary of this milestone; worth a one-line touch on a future docs sweep if the module gains more globals.
+- Affects: `ARCHITECTURE.md` (file boundary this milestone does not touch; plan Settings mark Docs: no) — the module map comment at `ARCHITECTURE.md:24` describes `state.py` as "Global flag: stop_requested (Ctrl+C)" and will not mention the new `run_started` global. Marginal and outside the two-file boundary of this milestone; worth a one-line touch on a future docs sweep if the module gains more globals. [dismissed]
 
 PLAN_REVIEW_PASS

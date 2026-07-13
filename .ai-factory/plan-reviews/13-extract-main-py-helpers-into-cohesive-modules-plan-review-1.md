@@ -28,6 +28,6 @@ None.
 - Two-commit split (new modules, then rewire+tests) keeps each commit independently reasoned; the "green before and after" verify gate is stated concretely.
 
 ## Deferred observations
-- Affects: future docs/architecture sweep (the roadmap's remaining post-STOP work, or a dedicated doc task) — `ARCHITECTURE.md` will describe the pre-split module set (`main`/`agents`/`roadmap`/`state`) and omit `usage.py`/`resume.py`/`runtime.py` and their downward dependency edges. This milestone's governing spec explicitly forbids touching `ARCHITECTURE.md`, so the staleness is an intentional scope exclusion, not a defect in this plan; it should be reconciled whenever the architecture doc is next refreshed (the doc's own "Structured Modules at ~10 modules" evolution trigger is the natural moment).
+- Affects: future docs/architecture sweep (the roadmap's remaining post-STOP work, or a dedicated doc task) — `ARCHITECTURE.md` will describe the pre-split module set (`main`/`agents`/`roadmap`/`state`) and omit `usage.py`/`resume.py`/`runtime.py` and their downward dependency edges. This milestone's governing spec explicitly forbids touching `ARCHITECTURE.md`, so the staleness is an intentional scope exclusion, not a defect in this plan; it should be reconciled whenever the architecture doc is next refreshed (the doc's own "Structured Modules at ~10 modules" evolution trigger is the natural moment). [fixed]
 
 PLAN_REVIEW_PASS

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The orchestrator is a small Python CLI tool with no framework, no database, and no complex domain logic. Layered Architecture fits the scale: one developer, ~5 source files, a linear data flow from CLI to filesystem.
+The orchestrator is a small Python CLI tool with no framework, no database, and no complex domain logic. Layered Architecture fits the scale: one developer, ~10 small single-concern modules, a linear data flow from CLI to filesystem.
 
 Three layers separated by responsibility: orchestration, agents, infrastructure. Each layer knows only about the layers below it.
 
@@ -18,10 +18,15 @@ Three layers separated by responsibility: orchestration, agents, infrastructure.
 ```
 orchestrator/
 ├── orchestrator/
-│   ├── main.py          # Orchestration layer: CLI, process_milestone(), roadmap loop
-│   ├── agents.py        # Agent layer: agent classes, _run_claude(), sidecar helpers
-│   ├── roadmap.py       # Infrastructure layer: ROADMAP.md parsing, mark_done()
-│   ├── state.py         # Global flag: stop_requested (Ctrl+C)
+│   ├── main.py          # Orchestration: CLI, the unified milestone pipeline, roadmap loops, git commit
+│   ├── agents.py        # Agents: agent classes, _run_claude(), sidecar session helpers, claude-CLI resolution
+│   ├── roadmap.py       # Infrastructure: ROADMAP.md parsing, mark_done()/mark_skipped()
+│   ├── config.py        # Support: config load + validation (global base + per-project overlay)
+│   ├── usage.py         # Support: usage-threshold gating (/usage parse, session/weekly limits)
+│   ├── resume.py        # Support: sidecar step detection / resume dispatch
+│   ├── runtime.py       # Support: run + signal + process lifecycle (Ctrl+C, caffeinate, elapsed)
+│   ├── notify.py        # Support: Telegram alerts
+│   ├── state.py         # Shared mutable process state for one run
 │   └── prompts/         # Static system prompts (data, not code)
 │       ├── planner.md
 │       ├── reviewer.md
@@ -35,13 +40,14 @@ orchestrator/
 
 ## Dependency Rules
 
-Direction: `main.py → agents.py → roadmap.py`
+Direction: `main.py` → agents / support modules → `roadmap.py`, `state.py`
 
-- ✅ `main.py` imports from `agents.py` and `roadmap.py`
+- ✅ `main.py` imports from `agents.py`, `roadmap.py`, and the support modules (`config`, `usage`, `resume`, `runtime`, `notify`)
 - ✅ `agents.py` imports from `roadmap.py` (`_read_sessions`, `_write_session` only)
+- ✅ support modules import downward only — `usage`→`config`; `resume`→`agents` (`_read_sessions`); `runtime`→`state`, `notify`, `agents` (`kill_active_child`); none import `main.py`
 - ❌ `roadmap.py` must NOT import from `agents.py` or `main.py`
 - ❌ `agents.py` must NOT import from `main.py`
-- ✅ `state.py` may be imported from any layer (global flag)
+- ✅ `state.py` may be imported from any layer (shared run state)
 
 ## Layer Responsibilities
 
@@ -50,6 +56,8 @@ Direction: `main.py → agents.py → roadmap.py`
 **Agents (`agents.py`)** — wrappers over the `claude` CLI. Each class encapsulates one agent type, manages `session_id`, reads/writes the JSON sidecar. Has no knowledge of roadmap structure or milestones.
 
 **Infrastructure (`roadmap.py`)** — pure file operations: parsing markdown checkboxes, writing `[x]`, elapsed time. No dependencies on agents.
+
+**Support modules** — single-concern helpers `main.py` composes, each depending only downward: `config.py` (load + validate settings, including the per-project overlay), `usage.py` (usage-threshold gating), `resume.py` (detect where a prior run stopped), `runtime.py` (run/signal/process lifecycle), `notify.py` (Telegram alerts), `state.py` (shared mutable state for one run).
 
 ## Key Principles
 
