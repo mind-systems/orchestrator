@@ -118,21 +118,25 @@ Move to **Structured Modules** when:
 - 3+ independent domains emerge (e.g. orchestration, monitoring, reporting)
 - Different parts need isolated testing with independent dependencies
 
-## Feature History
+## Features (roadmap-prune v2)
 
-| Feature | Commit |
+| Feature | Hashes |
 |---------|--------|
 | **Pipeline control** | |
 | Iterative plan review gate | 15f1e77 |
-| Crash recovery — mid-milestone resume | 48e435d |
+| Crash recovery — mid-milestone resume | 48e435d de7849d |
 | Test mode — real test runner gate | fb219a4 |
 | Dynamic roadmap re-scan loop | a9b1c12 |
 | Roadmap breakpoint marker | 9a4aa63 |
+| Auto-push to remote after milestone | e50159f |
 | **Session & observability** | |
 | Phase-persistent planner session | 025658d |
 | Per-milestone usage guard | b214041 |
-| Telegram alerts (stop / milestone / done) | a3ceb9b |
+| Telegram alerts — colour-coded outcomes | a3ceb9b b71a648 |
+| Deferred-observations review channel | c93582e |
 | **Configuration** | |
 | Project-root config file | 992a38e |
+| **Multiuser** | |
+| Named per-developer roadmaps | 5d2ff7f |
 | **Internal** | |
-| Roadmap drop history | 282007d |
+| Roadmap drop history | 282007d, 2d4789b |
