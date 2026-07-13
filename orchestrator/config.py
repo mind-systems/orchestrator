@@ -20,8 +20,13 @@ class OrchestratorConfig:
     roadmap_path: str | None = None
 
 
-def load_config() -> OrchestratorConfig:
-    """Load and validate config from orchestrator.json in the project root (or ORCHESTRATOR_CONFIG override)."""
+def load_config(project_dir: Path | None = None) -> OrchestratorConfig:
+    """Load and validate config from orchestrator.json in the project root (or ORCHESTRATOR_CONFIG override).
+
+    When `project_dir` is given and `<project_dir>/.ai-factory/orchestrator.json` exists, its keys are
+    shallow-merged onto the base config (project keys win, absent keys inherit the base value). Absence of
+    the override leaves the result byte-identical to calling this with no argument.
+    """
     default = Path(__file__).parent.parent / "orchestrator.json"
     path = Path(os.environ.get("ORCHESTRATOR_CONFIG", str(default)))
 
@@ -41,6 +46,17 @@ def load_config() -> OrchestratorConfig:
     for key in required:
         if key not in data:
             raise SystemExit(f"Missing required key '{key}' in {path}")
+
+    if project_dir is not None:
+        override_path = project_dir / ".ai-factory" / "orchestrator.json"
+        if override_path.exists():
+            try:
+                override = json.loads(override_path.read_text())
+            except json.JSONDecodeError as e:
+                raise SystemExit(f"Config file is not valid JSON: {override_path}\n{e}")
+            if not isinstance(override, dict):
+                raise SystemExit(f"Config file is not valid JSON: {override_path}\nExpected a JSON object, got {type(override).__name__}")
+            data.update(override)
 
     roadmap_path = data.get("roadmap_path") or None
     if roadmap_path is not None and (Path(roadmap_path).is_absolute() or ".." in Path(roadmap_path).parts):

@@ -487,7 +487,7 @@ def cli() -> None:
     args = parser.parse_args()
     project_dir = Path(args.project_dir).resolve() if hasattr(args, "project_dir") and args.project_dir else Path(".").resolve()
 
-    config = load_config()
+    config = load_config(project_dir=project_dir)
 
     try:
         if args.command == "test":

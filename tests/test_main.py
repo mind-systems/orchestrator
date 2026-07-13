@@ -829,7 +829,7 @@ def _run_cli_with(monkeypatch, exc):
     """Patch load_config/run_implement/notify/argv; return the list notify() calls get recorded into."""
     recorded = []
 
-    monkeypatch.setattr(main_module, "load_config", lambda: _cli_config())
+    monkeypatch.setattr(main_module, "load_config", lambda project_dir=None: _cli_config())
 
     def _raise_run_implement(project_dir, config):
         raise exc
