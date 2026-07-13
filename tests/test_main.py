@@ -15,6 +15,7 @@ from orchestrator.config import OrchestratorConfig
 from orchestrator.main import (
     _artifact_subdir,
     _derive_identity_slug,
+    _next_number,
     _resolve_roadmap_relpath,
     _tests_sibling,
     process_milestone,
@@ -1131,3 +1132,93 @@ def test_detect_milestone_step_subdird_dirs_dispatches_same_as_flat(tmp_path):
     assert step == "review"
     assert counter == 1
     assert returned_path == plan_path
+
+
+# ---------------------------------------------------------------------------
+# _next_number: max-based numbering over well-formed files
+# ---------------------------------------------------------------------------
+
+
+def test_next_number_empty_directory_returns_one(tmp_path):
+    """Should return 1 when the directory is empty (the `if not existing: return 1` branch)."""
+    assert _next_number(tmp_path) == 1
+
+
+def test_next_number_single_well_formed_file_returns_one_past(tmp_path):
+    """Should return one past the number when a single well-formed file exists."""
+    (tmp_path / "03-x.md").write_text("")
+    assert _next_number(tmp_path) == 4
+
+
+def test_next_number_gap_returns_one_past_highest(tmp_path):
+    """Should return one past the highest number, not the count, when files exist with a gap
+    (pinning max+1 vs. a naive count+1 that would return 4)."""
+    (tmp_path / "01-a.md").write_text("")
+    (tmp_path / "02-b.md").write_text("")
+    (tmp_path / "05-c.md").write_text("")
+    assert _next_number(tmp_path) == 6
+
+
+# ---------------------------------------------------------------------------
+# _next_number: mixed digit / non-digit stems
+# ---------------------------------------------------------------------------
+
+
+def test_next_number_skips_later_sorting_non_digit_stem(tmp_path):
+    """Should skip a lexicographically-later non-digit stem and fall through to the digit stem
+    when it sorts first (sorted: ["01-a.md","zz-notes.md"]; reversed visits zz first, skips it,
+    then matches 01)."""
+    (tmp_path / "01-a.md").write_text("")
+    (tmp_path / "zz-notes.md").write_text("")
+    assert _next_number(tmp_path) == 2
+
+
+def test_next_number_skips_earlier_sorting_non_digit_stem(tmp_path):
+    """Should skip a lexicographically-earlier non-digit stem when the digit stem sorts last
+    (sorted: ["02-b.md","aa-notes.md"]; reversed visits aa first, skips it, then matches 02).
+    Deliberate complement to the zz-notes case above — exercises the opposite lexicographic
+    placement of the stray non-digit file, confirming the loop does not stop at the first
+    non-digit stem regardless of where it sorts."""
+    (tmp_path / "aa-notes.md").write_text("")
+    (tmp_path / "02-b.md").write_text("")
+    assert _next_number(tmp_path) == 3
+
+
+def test_next_number_no_digit_stems_falls_back_to_count_plus_one(tmp_path):
+    """Should fall back to count + 1 when no file has a digit-prefixed stem (the loop exhausts
+    without returning, hitting the `len(existing)+1` fallback line)."""
+    (tmp_path / "notes.md").write_text("")
+    (tmp_path / "readme.md").write_text("")
+    assert _next_number(tmp_path) == 3
+
+
+# ---------------------------------------------------------------------------
+# _next_number: double-digit rollover and the lexicographic-sort boundary
+# ---------------------------------------------------------------------------
+
+
+def test_next_number_rolls_from_single_to_double_digit(tmp_path):
+    """Should roll from single- to double-digit numbering within a zero-padded two-digit width
+    (asserts the padded convention under which lexicographic and numeric order agree, so
+    max-detection holds — the risk is in the sort, not the int() parse)."""
+    (tmp_path / "08-a.md").write_text("")
+    (tmp_path / "09-b.md").write_text("")
+    assert _next_number(tmp_path) == 10
+
+
+def test_next_number_sole_double_digit_entry(tmp_path):
+    """Should return the correct next number when the sole entry is already a double-digit file
+    (guards an off-by-one specific to multi-character digit prefixes)."""
+    (tmp_path / "10-c.md").write_text("")
+    assert _next_number(tmp_path) == 11
+
+
+def test_next_number_mixed_width_string_sort_boundary_characterization(tmp_path):
+    """CHARACTERIZATION test — pins the currently-produced value for a mixed-width set where
+    '10' sorts before '9' as strings (sorted: ["10-b.md","9-a.md"]; reversed visits 9-a.md
+    first and returns 10, colliding with the existing 10-b.md). This asserts the currently
+    *broken* (non-padded) behavior as a pin, not as correct behavior — a future change that
+    drops zero-padding should trip this test rather than silently colliding."""
+    (tmp_path / "9-a.md").write_text("")
+    (tmp_path / "10-b.md").write_text("")
+    assert _next_number(tmp_path) == 10
