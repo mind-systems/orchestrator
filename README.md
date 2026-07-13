@@ -1,22 +1,26 @@
 # Orchestrator
 
-> Автономный оркестратор AI-агентов — планирует, имплементирует и ревьюит задачи из роадмапа.
+> Autonomous AI-agent orchestrator — it executes a project's finished roadmap, task by task.
 
-Orchestrator читает milestone-ы из роадмапа целевого проекта и прогоняет каждый через пятиступенчатый конвейер: Planner составляет план, PlanReviewer проверяет план (с итерациями до принятия), Implementer пишет код, Reviewer проверяет результат (с итерациями до принятия). В конце каждого milestone оркестратор делает git commit и отмечает задачу выполненной.
+The orchestrator reads pending tasks from a target project's roadmap and runs each through a five-stage pipeline — plan → plan-review → implement → review → commit: a Planner writes the plan, a PlanReviewer checks it (iterating until the plan-review PASS-signal), an Implementer writes the code, a Reviewer checks the result (iterating until the review PASS-signal), and the orchestrator commits and marks the task done. It authors nothing on the roadmap itself — the roadmap arrives already decomposed; the orchestrator only executes it.
 
-## Быстрый старт
+## Onboarding — raise the environment
+
+*This section is addressed to the agent reading the README on a fresh checkout:* from here the orchestrator's environment is raised interactively with the user. Do not touch the config or `~/.claude/settings.json` silently — walk the user through the value choices.
 
 ```bash
-cd orchestrator && uv sync
-cp orchestrator.json.example orchestrator.json  # затем отредактируйте при необходимости
+cd orchestrator && uv sync                        # dependencies
+cp orchestrator.json.example orchestrator.json    # local config — gitignored, one per developer
 uv run orchestrator implement /path/to/project
 ```
 
-Требуется установленный и авторизованный [Claude Code](https://claude.ai/code) CLI.
+An installed and authorized [Claude Code](https://claude.ai/code) CLI is required.
 
-### Разрешения Claude Code
+**Fill in `orchestrator.json`** with the user (the file holds secrets and is not committed): `roadmap_path` — which roadmap to run (empty = the default `ROADMAP.md`); optionally `telegram_bot_token`, `telegram_chat_id`, `telegram_alerts` for Telegram alerts. Any key can be overridden per project in `<project>/.ai-factory/orchestrator.json` (see [docs/configuration.md](docs/configuration.md)).
 
-Агент-планировщик должен иметь право редактировать файлы в `.ai-factory/plans/` — иначе он не сможет исправить план после замечаний ревьюера и цикл зависнет. Добавьте в `~/.claude/settings.json`:
+### Claude Code permissions
+
+The Planner agent must be allowed to edit files under `.ai-factory/plans/` — otherwise it cannot revise the plan after plan-review's remarks and the cycle hangs. Add to `~/.claude/settings.json`:
 
 ```json
 {
@@ -29,18 +33,17 @@ uv run orchestrator implement /path/to/project
 }
 ```
 
-Без этого разрешения plan-ревью будет бесконечно возвращать одни и те же замечания — план физически не изменится.
+Without this permission plan-review returns the same remarks forever — the plan physically cannot change.
 
-## Режимы работы
+## Modes
 
-| Команда | Что делает |
-|---------|-----------|
-| `implement` | Планирует и имплементирует все pending-milestone-ы |
-| `test` | Пишет тесты по milestone-ам из `ROADMAP_TESTS.md` |
+| Command | What it does |
+|---------|-------------|
+| `implement` | Plans and implements every pending task |
+| `test` | Writes tests for the tasks in `ROADMAP_TESTS.md` |
 
+Full documentation lives in [docs/](docs/); the page index is in [CLAUDE.md](CLAUDE.md).
 
-Подробная документация — в [docs/](docs/), индекс страниц — в [CLAUDE.md](CLAUDE.md).
-
-## Лицензия
+## License
 
 MIT
