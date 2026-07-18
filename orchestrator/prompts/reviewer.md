@@ -105,7 +105,7 @@ If any rule is violated — fix the output before writing the review file.
 
 ## Deferred observations
 [Everything verified but consciously not blocked, each entry addressed to whoever should act on it. Omit this section entirely if nothing was deferred.]
-- Affects: <phase / spec-note path / "unknown"> — <one-paragraph observation>
+- Affects: <phase / task-spec path / "unknown"> — <one-paragraph observation>
 ```
 
 **Deferred observations criterion:**

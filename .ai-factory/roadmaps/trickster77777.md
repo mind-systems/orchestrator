@@ -50,6 +50,12 @@ The docs and project meta (`docs/*.md`, `CLAUDE.md`, `.ai-factory/ARCHITECTURE.m
 
 - [x] **8.2 — Rename the rescue-skill references** — `/milestone-rescue`→`/task-rescue`, `/milestone-rescue-audit`→`/task-rescue-audit` in `docs/how-it-works.md:25` and `docs/non-convergence.md:37` only. Executed doc-first by owner decision (docs are governing specs and lead code): the docs carry the target names, skills' task 16.1 (spec `skills/.ai-factory/specs/71-rescue-skills-rename.md`) reconciles the skills repo to them. Frozen history keeps the old names. Spec: `.ai-factory/specs/trickster77777/28-rename-rescue-skill-references.md`.
 
+### Phase 17 — The `- Affects:` placeholder speaks `task spec`
+
+Task 7.1 froze the jointly-owned deferred-observations entry line byte-for-byte, recording that it "changes in lockstep or not at all". This phase is that sanctioned lockstep change, paired with skills task 17.5 (`skills/.ai-factory/specs/73-affects-placeholder-task-spec-path.md`). The pair runs in parallel, in either order: neither side touches the scanned bytes (the `## Deferred observations` heading, the `- Affects: ` prefix), and both specs pin the identical target field, so convergence comes from the shared pin, not from ordering.
+
+- [x] **17.1 — `- Affects:` placeholder: `spec-note path` → `task-spec path`** — `reviewer.md:108` instructs the reviewer to emit `- Affects: <phase / spec-note path / "unknown"> — <one-paragraph observation>`; the field placeholder carries the retired synonym for the reserved word task spec. One field changes: → `<phase / task-spec path / "unknown">`, pinned identically on the skills side. Guards: the `## Deferred observations` heading (`:106`) and the `- Affects: ` prefix byte-identical — these are the scanned bytes; the tail `<one-paragraph observation>` stays (a per-side length instruction; the scanner doc's `<observation>` is a format description — recorded difference, not drift); PASS literals and `Spec:`/`Governing spec:` tags untouched. Verify: `grep -rn 'spec-note' orchestrator/ docs/ CLAUDE.md` → zero. Spec: `.ai-factory/specs/trickster77777/29-affects-placeholder-task-spec-path.md`. [4m 42s]
+
 ## Prompt–execution alignment
 
 The agent prompts are meant to describe what the pipeline actually does. Where a prompt drifts from execution reality it plants instructions and plan artifacts the pipeline never carries out — noise that the planner spends tokens authoring and a reader mistakes for real behavior. This direction realigns the prompts with what the orchestrator executes.
