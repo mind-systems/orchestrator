@@ -1,4 +1,4 @@
-"""Orchestrator — Agent 1: loop through roadmap milestones."""
+"""Orchestrator — Agent 1: loop through roadmap tasks."""
 
 from __future__ import annotations
 
@@ -174,8 +174,8 @@ def _artifact_subdir(relpath: str) -> str | None:
     return stem or Path(relpath).stem
 
 
-def _git_commit(project_dir: Path, milestone_title: str) -> None:
-    """Stage all changes and commit after a completed milestone."""
+def _git_commit(project_dir: Path, task_title: str) -> None:
+    """Stage all changes and commit after a completed task."""
     subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
     # Check if there's anything to commit
     result = subprocess.run(
@@ -184,9 +184,9 @@ def _git_commit(project_dir: Path, milestone_title: str) -> None:
     if result.returncode == 0:
         print(">>> Nothing to commit, skipping.")
         return
-    message = f"{milestone_title}\n\nCo-Authored-By: AI Orchestrator <noreply@orchestrator>"
+    message = f"{task_title}\n\nCo-Authored-By: AI Orchestrator <noreply@orchestrator>"
     subprocess.run(["git", "commit", "-m", message], cwd=project_dir, check=True)
-    print(f">>> COMMITTED: {milestone_title}")
+    print(f">>> COMMITTED: {task_title}")
 
     push_result = subprocess.run(
         ["git", "push", "-u", "origin", "HEAD"], cwd=project_dir,
@@ -195,8 +195,8 @@ def _git_commit(project_dir: Path, milestone_title: str) -> None:
         print(">>> WARNING: git push failed, continuing anyway.")
 
 
-def process_milestone(project_dir: Path, milestone, milestone_index: int, config: OrchestratorConfig, mode: Mode = IMPLEMENT_MODE, phase_session_id: str | None = None) -> str | None:
-    """Plan → implement → verify loop for a single milestone (verify = review, or a real test run in test mode)."""
+def process_task(project_dir: Path, task, task_index: int, config: OrchestratorConfig, mode: Mode = IMPLEMENT_MODE, phase_session_id: str | None = None) -> str | None:
+    """Plan → implement → verify loop for a single task (verify = review, or a real test run in test mode)."""
     max_iterations = config.max_iterations
     ai_factory = project_dir / ".ai-factory"
     plans_dir = ai_factory / "plans"
@@ -211,14 +211,14 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
     plan_reviews_dir.mkdir(parents=True, exist_ok=True)
 
     roadmap_path = project_dir / ".ai-factory" / mode.roadmap_relpath
-    seq = f"{milestone_index:02d}"
-    plan_path = plans_dir / f"{seq}-{milestone.slug}.md"
+    seq = f"{task_index:02d}"
+    plan_path = plans_dir / f"{seq}-{task.slug}.md"
     print(f"\n{'='*60}")
-    print(f"{mode.header_label}: {milestone.title}")
+    print(f"{mode.header_label}: {task.title}")
     print(f"{'='*60}")
 
     step, counter, plan_path = _detect_step(
-        project_dir, seq, milestone.slug, plan_path, plan_reviews_dir, output_dir,
+        project_dir, seq, task.slug, plan_path, plan_reviews_dir, output_dir,
         mode.verify_step, mode.verify_fail_tag, mode.output_suffix, mode.pass_signal,
     )
     seq = plan_path.stem.split("-", 1)[0]
@@ -228,17 +228,17 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
     if plan_path.exists():
         sessions = _read_sessions(plan_path)
         elapsed_offset = int(sessions.get("elapsed", "0"))
-    milestone_start = time.monotonic() - elapsed_offset
+    task_start = time.monotonic() - elapsed_offset
 
     if step != "plan":
         print(f">>> Resuming from step '{step}' (counter={counter})")
 
     if step == "done":
-        elapsed = int(time.monotonic() - milestone_start)
-        mark_done(roadmap_path, milestone, elapsed)
-        state.milestones_done += 1
-        _git_commit(project_dir, milestone.title)
-        notify(config, f"{project_dir.name}: Milestone done: {milestone.title}", "milestone")
+        elapsed = int(time.monotonic() - task_start)
+        mark_done(roadmap_path, task, elapsed)
+        state.tasks_done += 1
+        _git_commit(project_dir, task.title)
+        notify(config, f"{project_dir.name}: Milestone done: {task.title}", "milestone")
         mins, secs = divmod(elapsed, 60)
         print(f">>> Milestone done [{mins}m {secs}s]")
         return phase_session_id
@@ -263,28 +263,28 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
     if step == "plan":
         print("\n>>> PLANNING...")
         if counter > 1:
-            prev_plan_review = plan_reviews_dir / f"{seq}-{milestone.slug}-plan-review-{counter - 1}.md"
-            planner_reviewer.plan(milestone.title, milestone.description, plan_path, roadmap_path=roadmap_path, line_number=milestone.line_number, plan_review_path=prev_plan_review)
+            prev_plan_review = plan_reviews_dir / f"{seq}-{task.slug}-plan-review-{counter - 1}.md"
+            planner_reviewer.plan(task.title, task.description, plan_path, roadmap_path=roadmap_path, line_number=task.line_number, plan_review_path=prev_plan_review)
         else:
-            planner_reviewer.plan(milestone.title, milestone.description, plan_path, roadmap_path=roadmap_path, line_number=milestone.line_number)
+            planner_reviewer.plan(task.title, task.description, plan_path, roadmap_path=roadmap_path, line_number=task.line_number)
 
         if not plan_path.exists():
             print(f">>> {mode.skip_message}")
-            mark_skipped(roadmap_path, milestone)
+            mark_skipped(roadmap_path, task)
             return planner_reviewer.session_id
 
         step = "plan_review"
         _write_session(plan_path, "step", "planned")
-        _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
+        _write_session(plan_path, "elapsed", str(int(time.monotonic() - task_start)))
 
     # Step 1.5: Iterative plan review
     if step in ("plan", "plan_review"):
         for attempt in range(counter, max_iterations + 1):
             print(f"\n>>> REVIEWING PLAN (attempt {attempt})...")
             plan_reviewer = PlanReviewer(project_dir)
-            plan_review_path = plan_reviews_dir / f"{seq}-{milestone.slug}-plan-review-{attempt}.md"
+            plan_review_path = plan_reviews_dir / f"{seq}-{task.slug}-plan-review-{attempt}.md"
             plan_passed = plan_reviewer.review_plan(plan_path, plan_review_path)
-            _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
+            _write_session(plan_path, "elapsed", str(int(time.monotonic() - task_start)))
 
             if plan_passed:
                 print(f">>> Plan review passed — see {plan_review_path}")
@@ -300,15 +300,15 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
             print(">>> Plan has issues — revising plan...")
             _write_session(plan_path, "step", f"plan_review_failed:{attempt}")
             planner_reviewer.plan(
-                milestone.title, milestone.description, plan_path,
+                task.title, task.description, plan_path,
                 plan_review_path=plan_review_path,
             )
 
     # Safety guard: ensure a passing plan review exists before implementing
-    _plan_review_files = sorted(plan_reviews_dir.glob(f"{seq}-{milestone.slug}-plan-review-*.md"))
+    _plan_review_files = sorted(plan_reviews_dir.glob(f"{seq}-{task.slug}-plan-review-*.md"))
     if not _plan_review_files or not _plan_review_files[-1].read_text().strip().endswith("PLAN_REVIEW_PASS"):
         raise PipelineStopError(
-            f"No passing plan review found for milestone {seq}-{milestone.slug}. Cannot proceed to implementation."
+            f"No passing plan review found for milestone {seq}-{task.slug}. Cannot proceed to implementation."
         )
 
     # Step 2-3: Implement → Verify loop
@@ -324,21 +324,21 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
             pass
         else:
             print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
-            feedback_path = output_dir / f"{seq}-{milestone.slug}{mode.output_suffix.format(n=iteration - 1)}" if iteration > 1 else None
-            implementer.implement(plan_path, feedback_path=feedback_path, roadmap_path=roadmap_path, line_number=milestone.line_number)
+            feedback_path = output_dir / f"{seq}-{task.slug}{mode.output_suffix.format(n=iteration - 1)}" if iteration > 1 else None
+            implementer.implement(plan_path, feedback_path=feedback_path, roadmap_path=roadmap_path, line_number=task.line_number)
             _write_session(plan_path, "step", "implemented")
-            _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
+            _write_session(plan_path, "elapsed", str(int(time.monotonic() - task_start)))
 
         print(f"\n>>> {mode.verify_running_header} (iteration {iteration})...")
         subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
-        out_path = output_dir / f"{seq}-{milestone.slug}{mode.output_suffix.format(n=iteration)}"
+        out_path = output_dir / f"{seq}-{task.slug}{mode.output_suffix.format(n=iteration)}"
         prev_out_path = None
         if mode.verify_step == "review" and iteration > 1:
-            prev = output_dir / f"{seq}-{milestone.slug}{mode.output_suffix.format(n=iteration - 1)}"
+            prev = output_dir / f"{seq}-{task.slug}{mode.output_suffix.format(n=iteration - 1)}"
             if prev.exists():
                 prev_out_path = prev
         passed = _verify(out_path, prev_out_path)
-        _write_session(plan_path, "elapsed", str(int(time.monotonic() - milestone_start)))
+        _write_session(plan_path, "elapsed", str(int(time.monotonic() - task_start)))
 
         if passed:
             print(f">>> {mode.pass_line_label} — see {out_path}")
@@ -352,11 +352,11 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
                 )
 
     # Step 4: Mark done + commit
-    elapsed = int(time.monotonic() - milestone_start)
-    mark_done(roadmap_path, milestone, elapsed)
-    state.milestones_done += 1
-    _git_commit(project_dir, milestone.title)
-    notify(config, f"{project_dir.name}: Milestone done: {milestone.title}", "milestone")
+    elapsed = int(time.monotonic() - task_start)
+    mark_done(roadmap_path, task, elapsed)
+    state.tasks_done += 1
+    _git_commit(project_dir, task.title)
+    notify(config, f"{project_dir.name}: Milestone done: {task.title}", "milestone")
 
     mins, secs = divmod(elapsed, 60)
     print(f">>> Milestone done [{mins}m {secs}s]")
@@ -364,7 +364,7 @@ def process_milestone(project_dir: Path, milestone, milestone_index: int, config
 
 
 def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: OrchestratorConfig, process_fn, artifact_subdir: str | None = None) -> None:
-    """Dynamically re-scan the roadmap before each milestone, always running the first unchecked one."""
+    """Dynamically re-scan the roadmap before each task, always running the first unchecked one."""
     plans_dir = project_dir / ".ai-factory" / "plans"
     if artifact_subdir:
         plans_dir = plans_dir / artifact_subdir
@@ -373,15 +373,15 @@ def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: Orchestrato
 
     # Startup summary (printed once)
     result = parse_roadmap(roadmap_path)
-    pending = [m for m in result.milestones if not m.done]
+    pending = [m for m in result.tasks if not m.done]
     if not pending:
         print("All milestones are done!")
         return
     if result.breakpoint_hit:
-        total = len(result.milestones) + result.milestones_after_breakpoint
-        print(f"Found {len(pending)} pending milestones out of {total} total (stopped at breakpoint — {result.milestones_after_breakpoint} milestones after marker not queued).")
+        total = len(result.tasks) + result.tasks_after_breakpoint
+        print(f"Found {len(pending)} pending milestones out of {total} total (stopped at breakpoint — {result.tasks_after_breakpoint} milestones after marker not queued).")
     else:
-        print(f"Found {len(pending)} pending milestones out of {len(result.milestones)} total.")
+        print(f"Found {len(pending)} pending milestones out of {len(result.tasks)} total.")
 
     current_section: str | None = None
     phase_session_id: str | None = None
@@ -389,16 +389,16 @@ def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: Orchestrato
 
     while not state.stop_requested:
         result = parse_roadmap(roadmap_path)
-        pending = [m for m in result.milestones if not m.done]
+        pending = [m for m in result.tasks if not m.done]
         if not pending:
             notify(config, f"All milestones done: {project_dir.name}\n{_run_summary()}", "done")
             break
 
-        milestone = pending[0]
-        signature = (milestone.title, milestone.description)
+        task = pending[0]
+        signature = (task.title, task.description)
         if signature == last_signature:
             raise PipelineStopError(
-                f"Milestone '{milestone.title}' checkbox is still unchecked after processing. "
+                f"Milestone '{task.title}' checkbox is still unchecked after processing. "
                 f"Refusing to re-run the same milestone forever — check mark_done / mark_skipped."
             )
         last_signature = signature
@@ -406,13 +406,13 @@ def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: Orchestrato
         i = _next_number(plans_dir)
         _check_usage_limits(config)
 
-        if milestone.section != current_section:
-            current_section = milestone.section
+        if task.section != current_section:
+            current_section = task.section
             phase_session_id = None
         elif not phase_sessions_enabled:
             phase_session_id = None
 
-        phase_session_id = process_fn(milestone, i, phase_session_id)
+        phase_session_id = process_fn(task, i, phase_session_id)
 
     if state.stop_requested:
         print("\n>>> Stop requested — halting.")
@@ -420,7 +420,7 @@ def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: Orchestrato
 
 
 def _test_loop(project_dir: Path, config: OrchestratorConfig) -> None:
-    """Write tests for all pending milestones from the roadmap's test sibling."""
+    """Write tests for all pending tasks from the roadmap's test sibling."""
     main_relpath = _resolve_roadmap_relpath(config, project_dir)
     relpath = _tests_sibling(main_relpath)
     roadmap_path = project_dir / ".ai-factory" / relpath
@@ -430,13 +430,13 @@ def _test_loop(project_dir: Path, config: OrchestratorConfig) -> None:
     mode = TEST_MODE._replace(roadmap_relpath=relpath, artifact_subdir=_artifact_subdir(relpath))
     _run_dynamic_loop(
         project_dir, roadmap_path, config,
-        lambda m, i, sid: process_milestone(project_dir, m, i, config, mode, phase_session_id=sid),
+        lambda m, i, sid: process_task(project_dir, m, i, config, mode, phase_session_id=sid),
         artifact_subdir=mode.artifact_subdir,
     )
 
 
 def _implement_loop(project_dir: Path, config: OrchestratorConfig, planner_prompt_name: str = "planner", roadmap_relpath: str | None = None) -> None:
-    """Plan + implement all pending milestones. No review."""
+    """Plan + implement all pending tasks. No review."""
     relpath = roadmap_relpath or _resolve_roadmap_relpath(config, project_dir)
     roadmap_path = project_dir / ".ai-factory" / relpath
     if not roadmap_path.exists():
@@ -445,17 +445,17 @@ def _implement_loop(project_dir: Path, config: OrchestratorConfig, planner_promp
     mode = IMPLEMENT_MODE._replace(planner_prompt_name=planner_prompt_name, roadmap_relpath=relpath, artifact_subdir=_artifact_subdir(relpath))
     _run_dynamic_loop(
         project_dir, roadmap_path, config,
-        lambda m, i, sid: process_milestone(project_dir, m, i, config, mode, phase_session_id=sid),
+        lambda m, i, sid: process_task(project_dir, m, i, config, mode, phase_session_id=sid),
         artifact_subdir=mode.artifact_subdir,
     )
 
 
 def run_implement(project_dir: Path, config: OrchestratorConfig) -> None:
-    """Implement only — plan + implement milestones, no review pass."""
+    """Implement only — plan + implement tasks, no review pass."""
     state.config = config
     state.project_dir = project_dir
     state.run_started = time.monotonic()
-    state.milestones_done = 0
+    state.tasks_done = 0
     signal.signal(signal.SIGINT, _handle_sigint)
     time_str = _with_caffeinate(_implement_loop, project_dir, config)
     print(f"\n{'='*60}")
@@ -468,7 +468,7 @@ def run_test(project_dir: Path, config: OrchestratorConfig) -> None:
     state.config = config
     state.project_dir = project_dir
     state.run_started = time.monotonic()
-    state.milestones_done = 0
+    state.tasks_done = 0
     signal.signal(signal.SIGINT, _handle_sigint)
     time_str = _with_caffeinate(_test_loop, project_dir, config)
     print(f"\n{'='*60}")

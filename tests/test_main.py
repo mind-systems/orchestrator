@@ -1,4 +1,4 @@
-"""Unit tests for _parse_pct, _validate_sidecar_step, _detect_milestone_step, and _detect_test_milestone_step."""
+"""Unit tests for _parse_pct, _validate_sidecar_step, _detect_task_step, and _detect_test_task_step."""
 
 import json
 import subprocess
@@ -18,11 +18,11 @@ from orchestrator.main import (
     _next_number,
     _resolve_roadmap_relpath,
     _tests_sibling,
-    process_milestone,
+    process_task,
 )
 from orchestrator.resume import (
-    _detect_milestone_step,
-    _detect_test_milestone_step,
+    _detect_task_step,
+    _detect_test_task_step,
     _validate_sidecar_step,
 )
 from orchestrator.usage import _check_usage_limits, _parse_pct
@@ -209,7 +209,7 @@ def test_multiline_returns_first_match():
 
 
 # ---------------------------------------------------------------------------
-# _detect_milestone_step tests
+# _detect_task_step tests
 # ---------------------------------------------------------------------------
 
 DMS_SEQ = "01"
@@ -249,11 +249,11 @@ def _init_dirty_git_repo(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_detect_milestone_step_no_plan_file_returns_plan(tmp_path):
+def test_detect_task_step_no_plan_file_returns_plan(tmp_path):
     """Should return ("plan", 1, plan_path) when the plan file does not exist."""
     prd, rv, plan_path = _dms_dirs(tmp_path)
     # plan_path intentionally not created on disk
-    step, counter, returned_path = _detect_milestone_step(
+    step, counter, returned_path = _detect_task_step(
         tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
     )
     assert step == "plan"
@@ -261,12 +261,12 @@ def test_detect_milestone_step_no_plan_file_returns_plan(tmp_path):
     assert returned_path == plan_path
 
 
-def test_detect_milestone_step_sidecar_planned_returns_plan_review(tmp_path):
+def test_detect_task_step_sidecar_planned_returns_plan_review(tmp_path):
     """Should return ("plan_review", 1, plan_path) when sidecar step is "planned"."""
     prd, rv, plan_path = _dms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
     plan_path.with_suffix(".json").write_text(json.dumps({"step": "planned"}))
-    step, counter, returned_path = _detect_milestone_step(
+    step, counter, returned_path = _detect_task_step(
         tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
     )
     assert step == "plan_review"
@@ -274,12 +274,12 @@ def test_detect_milestone_step_sidecar_planned_returns_plan_review(tmp_path):
     assert returned_path == plan_path
 
 
-def test_detect_milestone_step_sidecar_implemented_returns_review(tmp_path):
+def test_detect_task_step_sidecar_implemented_returns_review(tmp_path):
     """Should return ("review", 1, plan_path) when sidecar step is "implemented"."""
     prd, rv, plan_path = _dms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
     plan_path.with_suffix(".json").write_text(json.dumps({"step": "implemented"}))
-    step, counter, returned_path = _detect_milestone_step(
+    step, counter, returned_path = _detect_task_step(
         tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
     )
     assert step == "review"
@@ -287,13 +287,13 @@ def test_detect_milestone_step_sidecar_implemented_returns_review(tmp_path):
     assert returned_path == plan_path
 
 
-def test_detect_milestone_step_sidecar_review_failed_returns_implement(tmp_path):
+def test_detect_task_step_sidecar_review_failed_returns_implement(tmp_path):
     """Should return ("implement", 2, plan_path) when sidecar step is "review_failed:1" and reviews/01-slug-review-1.md is present."""
     prd, rv, plan_path = _dms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
     plan_path.with_suffix(".json").write_text(json.dumps({"step": "review_failed:1"}))
     (rv / f"{DMS_SEQ}-{DMS_SLUG}-review-1.md").write_text("review content")
-    step, counter, returned_path = _detect_milestone_step(
+    step, counter, returned_path = _detect_task_step(
         tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
     )
     assert step == "implement"
@@ -301,13 +301,13 @@ def test_detect_milestone_step_sidecar_review_failed_returns_implement(tmp_path)
     assert returned_path == plan_path
 
 
-def test_detect_milestone_step_sidecar_plan_review_failed_returns_plan(tmp_path):
+def test_detect_task_step_sidecar_plan_review_failed_returns_plan(tmp_path):
     """Should return ("plan", 3, plan_path) when sidecar step is "plan_review_failed:2" and plan-reviews/01-slug-plan-review-2.md is present."""
     prd, rv, plan_path = _dms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
     plan_path.with_suffix(".json").write_text(json.dumps({"step": "plan_review_failed:2"}))
     (prd / f"{DMS_SEQ}-{DMS_SLUG}-plan-review-2.md").write_text("review content")
-    step, counter, returned_path = _detect_milestone_step(
+    step, counter, returned_path = _detect_task_step(
         tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
     )
     assert step == "plan"
@@ -315,7 +315,7 @@ def test_detect_milestone_step_sidecar_plan_review_failed_returns_plan(tmp_path)
     assert returned_path == plan_path
 
 
-def test_detect_milestone_step_sidecar_plan_reviewed_returns_implement(tmp_path):
+def test_detect_task_step_sidecar_plan_reviewed_returns_implement(tmp_path):
     """Should return ("implement", 1, plan_path) when sidecar step is "plan_reviewed" and a passing plan-review file is present."""
     prd, rv, plan_path = _dms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
@@ -323,7 +323,7 @@ def test_detect_milestone_step_sidecar_plan_reviewed_returns_implement(tmp_path)
     (prd / f"{DMS_SEQ}-{DMS_SLUG}-plan-review-1.md").write_text(
         "Review notes\n\nPLAN_REVIEW_PASS"
     )
-    step, counter, returned_path = _detect_milestone_step(
+    step, counter, returned_path = _detect_task_step(
         tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
     )
     assert step == "implement"
@@ -336,12 +336,12 @@ def test_detect_milestone_step_sidecar_plan_reviewed_returns_implement(tmp_path)
 # ---------------------------------------------------------------------------
 
 
-def test_detect_milestone_step_plan_review_not_passing_returns_plan(tmp_path):
+def test_detect_task_step_plan_review_not_passing_returns_plan(tmp_path):
     """Should return ("plan", 2, plan_path) when no sidecar step and the latest plan-review does not end with PLAN_REVIEW_PASS (no git needed — returns before the git diff/status calls)."""
     prd, rv, plan_path = _dms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
     (prd / f"{DMS_SEQ}-{DMS_SLUG}-plan-review-1.md").write_text("Review notes, not passing")
-    step, counter, returned_path = _detect_milestone_step(
+    step, counter, returned_path = _detect_task_step(
         tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
     )
     assert step == "plan"
@@ -354,7 +354,7 @@ def test_detect_milestone_step_plan_review_not_passing_returns_plan(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_detect_milestone_step_clean_tree_no_sidecar_passing_plan_review_returns_implement(tmp_path):
+def test_detect_task_step_clean_tree_no_sidecar_passing_plan_review_returns_implement(tmp_path):
     """Should return ("implement", 1, plan_path) when no sidecar step, a passing plan-review is present, and the working tree is clean."""
     prd, rv, plan_path = _dms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
@@ -372,7 +372,7 @@ def test_detect_milestone_step_clean_tree_no_sidecar_passing_plan_review_returns
         cwd=tmp_path, check=True, capture_output=True,
     )
     # .ai-factory/ artifacts are excluded by :!.ai-factory → both git commands return empty stdout
-    step, counter, returned_path = _detect_milestone_step(
+    step, counter, returned_path = _detect_task_step(
         tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
     )
     assert step == "implement"
@@ -385,7 +385,7 @@ def test_detect_milestone_step_clean_tree_no_sidecar_passing_plan_review_returns
 # ---------------------------------------------------------------------------
 
 
-def test_detect_milestone_step_canonical_path_resolution(tmp_path):
+def test_detect_task_step_canonical_path_resolution(tmp_path):
     """Should resolve canonical plan path to 01-slug.md and return ("plan_review", 1, that path) when caller passes seq="02" and plan_path=02-slug.md."""
     prd, rv, plan_path_01 = _dms_dirs(tmp_path)
     plan_path_01.write_text("# Plan content")
@@ -393,7 +393,7 @@ def test_detect_milestone_step_canonical_path_resolution(tmp_path):
     plans_dir = plan_path_01.parent
     plan_path_02 = plans_dir / "02-slug.md"
     # No sidecar, no plan-review files → falls through to "plan_review"
-    step, counter, returned_path = _detect_milestone_step(
+    step, counter, returned_path = _detect_task_step(
         tmp_path, "02", DMS_SLUG, plan_path_02, prd, rv
     )
     assert step == "plan_review"
@@ -406,7 +406,7 @@ def test_detect_milestone_step_canonical_path_resolution(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_detect_milestone_step_dirty_tree_no_review_files_returns_review(tmp_path):
+def test_detect_task_step_dirty_tree_no_review_files_returns_review(tmp_path):
     """Should return ("review", 1, plan_path) when the plan-review passed, the working tree is dirty, and no review files exist yet."""
     prd, rv, plan_path = _dms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
@@ -414,7 +414,7 @@ def test_detect_milestone_step_dirty_tree_no_review_files_returns_review(tmp_pat
         "Review notes\n\nPLAN_REVIEW_PASS"
     )
     _init_dirty_git_repo(tmp_path)
-    step, counter, returned_path = _detect_milestone_step(
+    step, counter, returned_path = _detect_task_step(
         tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
     )
     assert step == "review"
@@ -422,7 +422,7 @@ def test_detect_milestone_step_dirty_tree_no_review_files_returns_review(tmp_pat
     assert returned_path == plan_path
 
 
-def test_detect_milestone_step_dirty_tree_review_not_passing_returns_implement(tmp_path):
+def test_detect_task_step_dirty_tree_review_not_passing_returns_implement(tmp_path):
     """Should return ("implement", 2, plan_path) when the plan-review passed, the working tree is dirty, and the latest review does not end with REVIEW_PASS."""
     prd, rv, plan_path = _dms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
@@ -431,7 +431,7 @@ def test_detect_milestone_step_dirty_tree_review_not_passing_returns_implement(t
     )
     (rv / f"{DMS_SEQ}-{DMS_SLUG}-review-1.md").write_text("Review notes, not passing")
     _init_dirty_git_repo(tmp_path)
-    step, counter, returned_path = _detect_milestone_step(
+    step, counter, returned_path = _detect_task_step(
         tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
     )
     assert step == "implement"
@@ -439,7 +439,7 @@ def test_detect_milestone_step_dirty_tree_review_not_passing_returns_implement(t
     assert returned_path == plan_path
 
 
-def test_detect_milestone_step_dirty_tree_review_passing_returns_done(tmp_path):
+def test_detect_task_step_dirty_tree_review_passing_returns_done(tmp_path):
     """Should return ("done", 0, plan_path) when the plan-review passed, the working tree is dirty, and the latest review ends with REVIEW_PASS."""
     prd, rv, plan_path = _dms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
@@ -448,7 +448,7 @@ def test_detect_milestone_step_dirty_tree_review_passing_returns_done(tmp_path):
     )
     (rv / f"{DMS_SEQ}-{DMS_SLUG}-review-1.md").write_text("Review notes\n\nREVIEW_PASS")
     _init_dirty_git_repo(tmp_path)
-    step, counter, returned_path = _detect_milestone_step(
+    step, counter, returned_path = _detect_task_step(
         tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
     )
     assert step == "done"
@@ -461,8 +461,8 @@ def test_detect_milestone_step_dirty_tree_review_passing_returns_done(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_detect_milestone_step_committed_clean_plan_is_skipped(tmp_path):
-    """A tracked+clean plan (committed milestone) must not be adopted, even when the
+def test_detect_task_step_committed_clean_plan_is_skipped(tmp_path):
+    """A tracked+clean plan (committed task) must not be adopted, even when the
     heuristic would otherwise resolve it all the way to "done"."""
     prd, rv, plan_path = _dms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
@@ -491,7 +491,7 @@ def test_detect_milestone_step_committed_clean_plan_is_skipped(tmp_path):
     (tmp_path / "src.py").write_text("x = 1\n")
     fresh_seq = "02"
     fresh_plan_path = plan_path.parent / f"{fresh_seq}-{DMS_SLUG}.md"
-    step, counter, returned_path = _detect_milestone_step(
+    step, counter, returned_path = _detect_task_step(
         tmp_path, fresh_seq, DMS_SLUG, fresh_plan_path, prd, rv
     )
     assert step == "plan"
@@ -500,7 +500,7 @@ def test_detect_milestone_step_committed_clean_plan_is_skipped(tmp_path):
     assert returned_path == fresh_plan_path
 
 
-def test_detect_milestone_step_untracked_plan_is_adopted(tmp_path):
+def test_detect_task_step_untracked_plan_is_adopted(tmp_path):
     """An untracked plan (no commit yet) is in-flight and must be adopted, resuming per
     today's behavior."""
     prd, rv, plan_path = _dms_dirs(tmp_path)
@@ -515,7 +515,7 @@ def test_detect_milestone_step_untracked_plan_is_adopted(tmp_path):
         cwd=tmp_path, check=True, capture_output=True,
     )
     # plan_path intentionally left untracked
-    step, counter, returned_path = _detect_milestone_step(
+    step, counter, returned_path = _detect_task_step(
         tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
     )
     assert step == "plan_review"
@@ -523,7 +523,7 @@ def test_detect_milestone_step_untracked_plan_is_adopted(tmp_path):
     assert returned_path == plan_path
 
 
-def test_detect_milestone_step_staged_plan_is_adopted(tmp_path):
+def test_detect_task_step_staged_plan_is_adopted(tmp_path):
     """A staged-but-uncommitted plan is in-flight and must be adopted, resuming per today's
     behavior."""
     prd, rv, plan_path = _dms_dirs(tmp_path)
@@ -539,7 +539,7 @@ def test_detect_milestone_step_staged_plan_is_adopted(tmp_path):
     )
     subprocess.run(["git", "add", str(plan_path)], cwd=tmp_path, check=True, capture_output=True)
     # plan_path staged but not committed
-    step, counter, returned_path = _detect_milestone_step(
+    step, counter, returned_path = _detect_task_step(
         tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
     )
     assert step == "plan_review"
@@ -547,7 +547,7 @@ def test_detect_milestone_step_staged_plan_is_adopted(tmp_path):
     assert returned_path == plan_path
 
 
-def test_detect_milestone_step_survivor_over_lowest(tmp_path):
+def test_detect_task_step_survivor_over_lowest(tmp_path):
     """When a lower-seq slug match is committed+clean and a higher-seq slug match is in-flight,
     the higher (survivor) candidate is adopted — not the lowest-overall."""
     prd, rv, plan_path_01 = _dms_dirs(tmp_path)
@@ -575,7 +575,7 @@ def test_detect_milestone_step_survivor_over_lowest(tmp_path):
     # plan_path_02 intentionally left untracked (in-flight survivor)
     fresh_seq = "03"
     fresh_plan_path = plans_dir / f"{fresh_seq}-{DMS_SLUG}.md"
-    step, counter, returned_path = _detect_milestone_step(
+    step, counter, returned_path = _detect_task_step(
         tmp_path, fresh_seq, DMS_SLUG, fresh_plan_path, prd, rv
     )
     assert step == "plan_review"
@@ -584,7 +584,7 @@ def test_detect_milestone_step_survivor_over_lowest(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# _detect_test_milestone_step tests
+# _detect_test_task_step tests
 # ---------------------------------------------------------------------------
 
 DTMS_SEQ = "01"
@@ -611,11 +611,11 @@ def _dtms_dirs(tmp_path: Path) -> tuple[Path, Path, Path]:
 # ---------------------------------------------------------------------------
 
 
-def test_detect_test_milestone_step_no_plan_file_returns_plan(tmp_path):
+def test_detect_test_task_step_no_plan_file_returns_plan(tmp_path):
     """Should return ("plan", 1, plan_path) when the plan file does not exist."""
     prd, trd, plan_path = _dtms_dirs(tmp_path)
     # plan_path intentionally not created on disk
-    step, counter, returned_path = _detect_test_milestone_step(
+    step, counter, returned_path = _detect_test_task_step(
         tmp_path, DTMS_SEQ, DTMS_SLUG, plan_path, prd, trd
     )
     assert step == "plan"
@@ -623,7 +623,7 @@ def test_detect_test_milestone_step_no_plan_file_returns_plan(tmp_path):
     assert returned_path == plan_path
 
 
-def test_detect_test_milestone_step_sidecar_plan_reviewed_returns_implement(tmp_path):
+def test_detect_test_task_step_sidecar_plan_reviewed_returns_implement(tmp_path):
     """Should return ("implement", 1, plan_path) when sidecar step is "plan_reviewed" and a passing plan-review file is present."""
     prd, trd, plan_path = _dtms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
@@ -631,7 +631,7 @@ def test_detect_test_milestone_step_sidecar_plan_reviewed_returns_implement(tmp_
     (prd / f"{DTMS_SEQ}-{DTMS_SLUG}-plan-review-1.md").write_text(
         "Review notes\n\nPLAN_REVIEW_PASS"
     )
-    step, counter, returned_path = _detect_test_milestone_step(
+    step, counter, returned_path = _detect_test_task_step(
         tmp_path, DTMS_SEQ, DTMS_SLUG, plan_path, prd, trd
     )
     assert step == "implement"
@@ -639,12 +639,12 @@ def test_detect_test_milestone_step_sidecar_plan_reviewed_returns_implement(tmp_
     assert returned_path == plan_path
 
 
-def test_detect_test_milestone_step_sidecar_implemented_returns_test_run(tmp_path):
+def test_detect_test_task_step_sidecar_implemented_returns_test_run(tmp_path):
     """Should return ("test_run", 1, plan_path) when sidecar step is "implemented"."""
     prd, trd, plan_path = _dtms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
     plan_path.with_suffix(".json").write_text(json.dumps({"step": "implemented"}))
-    step, counter, returned_path = _detect_test_milestone_step(
+    step, counter, returned_path = _detect_test_task_step(
         tmp_path, DTMS_SEQ, DTMS_SLUG, plan_path, prd, trd
     )
     assert step == "test_run"
@@ -652,13 +652,13 @@ def test_detect_test_milestone_step_sidecar_implemented_returns_test_run(tmp_pat
     assert returned_path == plan_path
 
 
-def test_detect_test_milestone_step_sidecar_test_run_failed_returns_implement(tmp_path):
+def test_detect_test_task_step_sidecar_test_run_failed_returns_implement(tmp_path):
     """Should return ("implement", 2, plan_path) when sidecar step is "test_run_failed:1" and test-runs/01-slug-test-1.txt is present."""
     prd, trd, plan_path = _dtms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
     plan_path.with_suffix(".json").write_text(json.dumps({"step": "test_run_failed:1"}))
     (trd / f"{DTMS_SEQ}-{DTMS_SLUG}-test-1.txt").write_text("test output")
-    step, counter, returned_path = _detect_test_milestone_step(
+    step, counter, returned_path = _detect_test_task_step(
         tmp_path, DTMS_SEQ, DTMS_SLUG, plan_path, prd, trd
     )
     assert step == "implement"
@@ -666,12 +666,12 @@ def test_detect_test_milestone_step_sidecar_test_run_failed_returns_implement(tm
     assert returned_path == plan_path
 
 
-def test_detect_test_milestone_step_sidecar_planned_returns_plan_review(tmp_path):
+def test_detect_test_task_step_sidecar_planned_returns_plan_review(tmp_path):
     """Should return ("plan_review", 1, plan_path) when sidecar step is "planned"."""
     prd, trd, plan_path = _dtms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
     plan_path.with_suffix(".json").write_text(json.dumps({"step": "planned"}))
-    step, counter, returned_path = _detect_test_milestone_step(
+    step, counter, returned_path = _detect_test_task_step(
         tmp_path, DTMS_SEQ, DTMS_SLUG, plan_path, prd, trd
     )
     assert step == "plan_review"
@@ -679,13 +679,13 @@ def test_detect_test_milestone_step_sidecar_planned_returns_plan_review(tmp_path
     assert returned_path == plan_path
 
 
-def test_detect_test_milestone_step_sidecar_plan_review_failed_returns_plan(tmp_path):
+def test_detect_test_task_step_sidecar_plan_review_failed_returns_plan(tmp_path):
     """Should return ("plan", 3, plan_path) when sidecar step is "plan_review_failed:2" and plan-reviews/01-slug-plan-review-2.md is present."""
     prd, trd, plan_path = _dtms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
     plan_path.with_suffix(".json").write_text(json.dumps({"step": "plan_review_failed:2"}))
     (prd / f"{DTMS_SEQ}-{DTMS_SLUG}-plan-review-2.md").write_text("review content")
-    step, counter, returned_path = _detect_test_milestone_step(
+    step, counter, returned_path = _detect_test_task_step(
         tmp_path, DTMS_SEQ, DTMS_SLUG, plan_path, prd, trd
     )
     assert step == "plan"
@@ -698,11 +698,11 @@ def test_detect_test_milestone_step_sidecar_plan_review_failed_returns_plan(tmp_
 # ---------------------------------------------------------------------------
 
 
-def test_detect_test_milestone_step_no_plan_review_files_returns_plan_review(tmp_path):
+def test_detect_test_task_step_no_plan_review_files_returns_plan_review(tmp_path):
     """Should return ("plan_review", 1, plan_path) when no sidecar step and no plan-review files exist (no git needed — returns before the git diff/status calls)."""
     prd, trd, plan_path = _dtms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
-    step, counter, returned_path = _detect_test_milestone_step(
+    step, counter, returned_path = _detect_test_task_step(
         tmp_path, DTMS_SEQ, DTMS_SLUG, plan_path, prd, trd
     )
     assert step == "plan_review"
@@ -710,12 +710,12 @@ def test_detect_test_milestone_step_no_plan_review_files_returns_plan_review(tmp
     assert returned_path == plan_path
 
 
-def test_detect_test_milestone_step_plan_review_not_passing_returns_plan(tmp_path):
+def test_detect_test_task_step_plan_review_not_passing_returns_plan(tmp_path):
     """Should return ("plan", 2, plan_path) when no sidecar step and the latest plan-review does not end with PLAN_REVIEW_PASS."""
     prd, trd, plan_path = _dtms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
     (prd / f"{DTMS_SEQ}-{DTMS_SLUG}-plan-review-1.md").write_text("Review notes, not passing")
-    step, counter, returned_path = _detect_test_milestone_step(
+    step, counter, returned_path = _detect_test_task_step(
         tmp_path, DTMS_SEQ, DTMS_SLUG, plan_path, prd, trd
     )
     assert step == "plan"
@@ -728,7 +728,7 @@ def test_detect_test_milestone_step_plan_review_not_passing_returns_plan(tmp_pat
 # ---------------------------------------------------------------------------
 
 
-def test_detect_test_milestone_step_dirty_tree_passing_test_run_returns_done(tmp_path):
+def test_detect_test_task_step_dirty_tree_passing_test_run_returns_done(tmp_path):
     """Should return ("done", 0, plan_path) when no sidecar step, a passing plan-review is present, the working tree is dirty, and the latest test-runs/01-slug-test-1.txt ends with TEST_PASS."""
     prd, trd, plan_path = _dtms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
@@ -748,7 +748,7 @@ def test_detect_test_milestone_step_dirty_tree_passing_test_run_returns_done(tmp
     )
     # Create an untracked file outside .ai-factory to make the working tree dirty
     (tmp_path / "src.py").write_text("x = 1\n")
-    step, counter, returned_path = _detect_test_milestone_step(
+    step, counter, returned_path = _detect_test_task_step(
         tmp_path, DTMS_SEQ, DTMS_SLUG, plan_path, prd, trd
     )
     assert step == "done"
@@ -756,7 +756,7 @@ def test_detect_test_milestone_step_dirty_tree_passing_test_run_returns_done(tmp
     assert returned_path == plan_path
 
 
-def test_detect_test_milestone_step_clean_tree_returns_implement(tmp_path):
+def test_detect_test_task_step_clean_tree_returns_implement(tmp_path):
     """Should return ("implement", 1, plan_path) when no sidecar step, a passing plan-review is present, and the working tree is clean."""
     prd, trd, plan_path = _dtms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
@@ -771,7 +771,7 @@ def test_detect_test_milestone_step_clean_tree_returns_implement(tmp_path):
         ],
         cwd=tmp_path, check=True, capture_output=True,
     )
-    step, counter, returned_path = _detect_test_milestone_step(
+    step, counter, returned_path = _detect_test_task_step(
         tmp_path, DTMS_SEQ, DTMS_SLUG, plan_path, prd, trd
     )
     assert step == "implement"
@@ -779,7 +779,7 @@ def test_detect_test_milestone_step_clean_tree_returns_implement(tmp_path):
     assert returned_path == plan_path
 
 
-def test_detect_test_milestone_step_dirty_tree_no_test_run_files_returns_test_run(tmp_path):
+def test_detect_test_task_step_dirty_tree_no_test_run_files_returns_test_run(tmp_path):
     """Should return ("test_run", 1, plan_path) when the plan-review passed, the working tree is dirty, and no test-run files exist yet."""
     prd, trd, plan_path = _dtms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
@@ -787,7 +787,7 @@ def test_detect_test_milestone_step_dirty_tree_no_test_run_files_returns_test_ru
         "Review notes\n\nPLAN_REVIEW_PASS"
     )
     _init_dirty_git_repo(tmp_path)
-    step, counter, returned_path = _detect_test_milestone_step(
+    step, counter, returned_path = _detect_test_task_step(
         tmp_path, DTMS_SEQ, DTMS_SLUG, plan_path, prd, trd
     )
     assert step == "test_run"
@@ -795,7 +795,7 @@ def test_detect_test_milestone_step_dirty_tree_no_test_run_files_returns_test_ru
     assert returned_path == plan_path
 
 
-def test_detect_test_milestone_step_dirty_tree_test_run_not_passing_returns_implement(tmp_path):
+def test_detect_test_task_step_dirty_tree_test_run_not_passing_returns_implement(tmp_path):
     """Should return ("implement", 2, plan_path) when the plan-review passed, the working tree is dirty, and the latest test-run does not end with TEST_PASS."""
     prd, trd, plan_path = _dtms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
@@ -804,7 +804,7 @@ def test_detect_test_milestone_step_dirty_tree_test_run_not_passing_returns_impl
     )
     (trd / f"{DTMS_SEQ}-{DTMS_SLUG}-test-1.txt").write_text("Test output, not passing")
     _init_dirty_git_repo(tmp_path)
-    step, counter, returned_path = _detect_test_milestone_step(
+    step, counter, returned_path = _detect_test_task_step(
         tmp_path, DTMS_SEQ, DTMS_SLUG, plan_path, prd, trd
     )
     assert step == "implement"
@@ -896,7 +896,7 @@ def test_check_usage_limits_raises_halt_error_over_threshold(monkeypatch):
     assert HaltError is not None and isinstance(exc.value, HaltError)
 
 
-def test_process_milestone_resume_past_max_iterations_raises_halt_error(tmp_path):
+def test_process_task_resume_past_max_iterations_raises_halt_error(tmp_path):
     """Should raise HaltError when resuming at an iteration beyond max_iterations (red now — currently raises PipelineStopError)."""
     prd, rv, plan_path = _dms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
@@ -913,14 +913,14 @@ def test_process_milestone_resume_past_max_iterations_raises_halt_error(tmp_path
         enable_phase_sessions=False,
     )
 
-    class _MilestoneStub:
+    class _TaskStub:
         slug = DMS_SLUG
-        title = "Some milestone"
+        title = "Some task"
         description = "Some description"
         line_number = 0
 
     with pytest.raises(Exception) as exc:
-        process_milestone(tmp_path, _MilestoneStub(), 1, config)
+        process_task(tmp_path, _TaskStub(), 1, config)
 
     HaltError = getattr(agents_module, "HaltError", None)
     assert HaltError is not None and isinstance(exc.value, HaltError)
@@ -1111,11 +1111,11 @@ def test_artifact_subdir_track_file_uses_stem():
 
 
 # ---------------------------------------------------------------------------
-# _detect_milestone_step over subdir'd artifact dirs — dispatch unchanged one level deeper
+# _detect_task_step over subdir'd artifact dirs — dispatch unchanged one level deeper
 # ---------------------------------------------------------------------------
 
 
-def test_detect_milestone_step_subdird_dirs_dispatches_same_as_flat(tmp_path):
+def test_detect_task_step_subdird_dirs_dispatches_same_as_flat(tmp_path):
     """Should dispatch identically to the flat case when plans/plan-reviews/reviews are nested one level deeper under a per-roadmap subdir."""
     plans_dir = tmp_path / ".ai-factory" / "plans" / "john-doe"
     plan_reviews_dir = tmp_path / ".ai-factory" / "plan-reviews" / "john-doe"
@@ -1126,7 +1126,7 @@ def test_detect_milestone_step_subdird_dirs_dispatches_same_as_flat(tmp_path):
     plan_path = plans_dir / f"{DMS_SEQ}-{DMS_SLUG}.md"
     plan_path.write_text("# Plan content")
     plan_path.with_suffix(".json").write_text(json.dumps({"step": "implemented"}))
-    step, counter, returned_path = _detect_milestone_step(
+    step, counter, returned_path = _detect_task_step(
         tmp_path, DMS_SEQ, DMS_SLUG, plan_path, plan_reviews_dir, reviews_dir
     )
     assert step == "review"

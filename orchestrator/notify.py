@@ -11,10 +11,10 @@ if TYPE_CHECKING:
     from .config import OrchestratorConfig
 
 
-# Alert types that report a milestone failure rather than a success.
+# Alert types that report a task failure rather than a success.
 _FAIL_ALERTS = {"milestone-fail"}
 
-# Alert types that report an operational stop — not a milestone failure.
+# Alert types that report an operational stop — not a task failure.
 _HALT_ALERTS = {"stop"}
 
 

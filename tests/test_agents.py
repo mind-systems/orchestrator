@@ -257,7 +257,7 @@ def test_resolve_claude_non_dir_entry_tolerated(monkeypatch, tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Task 5: RED case -- semver ordering (fixed in milestone 2.2)
+# Task 5: RED case -- semver ordering (fixed in task 2.2)
 # ---------------------------------------------------------------------------
 
 

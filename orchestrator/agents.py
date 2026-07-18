@@ -67,7 +67,7 @@ def _write_session(plan_path: Path, key: str, value: str) -> None:
 
 
 class HaltError(Exception):
-    """An operational halt that is not a milestone failure — 🟡."""
+    """An operational halt that is not a task failure — 🟡."""
 
 
 class RateLimitError(HaltError):
@@ -271,7 +271,7 @@ def _run_claude(
 
 
 class PlannerReviewer:
-    """Plans and reviews milestones. Same session — reviewer has planner's context."""
+    """Plans and reviews tasks. Same session — reviewer has planner's context."""
 
     def __init__(
         self,
@@ -289,7 +289,7 @@ class PlannerReviewer:
         self.model = model
         self.effort = effort
 
-    def plan(self, milestone_title: str, milestone_description: str, plan_path: Path, plan_review_path: Path | None = None, roadmap_path: Path | None = None, line_number: int | None = None) -> None:
+    def plan(self, task_title: str, task_description: str, plan_path: Path, plan_review_path: Path | None = None, roadmap_path: Path | None = None, line_number: int | None = None) -> None:
         if plan_review_path:
             prompt = (
                 f"Your plan at {plan_path} was reviewed and has issues.\n\n"
@@ -301,10 +301,10 @@ class PlannerReviewer:
             if roadmap_path is not None and line_number is not None:
                 roadmap_line = f"Roadmap: {roadmap_path} (line {line_number + 1})\n"
             prompt = (
-                f"Create an implementation plan for this milestone:\n\n"
+                f"Create an implementation plan for this task:\n\n"
                 f"{roadmap_line}"
-                f"**{milestone_title}**\n"
-                f"{milestone_description}\n\n"
+                f"**{task_title}**\n"
+                f"{task_description}\n\n"
                 f"Write the plan to: {plan_path}\n"
             )
 

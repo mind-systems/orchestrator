@@ -58,7 +58,7 @@ def _validate_sidecar_step(
 
 
 def _plan_is_stale(project_dir: Path, plan_file: Path) -> bool:
-    """Return True only when plan_file is tracked by git and clean (belongs to a completed milestone).
+    """Return True only when plan_file is tracked by git and clean (belongs to a completed task).
 
     Fails open toward adoption/re-planning: untracked (`??`), modified, staged-but-uncommitted,
     a non-zero git return code (e.g. not a git repo), or a raised exception (e.g. git missing)
@@ -100,7 +100,7 @@ def _detect_step(
             candidates.append((int(parts[0]), f))
     candidates.sort(key=lambda c: c[0])
     # Adopt the first (lowest-numbered) in-flight candidate. A tracked+clean plan belongs to
-    # a completed milestone and is skipped; if every candidate is stale, plan_path/seq stay at
+    # a completed task and is skipped; if every candidate is stale, plan_path/seq stay at
     # the fresh-plan values computed by the caller (falls to step 1 in the check below).
     for num, f in candidates:
         if not _plan_is_stale(project_dir, f):
@@ -166,7 +166,7 @@ def _detect_step(
     return ("implement", len(output_files) + 1, plan_path)
 
 
-def _detect_milestone_step(
+def _detect_task_step(
     project_dir: Path, seq: str, slug: str,
     plan_path: Path, plan_reviews_dir: Path, reviews_dir: Path,
 ) -> tuple[str, int, Path]:
@@ -181,7 +181,7 @@ def _detect_milestone_step(
     )
 
 
-def _detect_test_milestone_step(
+def _detect_test_task_step(
     project_dir: Path, seq: str, slug: str,
     plan_path: Path, plan_reviews_dir: Path, test_runs_dir: Path,
 ) -> tuple[str, int, Path]:

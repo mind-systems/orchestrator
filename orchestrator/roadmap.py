@@ -10,7 +10,7 @@ CHECKBOX_RE = re.compile(r"^- \[([ x])\] \*\*(.+?)\*\*\s*[—–-]\s*(.+)$")
 
 
 @dataclass
-class Milestone:
+class Task:
     title: str
     description: str
     done: bool
@@ -27,22 +27,22 @@ class Milestone:
 
 @dataclass
 class ParseResult:
-    milestones: list[Milestone]
+    tasks: list[Task]
     breakpoint_hit: bool
-    milestones_after_breakpoint: int
+    tasks_after_breakpoint: int
 
 
 def parse_roadmap(path: Path) -> ParseResult:
     """Parse ROADMAP.md and return ParseResult.
 
-    When a ``---STOP---`` marker is present and at least one milestone follows it,
-    only milestones before the marker are returned and ``breakpoint_hit`` is True.
+    When a ``---STOP---`` marker is present and at least one task follows it,
+    only tasks before the marker are returned and ``breakpoint_hit`` is True.
     A marker with nothing after it is treated as if it weren't there.
     """
     lines = path.read_text().splitlines()
-    milestones: list[Milestone] = []
+    tasks: list[Task] = []
     marker_found = False
-    milestones_after_breakpoint = 0
+    tasks_after_breakpoint = 0
     current_section: str | None = None
 
     for i, line in enumerate(lines):
@@ -52,7 +52,7 @@ def parse_roadmap(path: Path) -> ParseResult:
 
         if marker_found:
             if CHECKBOX_RE.match(stripped):
-                milestones_after_breakpoint += 1
+                tasks_after_breakpoint += 1
             continue
 
         if stripped == "---STOP---":
@@ -64,31 +64,31 @@ def parse_roadmap(path: Path) -> ParseResult:
             done = m.group(1) == "x"
             title = m.group(2).strip()
             description = m.group(3).strip()
-            milestones.append(Milestone(title=title, description=description, done=done, line_number=i, section=current_section))
+            tasks.append(Task(title=title, description=description, done=done, line_number=i, section=current_section))
 
-    breakpoint_hit = marker_found and milestones_after_breakpoint > 0
-    return ParseResult(milestones=milestones, breakpoint_hit=breakpoint_hit, milestones_after_breakpoint=milestones_after_breakpoint)
+    breakpoint_hit = marker_found and tasks_after_breakpoint > 0
+    return ParseResult(tasks=tasks, breakpoint_hit=breakpoint_hit, tasks_after_breakpoint=tasks_after_breakpoint)
 
 
-def _find_milestone_line(lines: list[str], milestone: Milestone) -> int | None:
-    """Return the 0-based index of the unchecked milestone line matching *milestone.title*.
+def _find_task_line(lines: list[str], task: Task) -> int | None:
+    """Return the 0-based index of the unchecked task line matching *task.title*.
 
     Strips each line before matching (mirrors ``parse_roadmap``).  Returns ``None``
     when no unchecked line with that title is found.
     """
     for i, line in enumerate(lines):
         m = CHECKBOX_RE.match(line.strip())
-        if m and m.group(1) == " " and m.group(2).strip() == milestone.title:
+        if m and m.group(1) == " " and m.group(2).strip() == task.title:
             return i
     return None
 
 
-def mark_done(path: Path, milestone: Milestone, elapsed_secs: int | None = None) -> None:
-    """Mark a milestone as completed in ROADMAP.md."""
+def mark_done(path: Path, task: Task, elapsed_secs: int | None = None) -> None:
+    """Mark a task as completed in ROADMAP.md."""
     lines = path.read_text().splitlines()
-    idx = _find_milestone_line(lines, milestone)
+    idx = _find_task_line(lines, task)
     if idx is None:
-        idx = milestone.line_number
+        idx = task.line_number
     line = lines[idx]
     new_line = line.replace("- [ ]", "- [x]", 1)
     if elapsed_secs is not None:
@@ -100,12 +100,12 @@ def mark_done(path: Path, milestone: Milestone, elapsed_secs: int | None = None)
     path.write_text("\n".join(lines) + "\n")
 
 
-def mark_skipped(path: Path, milestone: Milestone) -> None:
-    """Mark a milestone as skipped (already done) in ROADMAP.md."""
+def mark_skipped(path: Path, task: Task) -> None:
+    """Mark a task as skipped (already done) in ROADMAP.md."""
     lines = path.read_text().splitlines()
-    idx = _find_milestone_line(lines, milestone)
+    idx = _find_task_line(lines, task)
     if idx is None:
-        idx = milestone.line_number
+        idx = task.line_number
     line = lines[idx]
     lines[idx] = line.replace("- [ ]", "- [x] ⚠️ SKIPPED (already implemented)", 1)
     path.write_text("\n".join(lines) + "\n")

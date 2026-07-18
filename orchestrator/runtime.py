@@ -36,7 +36,7 @@ def _run_elapsed() -> str:
 
 
 def _run_summary() -> str:
-    return f"Ran for {_run_elapsed()} · {state.milestones_done} milestones done"
+    return f"Ran for {_run_elapsed()} · {state.tasks_done} milestones done"
 
 
 def _with_caffeinate(func, *args, **kwargs):
