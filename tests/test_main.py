@@ -845,12 +845,12 @@ def _run_cli_with(monkeypatch, exc):
     return recorded
 
 
-def test_cli_pipeline_stop_error_routes_to_milestone_fail(monkeypatch):
-    """Should record alert_type 'milestone-fail' and exit via SystemExit when run_implement raises PipelineStopError."""
+def test_cli_pipeline_stop_error_routes_to_task_fail(monkeypatch):
+    """Should record alert_type 'task-fail' and exit via SystemExit when run_implement raises PipelineStopError."""
     recorded = _run_cli_with(monkeypatch, PipelineStopError("boom"))
     with pytest.raises(SystemExit):
         main_module.cli()
-    assert recorded[-1][1] == "milestone-fail"
+    assert recorded[-1][1] == "task-fail"
 
 
 def test_cli_rate_limit_error_routes_to_stop(monkeypatch):

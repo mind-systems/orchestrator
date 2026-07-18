@@ -20,7 +20,7 @@ def _handle_sigint(sig, frame):
             notify(state.config, f"Orchestrator force-quit: {state.project_dir.name}\n{_run_summary()}", "stop")
         sys.exit(1)
     state.stop_requested = True
-    print("\n>>> Will stop after the current milestone finishes. Press Ctrl+C again to force quit.")
+    print("\n>>> Will stop after the current task finishes. Press Ctrl+C again to force quit.")
 
 
 def _fmt_elapsed(seconds: int) -> str:
@@ -36,7 +36,7 @@ def _run_elapsed() -> str:
 
 
 def _run_summary() -> str:
-    return f"Ran for {_run_elapsed()} · {state.tasks_done} milestones done"
+    return f"Ran for {_run_elapsed()} · {state.tasks_done} tasks done"
 
 
 def _with_caffeinate(func, *args, **kwargs):

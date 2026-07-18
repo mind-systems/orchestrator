@@ -14,25 +14,25 @@ import orchestrator.runtime as runtime
 
 
 def test_run_summary_with_elapsed_and_count():
-    """Should append the ' · N milestones done' suffix when run_started is set."""
+    """Should append the ' · N tasks done' suffix when run_started is set."""
     saved_started, saved_done = state.run_started, state.tasks_done
     try:
         state.run_started = time.monotonic() - 5
         state.tasks_done = 3
         result = _run_summary()
         assert result.startswith("Ran for ")
-        assert result.endswith(" · 3 milestones done")
+        assert result.endswith(" · 3 tasks done")
     finally:
         state.run_started, state.tasks_done = saved_started, saved_done
 
 
 def test_run_summary_with_no_run_started():
-    """Should read exactly 'Ran for unknown · 0 milestones done' when run_started is None."""
+    """Should read exactly 'Ran for unknown · 0 tasks done' when run_started is None."""
     saved_started, saved_done = state.run_started, state.tasks_done
     try:
         state.run_started = None
         state.tasks_done = 0
-        assert _run_summary() == "Ran for unknown · 0 milestones done"
+        assert _run_summary() == "Ran for unknown · 0 tasks done"
     finally:
         state.run_started, state.tasks_done = saved_started, saved_done
 
@@ -164,7 +164,7 @@ def test_handle_sigint_first_press_sets_stop_requested(capsys):
         _handle_sigint(signal.SIGINT, None)
         assert state.stop_requested is True
         out = capsys.readouterr().out
-        assert "Will stop after the current milestone finishes." in out
+        assert "Will stop after the current task finishes." in out
     finally:
         state.stop_requested = saved_stop
 

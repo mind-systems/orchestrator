@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 # Alert types that report a task failure rather than a success.
-_FAIL_ALERTS = {"milestone-fail"}
+_FAIL_ALERTS = {"task-fail"}
 
 # Alert types that report an operational stop — not a task failure.
 _HALT_ALERTS = {"stop"}

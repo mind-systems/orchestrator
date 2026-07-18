@@ -108,11 +108,11 @@ def test_load_config_telegram_alerts_replaces_not_merges(tmp_path, monkeypatch):
     _write_config(tmp_path, monkeypatch, {"telegram_alerts": ["done"]})
     project_dir = tmp_path / "project"
     project_dir.mkdir()
-    _write_override(project_dir, {"telegram_alerts": ["milestone-fail"]})
+    _write_override(project_dir, {"telegram_alerts": ["task-fail"]})
 
     config = load_config(project_dir=project_dir)
 
-    assert config.telegram_alerts == ["milestone-fail"]
+    assert config.telegram_alerts == ["task-fail"]
 
 
 def test_load_config_override_roadmap_path_absolute_raises_system_exit(tmp_path, monkeypatch):

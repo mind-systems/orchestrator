@@ -41,14 +41,14 @@ class Mode(NamedTuple):
 
 IMPLEMENT_MODE = Mode(
     roadmap_relpath="ROADMAP.md",
-    header_label="MILESTONE",
+    header_label="TASK",
     planner_prompt_name="planner",
     output_dirname="reviews",
     output_suffix="-review-{n}.md",
     verify_step="review",
     verify_fail_tag="review_failed:",
     pass_signal="REVIEW_PASS",
-    skip_message="Planner did not create a plan (milestone may already be done). Skipping.",
+    skip_message="Planner did not create a plan (task may already be done). Skipping.",
     verify_running_header="REVIEWING",
     pass_line_label="REVIEW PASSED",
     fail_line_label="Review found issues",
@@ -57,7 +57,7 @@ IMPLEMENT_MODE = Mode(
 
 TEST_MODE = Mode(
     roadmap_relpath="ROADMAP_TESTS.md",
-    header_label="TEST MILESTONE",
+    header_label="TEST TASK",
     planner_prompt_name="test-planner",
     output_dirname="test-runs",
     output_suffix="-test-{n}.txt",
@@ -238,9 +238,9 @@ def process_task(project_dir: Path, task, task_index: int, config: OrchestratorC
         mark_done(roadmap_path, task, elapsed)
         state.tasks_done += 1
         _git_commit(project_dir, task.title)
-        notify(config, f"{project_dir.name}: Milestone done: {task.title}", "milestone")
+        notify(config, f"{project_dir.name}: Task done: {task.title}", "task")
         mins, secs = divmod(elapsed, 60)
-        print(f">>> Milestone done [{mins}m {secs}s]")
+        print(f">>> Task done [{mins}m {secs}s]")
         return phase_session_id
 
     # Create agents
@@ -308,7 +308,7 @@ def process_task(project_dir: Path, task, task_index: int, config: OrchestratorC
     _plan_review_files = sorted(plan_reviews_dir.glob(f"{seq}-{task.slug}-plan-review-*.md"))
     if not _plan_review_files or not _plan_review_files[-1].read_text().strip().endswith("PLAN_REVIEW_PASS"):
         raise PipelineStopError(
-            f"No passing plan review found for milestone {seq}-{task.slug}. Cannot proceed to implementation."
+            f"No passing plan review found for task {seq}-{task.slug}. Cannot proceed to implementation."
         )
 
     # Step 2-3: Implement → Verify loop
@@ -356,10 +356,10 @@ def process_task(project_dir: Path, task, task_index: int, config: OrchestratorC
     mark_done(roadmap_path, task, elapsed)
     state.tasks_done += 1
     _git_commit(project_dir, task.title)
-    notify(config, f"{project_dir.name}: Milestone done: {task.title}", "milestone")
+    notify(config, f"{project_dir.name}: Task done: {task.title}", "task")
 
     mins, secs = divmod(elapsed, 60)
-    print(f">>> Milestone done [{mins}m {secs}s]")
+    print(f">>> Task done [{mins}m {secs}s]")
     return planner_reviewer.session_id
 
 
@@ -375,13 +375,13 @@ def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: Orchestrato
     result = parse_roadmap(roadmap_path)
     pending = [m for m in result.tasks if not m.done]
     if not pending:
-        print("All milestones are done!")
+        print("All tasks are done!")
         return
     if result.breakpoint_hit:
         total = len(result.tasks) + result.tasks_after_breakpoint
-        print(f"Found {len(pending)} pending milestones out of {total} total (stopped at breakpoint — {result.tasks_after_breakpoint} milestones after marker not queued).")
+        print(f"Found {len(pending)} pending tasks out of {total} total (stopped at breakpoint — {result.tasks_after_breakpoint} tasks after marker not queued).")
     else:
-        print(f"Found {len(pending)} pending milestones out of {len(result.tasks)} total.")
+        print(f"Found {len(pending)} pending tasks out of {len(result.tasks)} total.")
 
     current_section: str | None = None
     phase_session_id: str | None = None
@@ -391,15 +391,15 @@ def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: Orchestrato
         result = parse_roadmap(roadmap_path)
         pending = [m for m in result.tasks if not m.done]
         if not pending:
-            notify(config, f"All milestones done: {project_dir.name}\n{_run_summary()}", "done")
+            notify(config, f"All tasks done: {project_dir.name}\n{_run_summary()}", "done")
             break
 
         task = pending[0]
         signature = (task.title, task.description)
         if signature == last_signature:
             raise PipelineStopError(
-                f"Milestone '{task.title}' checkbox is still unchecked after processing. "
-                f"Refusing to re-run the same milestone forever — check mark_done / mark_skipped."
+                f"Task '{task.title}' checkbox is still unchecked after processing. "
+                f"Refusing to re-run the same task forever — check mark_done / mark_skipped."
             )
         last_signature = signature
 
@@ -481,8 +481,8 @@ def cli() -> None:
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
 
     for cmd, help_text in [
-        ("implement", "Plan and implement milestones"),
-        ("test", "Write tests for milestones (uses test-planner prompt)"),
+        ("implement", "Plan and implement tasks"),
+        ("test", "Write tests for tasks (uses test-planner prompt)"),
     ]:
         p = subparsers.add_parser(cmd, help=help_text)
         p.add_argument("project_dir", nargs="?", default=".", help="Path to the project directory")
@@ -502,7 +502,7 @@ def cli() -> None:
         print(f"STOPPED — {e}")
         print(f"{'='*60}")
         msg = str(e).splitlines()[0]
-        notify(config, f"Orchestrator stopped: {project_dir.name}\n{msg}\n{_run_summary()}", "milestone-fail")
+        notify(config, f"Orchestrator stopped: {project_dir.name}\n{msg}\n{_run_summary()}", "task-fail")
         sys.exit(0)
     except HaltError as e:
         print(f"\n{'='*60}")
