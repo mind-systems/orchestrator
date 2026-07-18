@@ -20,7 +20,7 @@ A short sequence to move a project from the shared `ROADMAP.md` to a per-develop
 
    The first line of each file must be `> Owner: <your git email>`. In `"my"` mode it is verified against the current git identity; a mismatch or an unrecognized first line is an operational stop.
 
-4. **Specs** → `.ai-factory/specs/<slug>/`: move the roadmap's spec notes there and rewrite the `Spec:` tags in the roadmap lines to `specs/<slug>/…`.
+4. **Specs** → `.ai-factory/specs/<slug>/`: move the roadmap's task specs there and rewrite the `Spec:` tags in the roadmap lines to `specs/<slug>/…`.
 
 5. **test-runs** (if any) → `.ai-factory/test-runs/<slug>/`.
 

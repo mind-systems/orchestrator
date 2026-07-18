@@ -18,7 +18,7 @@ Three layers separated by responsibility: orchestration, agents, infrastructure.
 ```
 orchestrator/
 ├── orchestrator/
-│   ├── main.py          # Orchestration: CLI, the unified milestone pipeline, roadmap loops, git commit
+│   ├── main.py          # Orchestration: CLI, the unified task pipeline, roadmap loops, git commit
 │   ├── agents.py        # Agents: agent classes, _run_claude(), sidecar session helpers, claude-CLI resolution
 │   ├── roadmap.py       # Infrastructure: ROADMAP.md parsing, mark_done()/mark_skipped()
 │   ├── config.py        # Support: config load + validation (global base + per-project overlay)
@@ -53,7 +53,7 @@ Direction: `main.py` → agents / support modules → `roadmap.py`, `state.py`
 
 **Orchestration (`main.py`)** — reads the roadmap, runs agents in the correct order, manages iterations, makes git commits. Knows the step sequence, not agent internals.
 
-**Agents (`agents.py`)** — wrappers over the `claude` CLI. Each class encapsulates one agent type, manages `session_id`, reads/writes the JSON sidecar. Has no knowledge of roadmap structure or milestones.
+**Agents (`agents.py`)** — wrappers over the `claude` CLI. Each class encapsulates one agent type, manages `session_id`, reads/writes the JSON sidecar. Has no knowledge of roadmap structure or tasks.
 
 **Infrastructure (`roadmap.py`)** — pure file operations: parsing markdown checkboxes, writing `[x]`, elapsed time. No dependencies on agents.
 
@@ -124,14 +124,14 @@ Move to **Structured Modules** when:
 |---------|--------|
 | **Pipeline control** | |
 | Iterative plan review gate | 15f1e77 |
-| Crash recovery — mid-milestone resume | 48e435d de7849d |
+| Crash recovery — mid-task resume | 48e435d de7849d |
 | Test mode — real test runner gate | fb219a4 |
 | Dynamic roadmap re-scan loop | a9b1c12 |
 | Roadmap breakpoint marker | 9a4aa63 |
-| Auto-push to remote after milestone | e50159f |
+| Auto-push to remote after task | e50159f |
 | **Session & observability** | |
 | Phase-persistent planner session | 025658d |
-| Per-milestone usage guard | b214041 |
+| Per-task usage guard | b214041 |
 | Telegram alerts — colour-coded outcomes | a3ceb9b b71a648 |
 | Deferred-observations review channel | c93582e |
 | **Configuration** | |
