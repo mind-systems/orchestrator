@@ -1,11 +1,11 @@
 # Docs and meta speak the language
 
 **Date:** 2026-07-14
-**Source:** conversation context — editor decomposition of Phase 8, ratified by the architect (Phase 8 split into 8.1 ready-now / 8.2 gated, along the external-dependency boundary)
+**Source:** conversation context — editor decomposition of Phase 8, ratified by the architect (Phase 8 split into 8.1 ready-now / 8.2 gated, along the external-dependency boundary); amended 2026-07-18 per [handoff 07](../../handoffs/07-language-contract-softened-to-naming-only.md) — the contract is naming-only, so the hyphenation pass is dropped; only the synonym fixes remain
 
 ## Problem today
 
-`docs/configuration.md`, `docs/context-model.md`, `docs/failures-and-halts.md`, `docs/how-it-works.md`, `docs/migrate-to-named-roadmap.md`, `docs/non-convergence.md`, `docs/phase-sessions.md`, `docs/target-project.md`, `docs/test-mode.md`, `docs/workflow.md`, `CLAUDE.md`, and `.ai-factory/ARCHITECTURE.md` still describe the pipeline with the retired word "milestone" and, in several places, un-hyphenated reserved forms (`named roadmap`, `PASS signal`, `governing spec`, `spec note`). `README.md` is already fully conformed (zero "milestone" hits, correct `PASS-signal` hyphenation already in place) — it needs no edit, only a verify pass.
+`docs/configuration.md`, `docs/context-model.md`, `docs/failures-and-halts.md`, `docs/how-it-works.md`, `docs/migrate-to-named-roadmap.md`, `docs/non-convergence.md`, `docs/phase-sessions.md`, `docs/target-project.md`, `docs/test-mode.md`, `docs/workflow.md`, `CLAUDE.md`, and `.ai-factory/ARCHITECTURE.md` still describe the pipeline with the retired word "milestone" and, in one place, the synonym "spec notes" where the vocabulary names the concept task specs. The docs' spellings of the reserved terms themselves ("named roadmap", "PASS signal", "governing spec") are ordinary English and already conformant — the contract binds word choice, never typography. `README.md` is already fully conformed (zero "milestone" hits; its `PASS-signal` spelling is a legal variant, not a conformance credit) — it needs no edit, only a verify pass.
 
 Most `docs/*.md` files are majority-Russian prose (English headers, Russian body). "milestone" appears there as an English loanword carrying a Cyrillic case suffix via hyphen (`milestone-ов`, `milestone-ами`, `milestone-ы`). Renaming to "task" must carry the **correct** inflection for the new stem: "таск" is velar-stemmed, so its nominative plural is `task-и` (таски, not «таскы») — the `-ы`→`-и` shift is required, while `-ов`/`-ами` stay the same (see Guards).
 
@@ -68,7 +68,7 @@ Rename `milestone`→`task` / `Milestone`→`Task`, carrying the correct Russian
 | 5 | "Каждый milestone проходит через две фазы" → "Каждый task проходит через две фазы" |
 | 9 | "это отказ milestone" → "это отказ task" |
 | 21 | "прервался в середине milestone" → "прервался в середине task" |
-| 25 | **No change.** The only "milestone" on this line is inside the skill name `` `/milestone-rescue` `` — task 8.2's, gated. Leave the whole line untouched. |
+| 25 | **No change.** The skill name on this line is already `` `/task-rescue` `` (task 8.2 ran first, doc-first decision) — no "milestone" remains here. Leave the whole line untouched. |
 | 27 | "уже завершённого milestone и пропускается" → "уже завершённого task и пропускается"; "недоделанного milestone" → "недоделанного task" |
 | 31 | "группирует milestone-ы по фазам" → "группирует task-и по фазам"; "каждый следующий milestone продолжает" → "каждый следующий task продолжает" |
 | 33 | "к третьему milestone фазы" → "к третьему task фазы" |
@@ -78,14 +78,13 @@ Rename `milestone`→`task` / `Milestone`→`Task`, carrying the correct Russian
 | 43 | "на каждый milestone." → "на каждый task." |
 | 55 | "вне рамок milestone." → "вне рамок task." The quoted `` `## Deferred observations` `` on this same line is a protocol literal — stays byte-identical (see Guards). |
 
-**`docs/migrate-to-named-roadmap.md`** (English, 0 "milestone" hits — reserved-form only, see § 3).
+**`docs/migrate-to-named-roadmap.md`** (English, 0 "milestone" hits — one synonym fix only, see § 3).
 
 **`docs/non-convergence.md`** (Russian; carries the two gated skill-name refs):
 
 | Line | Change |
 |---|---|
-| 17 | (reserved-form only, see § 3) |
-| 37 | Only the bare prose "сошёлся ли milestone через понимание" → "сошёлся ли task через понимание" changes. The two skill names on the same line, `` `/milestone-rescue` `` and `` `/milestone-rescue-audit` ``, stay untouched — task 8.2's, gated. This is a **single-line partial edit**: three "milestone" substrings on one line, only the third (the bare word, not preceded by `/`) renames. |
+| 37 | Only the bare prose "сошёлся ли milestone через понимание" → "сошёлся ли task через понимание" changes. The two skill names on the same line are already `` `/task-rescue` `` and `` `/task-rescue-audit` `` (task 8.2 ran first, doc-first decision) and stay untouched — the bare word is the line's only remaining "milestone" substring. |
 
 **`docs/phase-sessions.md`** (Russian; also carries the "кросс-милстоунная" judgment call, see § 4):
 
@@ -157,21 +156,17 @@ Rename `milestone`→`task` / `Milestone`→`Task`, carrying the correct Russian
 
 ### 2. `README.md` — verify only
 
-Already conformed: 0 "milestone" hits, `PASS-signal` already correctly hyphenated at line 5 (×2). No edit. Include it in the final verify pass to confirm it stays that way.
+Already conformed: 0 "milestone" hits; its `PASS-signal` spelling (line 5, ×2) is a legal variant the naming contract does not police. No edit. Include it in the final verify pass to confirm it stays that way.
 
-### 3. Reserved-form hyphenation of prose
+### 3. Synonym fix in prose
 
-The protocol-literal `` `Spec:` `` and `` `Governing spec:` `` **tags** stay legacy, untouched, everywhere. Only free prose describing these concepts hyphenates:
+One synonym retires — "spec notes" for what the vocabulary names task specs:
 
 | File:Line | Current | New |
 |---|---|---|
-| `CLAUDE.md:40` | link text "Migrate to named roadmap" | "Migrate to named-roadmap" (path `docs/migrate-to-named-roadmap.md` unchanged — it's a filename, not prose) |
-| `docs/migrate-to-named-roadmap.md:3` | "a per-developer named roadmap" | "a per-developer named-roadmap" |
-| `docs/migrate-to-named-roadmap.md:23` | "move the roadmap's spec notes there" | "move the roadmap's task-specs there" |
-| `CLAUDE.md:75` | "artifact naming, PASS signals, sidecar fields" | "artifact naming, PASS-signals, sidecar fields" |
-| `docs/non-convergence.md:17` | "вынос спорной семантики в governing spec фазы" (prose, not the `Governing spec:` tag) | "вынос спорной семантики в governing-spec фазы" |
+| `docs/migrate-to-named-roadmap.md:23` | "move the roadmap's spec notes there" | "move the roadmap's task specs there" |
 
-Two other occurrences of the *tag* form `` `Governing spec:` `` exist at `docs/context-model.md:21,35` — these stay byte-identical (protocol literal, not prose; see Guards).
+Nothing else in the docs' prose changes spelling: "named roadmap", "PASS signals", "governing spec" as free prose are the registry names written in ordinary English — no hyphenation pass, no text swept for typography. The protocol-literal `` `Spec:` `` and `` `Governing spec:` `` **tags** stay legacy, untouched, everywhere (incl. `docs/context-model.md:21,35`).
 
 ### 4. Judgment call: `docs/phase-sessions.md`'s transliterated "кросс-милстоунная"
 
@@ -188,7 +183,8 @@ Two occurrences (lines 7, 47) use "кросс-милстоунная" — a full
 - **Inflect the loanword correctly, not a blind suffix copy.** "таск" (task) is a velar stem — its nominative plural takes `-и`, so `milestone-ы`→`task-и` (таски, never «таскы»). Genitive-plural `-ов` and instrumental `-ами` are spelled the same for both stems, so `milestone-ов`→`task-ов`, `milestone-ами`→`task-ами`. Do not translate the sentence into native Russian; only inflect the loanword correctly (as the docs already do for `Implementer'у`).
 - **The `кросс-милстоунная` → `межзадачная` swap (§ 4) is the one place a native Russian term replaces the loanword** — it aligns to an existing term elsewhere in the docs. Everywhere else, inflect `task` per the rule above.
 - **Protocol literals stay legacy, byte-identical.** `` `## Deferred observations` `` (quoted at `docs/how-it-works.md:55`), `` `PLAN_REVIEW_PASS` ``/`` `REVIEW_PASS` `` (quoted at `docs/how-it-works.md:7,47,53` and `docs/non-convergence.md:3`), and the `` `Spec:` ``/`` `Governing spec:` `` tags (quoted throughout) are mechanism, not vocabulary — never rename these, even though the surrounding prose about them does conform.
-- **Leave the two rescue-skill invocation names untouched.** `` `/milestone-rescue` `` and `` `/milestone-rescue-audit` `` at `docs/how-it-works.md:25` and `docs/non-convergence.md:37` are task 8.2's, gated on the skills-side rename landing. This task conforms only the bare-word "milestone" prose that happens to share a line with them (`docs/non-convergence.md:37` only — `docs/how-it-works.md:25` has no bare-word instance and gets no edit at all).
+- **Leave the two rescue-skill invocation names untouched.** `` `/task-rescue` `` and `` `/task-rescue-audit` `` at `docs/how-it-works.md:25` and `docs/non-convergence.md:37` are task 8.2's surface, already placed by it (doc-first). This task conforms only the bare-word "milestone" prose that happens to share a line with them (`docs/non-convergence.md:37` only — `docs/how-it-works.md:25` has no bare-word instance and gets no edit at all).
+- **Typography is never swept.** The contract binds word choice, not spelling: "named roadmap", "PASS signal", "governing spec", link texts, and every other reserved term in prose keep their existing ordinary-English form — a hyphen or a capital is not a defect, and "no change" is a legal per-line outcome.
 - **`phase` stays `phase` everywhere** — it is a real, correctly-used concept in every file here (the cross-phase persistent planner session, the roadmap phase header), never a collision to resolve. Do not touch it.
 - **Commit hashes in `.ai-factory/ARCHITECTURE.md`'s `## Features` table are byte-identical** — only the row's prose label conforms (see § 1's ratified decision).
 - Do not touch `docs/future/run-context-refactor.md` — out of the named file list, and it has zero "milestone" hits anyway.
@@ -196,9 +192,9 @@ Two occurrences (lines 7, 47) use "кросс-милстоунная" — a full
 
 ## Verify
 
-- `grep -rniE "\bmilestone" docs/*.md CLAUDE.md .ai-factory/ARCHITECTURE.md` → only two hits remain, both at `docs/how-it-works.md:25` and `docs/non-convergence.md:37` (inside the gated skill names) — task 8.2's.
+- `grep -rniE "\bmilestone" docs/*.md CLAUDE.md .ai-factory/ARCHITECTURE.md` → zero hits (task 8.2 already renamed the skill-name substrings; this task removes every remaining bare-word instance).
 - `grep -rniE "\bmilestone" README.md` → zero hits (unchanged from before this task).
-- `grep -rInE 'named roadmap|PASS signal|spec note|[^-]governing spec' docs/*.md CLAUDE.md .ai-factory/ARCHITECTURE.md` → zero hits.
+- `grep -rni 'spec note' docs/*.md CLAUDE.md .ai-factory/ARCHITECTURE.md` → zero hits (the one retired synonym; existing "named roadmap" / "PASS signal" / "governing spec" spellings are conformant and not grepped for).
 - `grep -n 'process_milestone' CLAUDE.md` → zero hits; `grep -n 'process_task' CLAUDE.md` → one hit.
 - `grep -n 'кросс-милстоунная' docs/phase-sessions.md` → zero hits; `grep -c 'межзадачная' docs/phase-sessions.md` → 2.
 - `.ai-factory/ARCHITECTURE.md` Features table: `grep -n '48e435d de7849d\|e50159f\|b214041' .ai-factory/ARCHITECTURE.md` shows the same three hashes, unchanged.
@@ -206,10 +202,11 @@ Two occurrences (lines 7, 47) use "кросс-милстоунная" — a full
 
 ## What NOT to do
 
-- Do not touch `/milestone-rescue` or `/milestone-rescue-audit` anywhere — task 8.2's, gated.
+- Do not touch the `/task-rescue` / `/task-rescue-audit` skill names — task 8.2 already placed them.
 - Do not touch `## Deferred observations`, `PLAN_REVIEW_PASS`, `REVIEW_PASS`, or any `Spec:`/`Governing spec:` tag.
 - Do not touch commit hashes in `.ai-factory/ARCHITECTURE.md`'s Features table.
 - Do not decline or translate the Russian loanword suffixes — substring rename only.
+- Do not hyphenate or re-case any prose — no typography sweep; the only spelling-level edits in this task are the `milestone`→`task` renames, the "spec notes"→"task specs" synonym, and § 4's «межзадачная».
 - Do not touch `README.md` (already conformed) or `docs/future/run-context-refactor.md` (out of scope, no hits).
 - Do not touch any `.py` file, `orchestrator.json`/`.example`, or the four `orchestrator/prompts/*.md` files.
 

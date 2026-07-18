@@ -2,7 +2,7 @@
 
 # Project Roadmap
 
-> Orchestrator — AI-driven multi-agent pipeline that autonomously plans, implements, and reviews code milestones.
+> Orchestrator — AI-driven multi-agent pipeline that autonomously plans, implements, and reviews code tasks.
 
 ## Self-hosting hardening
 
@@ -22,7 +22,7 @@ The orchestrator generates every project's code — including its own — so a s
 
 ## Reserved-words language conformance
 
-The skills family is now written in a formal reserved-words language — `skills/docs/reserved-words.md`, mandated from the root `CLAUDE.md` — and the orchestrator both *speaks* that language (its prompts and runtime messages) and *stores* it (the artifacts it writes). Source handoff: [`../handoffs/06-reserved-words-language-and-rescue-rename-orchestrator-side.md`](../handoffs/06-reserved-words-language-and-rescue-rename-orchestrator-side.md). Scope, fixed with the owner: conform the **whole repository** — code, tests, runtime messages, config, prompts, docs — to the canonical forms; **tags stay legacy** (the `` Spec: `` tag and the `.ai-factory/specs/` directory are on-disk identifiers the agent reads a path from, never vocabulary it emits). Semantic anchors verified against the code: the processed roadmap unit `milestone` is the reserved word **`task`**; the persistent `phase_session` is the reserved word **`phase`** and is already correct (untouched); `state.milestones_done` is an in-memory counter and no sidecar step-key carries "milestone", so the rename is resume-safe. The plan's own checklist items stay named "task" — read at plan altitude it is a unit of work, exactly as "phase" already reads consistently across both a roadmap phase and a plan phase (`using-the-language.md` § "The one rule"); no second word is needed there.
+The skills family speaks one shared vocabulary (`skills/docs/reserved-words.md`) — a **naming-only contract**: reserved is the meaning, not the spelling; typography is never swept. This direction retires the synonym `milestone` for the reserved word `task` across the whole repository. Governing handoff: [`../handoffs/07-language-contract-softened-to-naming-only.md`](../handoffs/07-language-contract-softened-to-naming-only.md).
 
 ### Phase 5 — Code and test identifiers speak `task`
 
@@ -38,17 +38,17 @@ The operator meets the word "milestone" at run time: the Telegram alert tokens `
 
 ### Phase 7 — Prompt bodies speak the language
 
-`planner.md`, `test-planner.md`, and `reviewer.md` still name the roadmap unit with the retired word `milestone`. This phase conforms it to the reserved word `task`, and aligns the reserved forms the prompts use in passing — `deferred-observations`, `task-spec`, `governing-spec`, `named-roadmap`; protocol literals (`## Deferred observations`, `- Affects:`, `PLAN_REVIEW_PASS`/`REVIEW_PASS`, `Spec:`/`Governing spec:` tags) stay legacy. The plan's own checklist "task" (`## Tasks`, `**Task N:**`) is untouched — it reads consistently at plan altitude exactly as `phase` already does at both roadmap and plan altitude, not a collision. Because the prompts shape every plan and review the orchestrator writes, this is the phase that makes the produced artifacts speak the language going forward. It depends on Phase 5 for a consistent reading only, not mechanically.
+`planner.md`, `test-planner.md`, and `reviewer.md` still name the roadmap unit with the retired word `milestone`. This phase conforms it to the reserved word `task`, plus one synonym fix in passing ("full specification" → "full task spec"); the prompts' existing spellings of the other reserved terms are already conformant — typography is never swept; protocol literals (`## Deferred observations`, `- Affects:`, `PLAN_REVIEW_PASS`/`REVIEW_PASS`, `Spec:`/`Governing spec:` tags) stay legacy. The plan's own checklist "task" (`## Tasks`, `**Task N:**`) is untouched — it reads consistently at plan altitude exactly as `phase` already does at both roadmap and plan altitude, not a collision. Because the prompts shape every plan and review the orchestrator writes, this is the phase that makes the produced artifacts speak the language going forward. It depends on Phase 5 for a consistent reading only, not mechanically.
 
-- [ ] **7.1 — Prompt bodies speak the language** — `milestone`→`task` for the roadmap unit across `planner.md`, `test-planner.md`, `reviewer.md` prose, plus reserved-form alignment: "full specification"→"full `task-spec`"; "named roadmap"→"named-roadmap"; the descriptive prose around deferred observations hyphenated to `deferred-observations`. No plan-structure change — `## Tasks`/`**Task N:**` and every plan-checklist "task" stay exactly as-is (not a collision; `task` reads consistently at plan altitude like `phase` already does, per `using-the-language.md` § "The one rule"). Guard: `## Deferred observations`, `- Affects:`, `PLAN_REVIEW_PASS`/`REVIEW_PASS`, `Spec:`/`Governing spec:` tags are protocol literals, byte-for-byte (cross-repo contract, skills handoff 21). Verify: `grep -rniE "\bmilestone" orchestrator/prompts/*.md` → zero hits. No tests. Spec: `.ai-factory/specs/trickster77777/26-prompt-bodies-speak-the-language.md`.
+- [ ] **7.1 — Prompt bodies speak the language** — `milestone`→`task` for the roadmap unit across `planner.md`, `test-planner.md`, `reviewer.md` prose, plus one synonym fix: "full specification"→"full task spec" (plain spelling; "named roadmap" and the deferred-observations prose already conform — typography is never swept). No plan-structure change — `## Tasks`/`**Task N:**` and every plan-checklist "task" stay exactly as-is (not a collision; `task` reads consistently at plan altitude like `phase` already does, per `using-the-language.md` § "The one rule"). Guard: `## Deferred observations`, `- Affects:`, `PLAN_REVIEW_PASS`/`REVIEW_PASS`, `Spec:`/`Governing spec:` tags are protocol literals, byte-for-byte (cross-repo contract, skills handoff 21). Verify: `grep -rniE "\bmilestone" orchestrator/prompts/*.md` → zero hits. No tests. Spec: `.ai-factory/specs/trickster77777/26-prompt-bodies-speak-the-language.md`.
 
 ### Phase 8 — Docs and meta speak the language, skills renamed
 
-The docs and project meta (`docs/*.md`, `CLAUDE.md`, `.ai-factory/ARCHITECTURE.md`) still speak the retired vocabulary. This phase conforms it — `milestone`→`task`, reserved forms hyphenated, protocol literals and tags left legacy — split along the external gate: **8.1** the vocabulary pass (ready now), **8.2** the two rescue-skill renames (gated on skills' task 11.1 landing).
+The docs and project meta (`docs/*.md`, `CLAUDE.md`, `.ai-factory/ARCHITECTURE.md`) still speak the retired vocabulary. This phase conforms it — `milestone`→`task`, word choice only, protocol literals and tags left legacy, typography never swept — split in two: **8.1** the vocabulary pass, **8.2** the two rescue-skill renames (done doc-first; skills 16.1 reconciles).
 
-- [ ] **8.1 — Docs and meta speak the language** — conform `milestone`→`task` across the Russian-majority `docs/*.md`, `CLAUDE.md`, `.ai-factory/ARCHITECTURE.md` (incl. `## Features` labels — commit hashes stay). Inflect the loanword correctly: `milestone-ы`→`task-и` (велярное таски, not «таскы»), `-ов`/`-ами` unchanged; hyphenate reserved forms; reflect `process_task()` (post-5.1). Leave `/milestone-rescue*` (8.2), protocol literals, tags, `phase`; `README.md` verify-only. Spec: `.ai-factory/specs/trickster77777/27-docs-and-meta-speak-the-language.md`.
+- [ ] **8.1 — Docs and meta speak the language** — conform `milestone`→`task` across the Russian-majority `docs/*.md`, `CLAUDE.md`, `.ai-factory/ARCHITECTURE.md` (incl. `## Features` labels — commit hashes stay). Inflect the loanword correctly: `milestone-ы`→`task-и` (велярное таски, not «таскы»), `-ов`/`-ами` unchanged; one synonym fix ("spec notes"→"task specs"), no typography sweep; reflect `process_task()` (post-5.1). Leave `/milestone-rescue*` (8.2), protocol literals, tags, `phase`; `README.md` verify-only. Spec: `.ai-factory/specs/trickster77777/27-docs-and-meta-speak-the-language.md`.
 
-- [ ] **8.2 — Rename the rescue-skill references (gated)** — `/milestone-rescue`→`/task-rescue`, `/milestone-rescue-audit`→`/task-rescue-audit` in `docs/how-it-works.md:25` and `docs/non-convergence.md:37` only. **Gate:** do not run until skills' task 11.1 (spec 64) is `[x]` and the dirs `src/skills/task-rescue*` exist on disk — verify both; if 11.1 is `[ ]`, this stays `[ ]`. Cite the landed names, never the plan. Frozen history keeps the old names. Spec: `.ai-factory/specs/trickster77777/28-rename-rescue-skill-references.md`.
+- [x] **8.2 — Rename the rescue-skill references** — `/milestone-rescue`→`/task-rescue`, `/milestone-rescue-audit`→`/task-rescue-audit` in `docs/how-it-works.md:25` and `docs/non-convergence.md:37` only. Executed doc-first by owner decision (docs are governing specs and lead code): the docs carry the target names, skills' task 16.1 (spec `skills/.ai-factory/specs/71-rescue-skills-rename.md`) reconciles the skills repo to them. Frozen history keeps the old names. Spec: `.ai-factory/specs/trickster77777/28-rename-rescue-skill-references.md`.
 
 ## Prompt–execution alignment
 
@@ -63,3 +63,37 @@ The planner is told to author a multi-commit `## Commit Plan` with checkpoints e
 ---STOP---
 
 - [ ] **Interactive REPL mode** — Bare `uv run orchestrator` (no subcommand) currently defaults to implement on current dir. Replace with an interactive session: load config from `~/.orchestrator.json`, display settings on entry, prompt `>` with readline history. Commands: `implement <path>`, `test <path>`, `set <key> <value>` (type-validated, in-session only), `show`, `save` (atomic write to config file via tmp+replace), `help`, `exit`. Ctrl+C during pipeline → stop run, return to prompt. New `orchestrator/repl.py`; `cli()` routes `args.command is None` to `run_repl(config, config_path)`; `load_config()` return type changes to `tuple[OrchestratorConfig, Path]`. Zero new dependencies — `readline` (stdlib). Update `CLAUDE.md` Commands section; mention REPL in `docs/workflow.md`. Spec: `.ai-factory/specs/trickster77777/01-repl.md`.
+
+---STOP---
+
+## Codex backend adaptation
+
+The orchestrator currently treats Claude Code as the only executable agent runtime: `agents.py` shells out to `claude`, parses Claude `stream-json`, resumes Claude sessions, maps Claude tool names, and `usage.py` gates on `claude /usage`. This direction turns that runtime dependency into an explicit backend boundary so the existing file-protocol pipeline can run on Codex without weakening the proven Claude path. The pinned contract is parity first: plan, plan-review, implement, review, sidecar resume, PASS signals, and commit behavior stay unchanged unless a later task explicitly changes them.
+
+### Phase 10 — Agent backend boundary
+
+The first blocker is structural: `_run_claude()` is both process runner, output parser, retry policy, session carrier, tool mapper, and error classifier. Codex support needs a narrow backend interface before any Codex command is introduced, otherwise the second runtime will fork the whole `PlannerReviewer` / `PlanReviewer` / `Implementer` surface. This phase extracts the runner contract around the existing Claude behavior while preserving current defaults and tests.
+
+### Phase 11 — Codex process runner and output contract
+
+Once the backend boundary exists, Codex needs its own process runner with a stable output contract: command construction, cwd handling, prompt/system-prompt delivery, result extraction, nonzero-exit handling, interrupt cleanup, and enough run identity to populate the existing sidecar fields. The risk is not launching Codex; the risk is pretending Claude `session_id` and Codex continuation semantics are identical. This phase proves the Codex runner can return the same orchestrator-level shape without changing the file protocol.
+
+### Phase 12 — Session and resume semantics
+
+The orchestrator's convergence model depends on persistent planner/reviewer and implementer context: sidecar JSON stores the planner and implementer session IDs, phase sessions optionally carry across tasks, and resume starts from a detected step rather than replaying finished work. Codex may expose continuation through a different session/thread/task identifier, or may require a different prompt handoff strategy. This phase defines the backend-neutral resume contract and pins which guarantees are required for mid-task recovery, phase carryover, and re-review context.
+
+### Phase 13 — Tools, permissions, and sandbox mapping
+
+The existing agents pass Claude tool names (`Read`, `Write`, `Edit`, `Bash`, `Glob`, `Grep`) and rely on `--dangerously-skip-permissions` plus local Claude settings for planner writes under `.ai-factory/plans/`. Codex has a different permission and tool surface, so the backend must translate intent rather than copy strings. This phase maps the orchestrator's required capabilities to Codex permissions, keeps write scope explicit, and documents what cannot be enforced through the same mechanism.
+
+### Phase 14 — Usage gating and operational halts
+
+`usage.py` currently shells out to `claude /usage` and parses Claude-specific "Current session" and "Current week" percentages before each task. Codex may not expose an equivalent CLI usage command or the same quota windows. This phase makes usage gating backend-aware: Claude keeps its current guard, Codex either gets a real parser for its available signal or an explicit disabled/unknown state that degrades to a warning without masquerading as protection.
+
+### Phase 15 — Configuration, docs, and runtime selection
+
+After both backends exist, the operator needs a clear way to choose one per run or per project without editing code. This phase adds configuration for `agent_backend`, backend-specific model/effort defaults, and documentation that separates Claude activation (`~/.claude`) from Codex activation (`AGENTS.md`, skills, permissions). The goal is a boring switch: existing Claude users see byte-stable behavior by default, while Codex runs are intentionally opted in and visibly reported in logs.
+
+### Phase 16 — Parity validation on a disposable target
+
+Codex support is not done when the unit tests pass; the orchestrator's real contract is a full task loop through files. This phase runs the Codex backend against a disposable target project with a tiny roadmap task, verifies plan creation, plan-review PASS, implementation, review PASS, sidecar resume files, git commit behavior, interrupt handling, and failure reporting. Any divergence becomes either a documented backend difference or a blocking fix before Codex is allowed on real project roadmaps.
