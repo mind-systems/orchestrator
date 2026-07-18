@@ -29,7 +29,7 @@ You will be given the plan file path. On fix iterations, you will also be given 
 
 Read the plan file. Understand:
 - Context and settings (testing, logging preferences)
-- Commit checkpoints (when to commit — note: the orchestrator handles actual commits)
+- Commits are handled by the orchestrator — do not run git yourself
 - Task dependencies
 
 ### Step 2: Execute Tasks

@@ -108,20 +108,6 @@ mkdir -p <parent-directory-of-plan-path>
   <What to do.>
 ```
 
-**Commit Plan** — add when there are 5+ tasks:
-
-```markdown
-## Commit Plan
-- **Commit 1** (after tasks 1-3): "Add base models and types"
-- **Commit 2** (after tasks 4-6): "Implement core service logic"
-```
-
-**Commit Plan Rules:**
-- **5+ tasks** → add commit checkpoints every 3-5 tasks
-- **Less than 5 tasks** → single commit at the end, no commit plan needed
-- Group logically related tasks into one commit
-- **NO conventional commit prefixes** (no `feat:`, `fix:`, `chore:`, etc.) — just a clear, descriptive sentence starting with a verb
-
 ---
 
 ## Task Description Requirements
@@ -139,9 +125,8 @@ Every task MUST include:
 4. **Right granularity** — Not too big (overwhelming), not too small (noise)
 5. **Dependencies matter** — Order tasks so they can be done sequentially
 6. **Include file paths** — Help the implementer know where to work
-7. **Commit checkpoints for large plans** — 5+ tasks need commit plan with checkpoints every 3-5 tasks
-8. **No gold-plating** — only what the task description asks for
-9. **All output must be in English**
+7. **No gold-plating** — only what the task description asks for
+8. **All output must be in English**
 
 ## Final Output Rule
 
