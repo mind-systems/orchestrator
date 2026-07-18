@@ -20,9 +20,9 @@ Before finalizing review findings, run read-only context gates:
 
 - Check `.ai-factory/ARCHITECTURE.md` (if present) for boundary/dependency alignment issues.
 - Check `.ai-factory/RULES.md` (if present) for explicit convention violations.
-- Check the roadmap in play — `.ai-factory/ROADMAP.md` or a named roadmap under `.ai-factory/roadmaps/` (if present) — for milestone alignment and mention missing linkage for likely `feat`/`fix`/`perf` work.
-- Follow mentions from the milestone under review: the `Spec:` note behind its tag, what that note references, and any `Governing spec:` named by its phase — findings are judged against this tree, not against the roadmap line alone.
-- When the session holds only a plan path (plan review), first recover the root: match the plan's `# Plan: <milestone title>` heading against `.ai-factory/ROADMAP.md`, `.ai-factory/ROADMAP_TESTS.md`, or any `.ai-factory/roadmaps/*.md` to find the milestone's line. If no line matches, skip this gate.
+- Check the roadmap in play — `.ai-factory/ROADMAP.md` or a named roadmap under `.ai-factory/roadmaps/` (if present) — for task alignment and mention missing linkage for likely `feat`/`fix`/`perf` work.
+- Follow mentions from the task under review: the `Spec:` note behind its tag, what that note references, and any `Governing spec:` named by its phase — findings are judged against this tree, not against the roadmap line alone.
+- When the session holds only a plan path (plan review), first recover the root: match the plan's `# Plan: <task title>` heading against `.ai-factory/ROADMAP.md`, `.ai-factory/ROADMAP_TESTS.md`, or any `.ai-factory/roadmaps/*.md` to find the task's line. If no line matches, skip this gate.
 
 Gate result severity:
 - `WARN` for non-blocking inconsistencies or missing optional files.
@@ -109,11 +109,11 @@ If any rule is violated — fix the output before writing the review file.
 ```
 
 **Deferred observations criterion:**
-- An observation may be deferred only if its fix lies outside the current milestone's scope — a different phase, a not-yet-existing future consumer, or a file boundary this milestone does not touch.
-- Anything introduced by the current diff, or fixable within the milestone's boundary, is a finding regardless of severity — down to cosmetics (e.g. a stale comment in a changed file is a finding, not a deferred observation).
-- Operational test: if the work could be fixed on the next iteration without leaving the milestone's file boundary or contradicting the plan — it is a finding.
+- An observation may be deferred only if its fix lies outside the current task's scope — a different phase, a not-yet-existing future consumer, or a file boundary this task does not touch.
+- Anything introduced by the current diff, or fixable within the task's boundary, is a finding regardless of severity — down to cosmetics (e.g. a stale comment in a changed file is a finding, not a deferred observation).
+- Operational test: if the work could be fixed on the next iteration without leaving the task's file boundary or contradicting the plan — it is a finding.
 - Scope and severity are independent axes: "it's only LOW" is never grounds for deferral.
-- Never write, copy, or update a status/processing marker on a deferred-observation entry — anything after the observation text is reserved for downstream consumers. If an earlier review file for this milestone already carries such marks, do not imitate them; a fresh review always emits unmarked entries.
+- Never write, copy, or update a status/processing marker on a deferred-observation entry — anything after the observation text is reserved for downstream consumers. If an earlier review file for this task already carries such marks, do not imitate them; a fresh review always emits unmarked entries.
 
 **REVIEW_PASS rules:**
 - Write `REVIEW_PASS` only if you have no findings at all — every findings section you wrote is empty. Deferred observations are not findings: a review whose only content is a Deferred observations section still ends with `REVIEW_PASS` (the same applies to `PLAN_REVIEW_PASS` in plan review).
