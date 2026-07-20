@@ -84,7 +84,7 @@ ORCHESTRATOR_CONFIG=/path/to/my-config.json uv run orchestrator implement /path/
 - Битый JSON оверлея — ошибка при запуске с указанием пути к файлу оверлея.
 - **Отсутствие файла оверлея — byte-stable**: для проекта без него поведение не меняется ни на байт.
 
-Оверлей оркестратора живёт в собственном `orchestrator.json` внутри `.ai-factory/` проекта — его не следует путать с `.ai-factory/config.yaml`, конфигом AI-Factory (другого инструмента).
+Оверлей оркестратора живёт в собственном `orchestrator.json` внутри `.ai-factory/` проекта.
 
 ## Модели агентов
 
