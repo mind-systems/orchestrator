@@ -63,16 +63,28 @@ def test_validate_empty_string_returns_empty(tmp_path):
     assert _call("", prd, art) == ""
 
 
-def test_validate_planned_returns_planned(tmp_path):
-    """Should return 'planned' when step_value is 'planned'."""
+def test_validate_planned_n_returns_planned_n(tmp_path):
+    """Should return 'planned:2' when step_value is 'planned:2'."""
     prd, art = _dirs(tmp_path)
-    assert _call("planned", prd, art) == "planned"
+    assert _call("planned:2", prd, art) == "planned:2"
 
 
-def test_validate_implemented_returns_implemented(tmp_path):
-    """Should return 'implemented' when step_value is 'implemented'."""
+def test_validate_implemented_n_returns_implemented_n(tmp_path):
+    """Should return 'implemented:2' when step_value is 'implemented:2'."""
     prd, art = _dirs(tmp_path)
-    assert _call("implemented", prd, art) == "implemented"
+    assert _call("implemented:2", prd, art) == "implemented:2"
+
+
+def test_validate_planned_malformed_n_returns_empty(tmp_path):
+    """Should return '' when step_value is 'planned:abc' (malformed N clears the marker)."""
+    prd, art = _dirs(tmp_path)
+    assert _call("planned:abc", prd, art) == ""
+
+
+def test_validate_implemented_malformed_n_returns_empty(tmp_path):
+    """Should return '' when step_value is 'implemented:abc' (malformed N clears the marker)."""
+    prd, art = _dirs(tmp_path)
+    assert _call("implemented:abc", prd, art) == ""
 
 
 def test_validate_unknown_value_passthrough(tmp_path):
@@ -261,11 +273,11 @@ def test_detect_task_step_no_plan_file_returns_plan(tmp_path):
     assert returned_path == plan_path
 
 
-def test_detect_task_step_sidecar_planned_returns_plan_review(tmp_path):
-    """Should return ("plan_review", 1, plan_path) when sidecar step is "planned"."""
+def test_detect_task_step_sidecar_planned_1_returns_plan_review_1(tmp_path):
+    """Should return ("plan_review", 1, plan_path) when sidecar step is "planned:1"."""
     prd, rv, plan_path = _dms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
-    plan_path.with_suffix(".json").write_text(json.dumps({"step": "planned"}))
+    plan_path.with_suffix(".json").write_text(json.dumps({"step": "planned:1"}))
     step, counter, returned_path = _detect_task_step(
         tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
     )
@@ -274,16 +286,42 @@ def test_detect_task_step_sidecar_planned_returns_plan_review(tmp_path):
     assert returned_path == plan_path
 
 
-def test_detect_task_step_sidecar_implemented_returns_review(tmp_path):
-    """Should return ("review", 1, plan_path) when sidecar step is "implemented"."""
+def test_detect_task_step_sidecar_planned_2_returns_plan_review_2(tmp_path):
+    """Should return ("plan_review", 2, plan_path) when sidecar step is "planned:2"."""
     prd, rv, plan_path = _dms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
-    plan_path.with_suffix(".json").write_text(json.dumps({"step": "implemented"}))
+    plan_path.with_suffix(".json").write_text(json.dumps({"step": "planned:2"}))
+    step, counter, returned_path = _detect_task_step(
+        tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
+    )
+    assert step == "plan_review"
+    assert counter == 2
+    assert returned_path == plan_path
+
+
+def test_detect_task_step_sidecar_implemented_1_returns_review_1(tmp_path):
+    """Should return ("review", 1, plan_path) when sidecar step is "implemented:1"."""
+    prd, rv, plan_path = _dms_dirs(tmp_path)
+    plan_path.write_text("# Plan content")
+    plan_path.with_suffix(".json").write_text(json.dumps({"step": "implemented:1"}))
     step, counter, returned_path = _detect_task_step(
         tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
     )
     assert step == "review"
     assert counter == 1
+    assert returned_path == plan_path
+
+
+def test_detect_task_step_sidecar_implemented_3_returns_review_3(tmp_path):
+    """Should return ("review", 3, plan_path) when sidecar step is "implemented:3"."""
+    prd, rv, plan_path = _dms_dirs(tmp_path)
+    plan_path.write_text("# Plan content")
+    plan_path.with_suffix(".json").write_text(json.dumps({"step": "implemented:3"}))
+    step, counter, returned_path = _detect_task_step(
+        tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
+    )
+    assert step == "review"
+    assert counter == 3
     assert returned_path == plan_path
 
 
@@ -639,16 +677,16 @@ def test_detect_test_task_step_sidecar_plan_reviewed_returns_implement(tmp_path)
     assert returned_path == plan_path
 
 
-def test_detect_test_task_step_sidecar_implemented_returns_test_run(tmp_path):
-    """Should return ("test_run", 1, plan_path) when sidecar step is "implemented"."""
+def test_detect_test_task_step_sidecar_implemented_2_returns_test_run_2(tmp_path):
+    """Should return ("test_run", 2, plan_path) when sidecar step is "implemented:2"."""
     prd, trd, plan_path = _dtms_dirs(tmp_path)
     plan_path.write_text("# Plan content")
-    plan_path.with_suffix(".json").write_text(json.dumps({"step": "implemented"}))
+    plan_path.with_suffix(".json").write_text(json.dumps({"step": "implemented:2"}))
     step, counter, returned_path = _detect_test_task_step(
         tmp_path, DTMS_SEQ, DTMS_SLUG, plan_path, prd, trd
     )
     assert step == "test_run"
-    assert counter == 1
+    assert counter == 2
     assert returned_path == plan_path
 
 
