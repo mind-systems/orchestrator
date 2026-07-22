@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from orchestrator import agents, state
-from orchestrator.agents import _has_signal, _read_sessions, _write_session, kill_active_child, TestRunner
+from orchestrator.agents import _classify_result, _has_signal, _read_sessions, _write_session, kill_active_child, TestRunner
 
 
 # ---------------------------------------------------------------------------
@@ -522,3 +522,43 @@ def test_kill_active_child_falls_back_to_kill_on_killpg_failure(monkeypatch, cle
     kill_active_child()
     assert fake.killed is True
     assert state.active_proc is None
+
+
+# ---------------------------------------------------------------------------
+# --- _classify_result ---
+# ---------------------------------------------------------------------------
+#
+# Red against the NotImplementedError stub — these pin the decision-table
+# contract that a follow-up task fills in; they turn green once the body is
+# implemented.
+# ---------------------------------------------------------------------------
+
+
+def test_classify_result_network_death_retry_left():
+    """Row 2: no result event, nonzero returncode, retries remain -> retry."""
+    assert _classify_result({}, "", 1, False, 1, 3) == "retry"
+
+
+def test_classify_result_network_death_exhausted():
+    """Row 3: no result event, nonzero returncode, retries exhausted -> network_halt."""
+    assert _classify_result({}, "", 1, False, 3, 3) == "network_halt"
+
+
+def test_classify_result_overloaded_retry_left():
+    """Row 1: overloaded/529 signal in result_text, retries remain -> retry."""
+    assert _classify_result({"result": "overloaded"}, "overloaded", 0, False, 1, 3) == "retry"
+
+
+def test_classify_result_real_cli_error():
+    """Row 5: nonzero returncode with no rate-limit signal -> error."""
+    assert _classify_result({"result": "boom"}, "boom", 1, False, 3, 3) == "error"
+
+
+def test_classify_result_rate_limit_via_returncode():
+    """Row 4: nonzero returncode with a rate-limit signal -> ratelimit."""
+    assert _classify_result({"result": "You hit your limit"}, "You hit your limit", 1, False, 3, 3) == "ratelimit"
+
+
+def test_classify_result_clean_success():
+    """Row 8: zero returncode, no error -> ok."""
+    assert _classify_result({"result": "done", "is_error": False}, "done", 0, False, 1, 3) == "ok"

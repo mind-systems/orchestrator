@@ -66,12 +66,34 @@ def _write_session(plan_path: Path, key: str, value: str) -> None:
     os.replace(tmp, p)
 
 
+def _classify_result(parsed_final: dict, result_text: str, returncode: int,
+                     is_error: bool, attempt: int, max_retries: int) -> str:
+    """Classify a finished Claude CLI invocation into the terminal action
+    `_run_claude` should take.
+
+    Returns one of the literals `"retry" | "ratelimit" | "network_halt" |
+    "error" | "ok"`. `no_result = not parsed_final` means the CLI exited
+    before emitting any `result` event — an infra/network death, not a task
+    outcome — as opposed to a result-bearing nonzero exit or an `is_error`
+    result, which are task-level outcomes.
+
+    Stub: the decision table is filled in a follow-up task; this always
+    raises.
+    """
+    raise NotImplementedError
+
+
 class HaltError(Exception):
     """An operational halt that is not a task failure — 🟡."""
 
 
 class RateLimitError(HaltError):
     """Raised when the Claude API rate limit / daily quota is exhausted."""
+
+
+class NetworkError(HaltError):
+    """Raised when the Claude CLI dies before emitting any `result` event
+    (transient network/infra death) and retries are exhausted."""
 
 
 class PipelineStopError(Exception):
