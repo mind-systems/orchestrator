@@ -274,7 +274,7 @@ def process_task(project_dir: Path, task, task_index: int, config: OrchestratorC
             return planner_reviewer.session_id
 
         step = "plan_review"
-        _write_session(plan_path, "step", "planned")
+        _write_session(plan_path, "step", f"planned:{counter}")
         _write_session(plan_path, "elapsed", str(int(time.monotonic() - task_start)))
 
     # Step 1.5: Iterative plan review
@@ -303,6 +303,7 @@ def process_task(project_dir: Path, task, task_index: int, config: OrchestratorC
                 task.title, task.description, plan_path,
                 plan_review_path=plan_review_path,
             )
+            _write_session(plan_path, "step", f"planned:{attempt + 1}")
 
     # Safety guard: ensure a passing plan review exists before implementing
     _plan_review_files = sorted(plan_reviews_dir.glob(f"{seq}-{task.slug}-plan-review-*.md"))
@@ -326,7 +327,7 @@ def process_task(project_dir: Path, task, task_index: int, config: OrchestratorC
             print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
             feedback_path = output_dir / f"{seq}-{task.slug}{mode.output_suffix.format(n=iteration - 1)}" if iteration > 1 else None
             implementer.implement(plan_path, feedback_path=feedback_path, roadmap_path=roadmap_path, line_number=task.line_number)
-            _write_session(plan_path, "step", "implemented")
+            _write_session(plan_path, "step", f"implemented:{iteration}")
             _write_session(plan_path, "elapsed", str(int(time.monotonic() - task_start)))
 
         print(f"\n>>> {mode.verify_running_header} (iteration {iteration})...")

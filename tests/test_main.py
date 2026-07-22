@@ -1163,7 +1163,7 @@ def test_detect_task_step_subdird_dirs_dispatches_same_as_flat(tmp_path):
     reviews_dir.mkdir(parents=True)
     plan_path = plans_dir / f"{DMS_SEQ}-{DMS_SLUG}.md"
     plan_path.write_text("# Plan content")
-    plan_path.with_suffix(".json").write_text(json.dumps({"step": "implemented"}))
+    plan_path.with_suffix(".json").write_text(json.dumps({"step": "implemented:1"}))
     step, counter, returned_path = _detect_task_step(
         tmp_path, DMS_SEQ, DMS_SLUG, plan_path, plan_reviews_dir, reviews_dir
     )

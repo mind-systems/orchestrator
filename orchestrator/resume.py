@@ -23,12 +23,17 @@ def _validate_sidecar_step(
     - plan_review_failed:N and the corresponding plan-review file is missing.
     - plan_reviewed and no plan-review file ends with PLAN_REVIEW_PASS.
     - <fail_prefix>N and the corresponding artifact (artifact_dir / seq-slug<fail_suffix>) is missing.
-    "planned" and "implemented" have no artifact reference and are always valid.
+    planned:N and implemented:N are structurally valid whenever N parses as an integer — they
+    carry no artifact reference to check against disk.
     Malformed :N parses also clear step_value so execution falls through to the heuristic.
     """
     if not step_value:
         return step_value
-    if step_value in ("planned", "implemented"):
+    if step_value.startswith("planned:") or step_value.startswith("implemented:"):
+        try:
+            int(step_value.split(":")[1])
+        except (IndexError, ValueError):
+            return ""
         return step_value
     if step_value.startswith("plan_review_failed:"):
         try:
@@ -119,15 +124,17 @@ def _detect_step(
         verify_fail_tag, output_suffix,
     )
     if step_value:
-        if step_value == "planned":
-            return ("plan_review", 1, plan_path)
+        if step_value.startswith("planned:"):
+            n = int(step_value.split(":")[1])
+            return ("plan_review", n, plan_path)
         elif step_value.startswith("plan_review_failed:"):
             n = int(step_value.split(":")[1])
             return ("plan", n + 1, plan_path)
         elif step_value == "plan_reviewed":
             return ("implement", 1, plan_path)
-        elif step_value == "implemented":
-            return (verify_step, 1, plan_path)
+        elif step_value.startswith("implemented:"):
+            n = int(step_value.split(":")[1])
+            return (verify_step, n, plan_path)
         elif step_value.startswith(verify_fail_tag):
             n = int(step_value.split(":")[1])
             return ("implement", n + 1, plan_path)
