@@ -77,10 +77,24 @@ def _classify_result(parsed_final: dict, result_text: str, returncode: int,
     outcome — as opposed to a result-bearing nonzero exit or an `is_error`
     result, which are task-level outcomes.
 
-    Stub: the decision table is filled in a follow-up task; this always
-    raises.
     """
-    raise NotImplementedError
+    no_result = not parsed_final
+
+    if ("overloaded" in result_text.lower() or "529" in result_text) and attempt < max_retries:
+        return "retry"
+    if no_result and returncode != 0 and attempt < max_retries:
+        return "retry"
+    if no_result and returncode != 0:
+        return "network_halt"
+    if returncode != 0 and ("hit your limit" in result_text.lower() or "resets" in result_text.lower()):
+        return "ratelimit"
+    if returncode != 0:
+        return "error"
+    if is_error and ("hit your limit" in result_text.lower() or "resets" in result_text.lower()):
+        return "ratelimit"
+    if is_error:
+        return "error"
+    return "ok"
 
 
 class HaltError(Exception):
@@ -251,33 +265,38 @@ def _run_claude(
         result_text = parsed_final.get("result", "")
         is_error = parsed_final.get("is_error", False)
 
-        # Check for retryable errors (overloaded, rate limit)
-        retryable = (
-            "overloaded" in result_text.lower() or "529" in result_text
-        ) and attempt < MAX_RETRIES
+        verdict = _classify_result(parsed_final, result_text, proc.returncode, is_error, attempt, MAX_RETRIES)
 
-        if retryable:
-            print(f">>> API overloaded, retrying in {RETRY_DELAY}s (attempt {attempt}/{MAX_RETRIES})...")
+        if verdict == "retry":
+            if not parsed_final:
+                print(f">>> Network error / no result event, retrying in {RETRY_DELAY}s (attempt {attempt}/{MAX_RETRIES})...")
+            else:
+                print(f">>> API overloaded, retrying in {RETRY_DELAY}s (attempt {attempt}/{MAX_RETRIES})...")
             time.sleep(RETRY_DELAY)
             continue
 
-        if proc.returncode != 0:
-            if "hit your limit" in result_text.lower() or "resets" in result_text.lower():
-                raise RateLimitError(result_text)
-            raise RuntimeError(
-                f"Claude CLI failed with exit code {proc.returncode}\n"
+        if verdict == "network_halt":
+            raise NetworkError(
+                f"Claude CLI died with no result event, exit code {proc.returncode}\n"
                 f"stdout: {stdout if stdout else '(empty)'}"
             )
 
+        if verdict == "ratelimit":
+            raise RateLimitError(result_text)
+
+        if verdict == "error":
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    f"Claude CLI failed with exit code {proc.returncode}\n"
+                    f"stdout: {stdout if stdout else '(empty)'}"
+                )
+            raise RuntimeError(f"Claude returned error: {result_text[:500]}")
+
+        # verdict == "ok"
         if not lines:
             raise RuntimeError(
                 "Claude CLI exited 0 but stdout is empty"
             )
-
-        if is_error:
-            if "hit your limit" in result_text.lower() or "resets" in result_text.lower():
-                raise RateLimitError(result_text)
-            raise RuntimeError(f"Claude returned error: {result_text[:500]}")
 
         sid = parsed_final.get("session_id", sid_seen)
         if not sid_seen:
