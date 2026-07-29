@@ -105,7 +105,7 @@ After all tasks are done:
 - Add tasks not in the plan
 - Mark incomplete tasks as done
 - Violate `.ai-factory/ARCHITECTURE.md` conventions for file placement and module boundaries
-- Cite the plan layer in durable code/test comments — no `Phase N`, no note number, no `ROADMAP`/`Plan` reference, no `.ai-factory/` path; explain the behavior self-contained, or link a file under `docs/` (the only reference target allowed in code)
+- Cite the plan layer in durable code/test comments, docstrings, or module headers — no `Phase N`, no `Task N`/`task N.M`, no note number, no `ROADMAP`/`Plan` reference, no `.ai-factory/` path; explain the behavior self-contained, or link a file under `docs/` (the only reference target allowed in code)
 
 ### Ground truth over the plan
 
@@ -125,5 +125,5 @@ Both annotations ride the plan file — no new files, no interactive prompts. Th
 4. **ONE task at a time** - focus on current task only
 5. **If a build fails** — fix it before proceeding to the next task
 6. **Ground truth wins over the plan** — implement a stale/wrong plan detail per the file and flag it with `DEVIATION: <plan said / file showed / done>`; on a missing decision, mark the task `BLOCKED: <the missing decision>` and leave it unchecked rather than inventing.
-7. **NEVER cite the plan layer in code/test comments** — no `Phase N`, note number, `ROADMAP`/`Plan` reference, or `.ai-factory/` path; explain the behavior self-contained, or link a file under `docs/`
+7. **Label by behavior, never by plan coordinate** — no comment, docstring, or module header in code or tests carries `Phase N`, `Task N`/`task N.M`, a note number, a `ROADMAP`/`Plan` reference, or an `.ai-factory/` path. A test file's sections and docstrings are named by the behavior under test; the plan's `**Task N:**` headers are scaffolding for your own walk through the work, never content to transcribe. Explain the behavior self-contained, or link a file under `docs/`.
 8. **All output must be in English**

@@ -257,15 +257,14 @@ def test_resolve_claude_non_dir_entry_tolerated(monkeypatch, tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Task 5: RED case -- semver ordering (fixed in task 2.2)
+# _resolve_claude: semver-aware ordering of nvm version directories
 # ---------------------------------------------------------------------------
 
 
 def test_resolve_claude_semver_ordering_picks_true_latest(monkeypatch, tmp_path):
-    """The true-latest version (v20.11.0) should win over v9.0.0. Today's
-    `sorted(..., reverse=True)` compares directory names lexicographically,
-    so it picks v9.0.0 instead -- this assertion encodes the correct
-    behavior and is expected to fail until the sort is semver-aware."""
+    """The true-latest version wins over a lexicographically larger name:
+    v20.11.0 beats v9.0.0. A plain name sort would pick v9.0.0, so this pins
+    that the nvm directory pick compares version numbers, not strings."""
     fakehome = tmp_path / "fakehome"
     node_dir = fakehome / ".nvm" / "versions" / "node"
     _make_claude_bin(node_dir / "v9.0.0")
