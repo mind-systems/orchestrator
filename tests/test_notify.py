@@ -73,6 +73,14 @@ def test_unknown_alert_prefixed_green(sent):
     assert sent[0].startswith("🟢")
 
 
+def test_escalation_alert_prefixed_blue(sent):
+    """Should prefix the message with 🔵 for alert_type 'escalation' — a distinct tier from
+    the 🟢 default and the 🔴/🟡 failure/halt tiers."""
+    config = _config(["escalation"])
+    notify(config, "some message", "escalation")
+    assert sent[0].startswith("🔵")
+
+
 # ---------------------------------------------------------------------------
 # Task 2: Gating (silent no-op)
 # ---------------------------------------------------------------------------

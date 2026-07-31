@@ -17,6 +17,9 @@ _FAIL_ALERTS = {"task-fail"}
 # Alert types that report an operational stop — not a task failure.
 _HALT_ALERTS = {"stop"}
 
+# Alert types that report an escalation — a judgment the run cannot make on its own.
+_ESCALATION_ALERTS = {"escalation"}
+
 
 def notify(config: "OrchestratorConfig", text: str, alert_type: str) -> None:
     """Send a Telegram notification if alert_type is listed in config.telegram_alerts."""
@@ -24,7 +27,12 @@ def notify(config: "OrchestratorConfig", text: str, alert_type: str) -> None:
         return
     if not config.telegram_bot_token or not config.telegram_chat_id:
         return
-    emoji = "🔴" if alert_type in _FAIL_ALERTS else "🟡" if alert_type in _HALT_ALERTS else "🟢"
+    emoji = (
+        "🔴" if alert_type in _FAIL_ALERTS
+        else "🟡" if alert_type in _HALT_ALERTS
+        else "🔵" if alert_type in _ESCALATION_ALERTS
+        else "🟢"
+    )
     send_telegram(config.telegram_bot_token, config.telegram_chat_id, f"{emoji} {text}")
 
 

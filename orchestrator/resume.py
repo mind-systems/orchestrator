@@ -25,6 +25,7 @@ def _validate_sidecar_step(
     - <fail_prefix>N and the corresponding artifact (artifact_dir / seq-slug<fail_suffix>) is missing.
     planned:N and implemented:N are structurally valid whenever N parses as an integer — they
     carry no artifact reference to check against disk.
+    escalated is always valid — a terminal, unindexed step with no artifact to check against disk.
     Malformed :N parses also clear step_value so execution falls through to the heuristic.
     """
     if not step_value:
@@ -58,6 +59,8 @@ def _validate_sidecar_step(
         except (IndexError, ValueError):
             return ""
         return step_value
+    if step_value == "escalated":
+        return step_value
     # unrecognized → return as-is; dispatch will fall through to heuristic
     return step_value
 
@@ -88,7 +91,7 @@ def _detect_step(
 ) -> tuple[str, int, Path]:
     """Detect where a previous run stopped and return (step, counter, plan_path) to resume from.
 
-    Steps: "plan", "plan_review", "implement", <verify_step>, "done".
+    Steps: "plan", "plan_review", "implement", <verify_step>, "done", "escalated".
     Counter is the attempt/iteration number to use next.
     The returned plan_path is the canonical path discovered from the lowest-seq file matching
     the slug (handles the case where a previous run was interrupted and the current run computes
@@ -138,6 +141,8 @@ def _detect_step(
         elif step_value.startswith(verify_fail_tag):
             n = int(step_value.split(":")[1])
             return ("implement", n + 1, plan_path)
+        elif step_value == "escalated":
+            return ("escalated", 0, plan_path)
         # unrecognized → fall through to heuristic
 
     # 3. No plan-review files → need to do first plan review

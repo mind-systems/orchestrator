@@ -44,6 +44,29 @@ def _has_signal(text: str, signal: str) -> bool:
     return any(line.strip() == signal for line in text.splitlines()[-5:])
 
 
+def _has_escalation(text: str) -> bool:
+    """Return True if the ESCALATION marker appears as an exact line within the last 5 lines."""
+    return _has_signal(text, "ESCALATION")
+
+
+def _escalation_excerpt(text: str) -> str:
+    """Return the first non-empty, non-heading line under a `## Escalation` section.
+
+    Returns "" if the section is absent (placeholder for the sidecar summary)."""
+    in_section = False
+    for line in text.splitlines():
+        if line.strip() == "## Escalation":
+            in_section = True
+            continue
+        if in_section:
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                break
+            if stripped:
+                return stripped
+    return ""
+
+
 def _read_sessions(plan_path: Path) -> dict[str, str]:
     p = plan_path.with_suffix('.json')
     if not p.exists():
@@ -112,6 +135,13 @@ class NetworkError(HaltError):
 
 class PipelineStopError(Exception):
     """Raised to request a graceful halt of the pipeline."""
+
+
+class EscalationError(Exception):
+    """Raised when an agent cannot honestly produce its mandated output because
+    the missing decision is outside its authority — escalation, not halt.
+    A deliberate sibling of PipelineStopError, NOT a HaltError subclass: halt is
+    'not a task failure', escalation IS a judgment. Do not move it under HaltError."""
 
 
 def _sorted_nvm_node_dirs(dirs: list[Path]) -> list[Path]:
@@ -361,6 +391,12 @@ class PlannerReviewer:
         )
         _write_session(plan_path, "planner", self.session_id)
 
+        if plan_path.exists() and _has_escalation(plan_path.read_text()):
+            excerpt = _escalation_excerpt(plan_path.read_text())
+            _write_session(plan_path, "escalation", f"planner: {excerpt} ({plan_path})")
+            _write_session(plan_path, "step", "escalated")
+            raise EscalationError(f"{plan_path}: {excerpt}")
+
     def review(self, plan_path: Path, review_path: Path, prev_review_path: Path | None = None) -> bool:
         """Review code changes. Uses same session as planner for deep context."""
         if prev_review_path:
@@ -399,6 +435,14 @@ class PlannerReviewer:
             effort=self.effort,
         )
         _write_session(plan_path, "planner", self.session_id)
+
+        if review_path.exists():
+            review_text = review_path.read_text()
+            if _has_escalation(review_text):
+                excerpt = _escalation_excerpt(review_text)
+                _write_session(plan_path, "escalation", f"reviewer: {excerpt} ({review_path})")
+                _write_session(plan_path, "step", "escalated")
+                raise EscalationError(f"{review_path}: {excerpt}")
 
         # Check the review file, not the chat output — look for REVIEW_PASS on its own line
         if review_path.exists():
@@ -442,7 +486,13 @@ class PlanReviewer:
             effort=self.effort,
         )
         if review_path.exists():
-            return _has_signal(review_path.read_text(), "PLAN_REVIEW_PASS")
+            review_text = review_path.read_text()
+            if _has_escalation(review_text):
+                excerpt = _escalation_excerpt(review_text)
+                _write_session(plan_path, "escalation", f"plan-reviewer: {excerpt} ({review_path})")
+                _write_session(plan_path, "step", "escalated")
+                raise EscalationError(f"{review_path}: {excerpt}")
+            return _has_signal(review_text, "PLAN_REVIEW_PASS")
         return False
 
 
@@ -489,6 +539,12 @@ class Implementer:
             effort=self.effort,
         )
         _write_session(plan_path, "implementer", self.session_id)
+
+        if plan_path.exists() and _has_escalation(plan_path.read_text()):
+            excerpt = _escalation_excerpt(plan_path.read_text())
+            _write_session(plan_path, "escalation", f"implementer: {excerpt} ({plan_path})")
+            _write_session(plan_path, "step", "escalated")
+            raise EscalationError(f"{plan_path}: {excerpt}")
 
 
 class TestRunner:

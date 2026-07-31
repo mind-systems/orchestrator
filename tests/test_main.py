@@ -10,7 +10,7 @@ from pathlib import Path
 from orchestrator import agents as agents_module
 from orchestrator import main as main_module
 from orchestrator import usage as usage_module
-from orchestrator.agents import HaltError, PipelineStopError, RateLimitError
+from orchestrator.agents import EscalationError, HaltError, PipelineStopError, RateLimitError
 from orchestrator.config import OrchestratorConfig
 from orchestrator.main import (
     _artifact_subdir,
@@ -151,6 +151,18 @@ def test_validate_review_failed_file_missing(tmp_path):
     """Should return '' when step_value is 'review_failed:1' but the review file is missing."""
     prd, art = _dirs(tmp_path)
     assert _call("review_failed:1", prd, art) == ""
+
+
+# ---------------------------------------------------------------------------
+# Task 5: escalated is always valid — a terminal, unindexed step
+# ---------------------------------------------------------------------------
+
+
+def test_validate_escalated_always_valid(tmp_path):
+    """Should return 'escalated' as-is, with no artifact to check against disk."""
+    prd, art = _dirs(tmp_path)
+    assert _call("escalated", prd, art) == "escalated"
+
 
 # Production patterns verbatim from main.py
 SESSION_PATTERN = r"Current session:\s+(\d+(?:\.\d+)?)%"
@@ -350,6 +362,20 @@ def test_detect_task_step_sidecar_plan_review_failed_returns_plan(tmp_path):
     )
     assert step == "plan"
     assert counter == 3
+    assert returned_path == plan_path
+
+
+def test_detect_task_step_sidecar_escalated_returns_escalated(tmp_path):
+    """Should return ("escalated", 0, plan_path) when sidecar step is "escalated" — a
+    terminal, unindexed step that never falls through to the disk heuristic."""
+    prd, rv, plan_path = _dms_dirs(tmp_path)
+    plan_path.write_text("# Plan content")
+    plan_path.with_suffix(".json").write_text(json.dumps({"step": "escalated"}))
+    step, counter, returned_path = _detect_task_step(
+        tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
+    )
+    assert step == "escalated"
+    assert counter == 0
     assert returned_path == plan_path
 
 
@@ -932,6 +958,47 @@ def test_check_usage_limits_raises_halt_error_over_threshold(monkeypatch):
 
     HaltError = getattr(agents_module, "HaltError", None)
     assert HaltError is not None and isinstance(exc.value, HaltError)
+
+
+def test_process_task_escalated_sidecar_raises_without_constructing_agents(tmp_path, monkeypatch):
+    """Should raise EscalationError immediately, before constructing any agent
+    (PlannerReviewer/Implementer/PlanReviewer) and without calling mark_done/_git_commit,
+    when the sidecar step is "escalated" — a resumed-but-unresolved escalation must not
+    silently re-run past the decision it stopped for."""
+    prd, rv, plan_path = _dms_dirs(tmp_path)
+    plan_path.write_text("# Plan content")
+    plan_path.with_suffix(".json").write_text(
+        json.dumps({"step": "escalated", "escalation": "planner: pick A or B (01-slug.md)"})
+    )
+
+    def _fail_if_constructed(*args, **kwargs):
+        raise AssertionError("agent must not be constructed for an escalated task")
+
+    monkeypatch.setattr(main_module, "PlannerReviewer", _fail_if_constructed)
+    monkeypatch.setattr(main_module, "Implementer", _fail_if_constructed)
+    monkeypatch.setattr(main_module, "PlanReviewer", _fail_if_constructed)
+
+    def _fail_if_called(*args, **kwargs):
+        raise AssertionError("must not be called for an escalated task")
+
+    monkeypatch.setattr(main_module, "mark_done", _fail_if_called)
+    monkeypatch.setattr(main_module, "_git_commit", _fail_if_called)
+
+    config = OrchestratorConfig(
+        max_iterations=3,
+        usage_threshold_5h=90,
+        usage_threshold_weekly=95,
+        enable_phase_sessions=False,
+    )
+
+    class _TaskStub:
+        slug = DMS_SLUG
+        title = "Some task"
+        description = "Some description"
+        line_number = 0
+
+    with pytest.raises(EscalationError, match="pick A or B"):
+        process_task(tmp_path, _TaskStub(), 1, config)
 
 
 def test_process_task_resume_past_max_iterations_raises_halt_error(tmp_path):

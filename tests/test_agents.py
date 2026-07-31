@@ -10,7 +10,21 @@ from pathlib import Path
 import pytest
 
 from orchestrator import agents, state
-from orchestrator.agents import _classify_result, _has_signal, _read_sessions, _write_session, kill_active_child, TestRunner
+from orchestrator.agents import (
+    EscalationError,
+    HaltError,
+    Implementer,
+    PlanReviewer,
+    PlannerReviewer,
+    _classify_result,
+    _escalation_excerpt,
+    _has_escalation,
+    _has_signal,
+    _read_sessions,
+    _write_session,
+    kill_active_child,
+    TestRunner,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -561,3 +575,156 @@ def test_classify_result_rate_limit_via_returncode():
 def test_classify_result_clean_success():
     """Row 8: zero returncode, no error -> ok."""
     assert _classify_result({"result": "done", "is_error": False}, "done", 0, False, 1, 3) == "ok"
+
+
+# ---------------------------------------------------------------------------
+# --- EscalationError / _has_escalation / _escalation_excerpt ---
+# ---------------------------------------------------------------------------
+
+
+def test_escalation_error_is_not_a_halt_error():
+    """EscalationError must be a direct Exception subclass, a sibling of PipelineStopError,
+    never moved under HaltError by analogy with RateLimitError/NetworkError."""
+    assert not issubclass(EscalationError, HaltError)
+
+
+def test_has_escalation_on_last_line():
+    """The ESCALATION marker is detected via the same last-5-line exact-match rule as
+    REVIEW_PASS/PLAN_REVIEW_PASS."""
+    text = "some findings\n\n## Escalation\nDecide A or B.\n\nESCALATION"
+    assert _has_escalation(text) is True
+
+
+def test_has_escalation_absent():
+    """No marker present -> False."""
+    assert _has_escalation("some findings\n\nREVIEW_PASS") is False
+
+
+def test_escalation_excerpt_extracts_first_line_under_heading():
+    """Should return the first non-empty, non-heading line under `## Escalation`."""
+    text = "notes\n\n## Escalation\nThe missing decision is X.\nOption A\nOption B\n\nESCALATION"
+    assert _escalation_excerpt(text) == "The missing decision is X."
+
+
+def test_escalation_excerpt_absent_section_returns_empty():
+    """Should return "" when there is no `## Escalation` section."""
+    assert _escalation_excerpt("just some notes\n\nREVIEW_PASS") == ""
+
+
+# ---------------------------------------------------------------------------
+# --- ESCALATION detection wired into the four agent methods ---
+# ---------------------------------------------------------------------------
+
+
+def _stub_run_claude_writing(monkeypatch, write_path: Path, content: str):
+    """Monkeypatch agents._run_claude to write `content` to `write_path` (simulating the CLI
+    having used its Write tool) and return a fixed session id, without any real CLI call."""
+
+    def _fake(*args, **kwargs):
+        write_path.write_text(content)
+        return ("output text", "sid-1")
+
+    monkeypatch.setattr(agents, "_run_claude", _fake)
+
+
+ESCALATION_ARTIFACT = "Some notes\n\n## Escalation\nMissing decision: pick A or B.\n\nESCALATION"
+
+
+def test_plan_escalation_raises_and_writes_sidecar(tmp_path, monkeypatch):
+    """plan() raises EscalationError and the sidecar ends with step=escalated plus a
+    non-empty escalation summary when the written plan artifact ends with ESCALATION."""
+    plan_path = tmp_path / "01-slug.md"
+    _stub_run_claude_writing(monkeypatch, plan_path, ESCALATION_ARTIFACT)
+    pr = PlannerReviewer(tmp_path)
+
+    with pytest.raises(EscalationError):
+        pr.plan("Task title", "Task description", plan_path)
+
+    sessions = json.loads(plan_path.with_suffix(".json").read_text())
+    assert sessions["step"] == "escalated"
+    assert sessions["escalation"]
+
+
+def test_review_escalation_raises_before_review_pass_check(tmp_path, monkeypatch):
+    """review() raises EscalationError and writes the sidecar when the review artifact ends
+    with ESCALATION, without falling through to the REVIEW_PASS check."""
+    plan_path = tmp_path / "01-slug.md"
+    plan_path.write_text("# Plan")
+    review_path = tmp_path / "01-slug-review-1.md"
+    _stub_run_claude_writing(monkeypatch, review_path, ESCALATION_ARTIFACT)
+    pr = PlannerReviewer(tmp_path)
+
+    with pytest.raises(EscalationError):
+        pr.review(plan_path, review_path)
+
+    sessions = json.loads(plan_path.with_suffix(".json").read_text())
+    assert sessions["step"] == "escalated"
+    assert sessions["escalation"]
+
+
+def test_review_plan_escalation_raises_and_writes_sidecar(tmp_path, monkeypatch):
+    """review_plan() raises EscalationError and writes the sidecar when the plan-review
+    artifact ends with ESCALATION, without falling through to the PLAN_REVIEW_PASS check."""
+    plan_path = tmp_path / "01-slug.md"
+    plan_path.write_text("# Plan")
+    review_path = tmp_path / "01-slug-plan-review-1.md"
+    _stub_run_claude_writing(monkeypatch, review_path, ESCALATION_ARTIFACT)
+    reviewer = PlanReviewer(tmp_path)
+
+    with pytest.raises(EscalationError):
+        reviewer.review_plan(plan_path, review_path)
+
+    sessions = json.loads(plan_path.with_suffix(".json").read_text())
+    assert sessions["step"] == "escalated"
+    assert sessions["escalation"]
+
+
+def test_implement_escalation_raises_and_writes_sidecar(tmp_path, monkeypatch):
+    """implement() raises EscalationError and writes the sidecar when the plan artifact it
+    owns ends with ESCALATION."""
+    plan_path = tmp_path / "01-slug.md"
+    _stub_run_claude_writing(monkeypatch, plan_path, ESCALATION_ARTIFACT)
+    impl = Implementer(tmp_path)
+
+    with pytest.raises(EscalationError):
+        impl.implement(plan_path)
+
+    sessions = json.loads(plan_path.with_suffix(".json").read_text())
+    assert sessions["step"] == "escalated"
+    assert sessions["escalation"]
+
+
+# ---------------------------------------------------------------------------
+# Regression: REVIEW_PASS/PLAN_REVIEW_PASS with no ESCALATION behaves as before
+# ---------------------------------------------------------------------------
+
+
+def test_review_regression_no_escalation_returns_bool(tmp_path, monkeypatch):
+    """An artifact ending with REVIEW_PASS and no ESCALATION line returns True, with no
+    raise and no 'escalated' sidecar."""
+    plan_path = tmp_path / "01-slug.md"
+    plan_path.write_text("# Plan")
+    review_path = tmp_path / "01-slug-review-1.md"
+    _stub_run_claude_writing(monkeypatch, review_path, "All good\n\nREVIEW_PASS")
+    pr = PlannerReviewer(tmp_path)
+
+    assert pr.review(plan_path, review_path) is True
+
+    sessions = json.loads(plan_path.with_suffix(".json").read_text())
+    assert sessions.get("step") != "escalated"
+    assert "escalation" not in sessions
+
+
+def test_review_plan_regression_no_escalation_returns_bool(tmp_path, monkeypatch):
+    """An artifact ending with PLAN_REVIEW_PASS and no ESCALATION line returns True, with
+    no raise and no sidecar written at all (review_plan() writes no sidecar on the non-
+    escalation path, same as before this change)."""
+    plan_path = tmp_path / "01-slug.md"
+    plan_path.write_text("# Plan")
+    review_path = tmp_path / "01-slug-plan-review-1.md"
+    _stub_run_claude_writing(monkeypatch, review_path, "All good\n\nPLAN_REVIEW_PASS")
+    reviewer = PlanReviewer(tmp_path)
+
+    assert reviewer.review_plan(plan_path, review_path) is True
+
+    assert not plan_path.with_suffix(".json").exists()

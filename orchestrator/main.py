@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 from typing import NamedTuple
 
-from .agents import HaltError, Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, TestRunner, _read_sessions, _write_session
+from .agents import EscalationError, HaltError, Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, TestRunner, _read_sessions, _write_session
 from .config import OrchestratorConfig, load_config
 from .notify import notify
 from .resume import _detect_step
@@ -232,6 +232,9 @@ def process_task(project_dir: Path, task, task_index: int, config: OrchestratorC
 
     if step != "plan":
         print(f">>> Resuming from step '{step}' (counter={counter})")
+
+    if step == "escalated":
+        raise EscalationError(sessions.get("escalation", "(no escalation detail recorded)"))
 
     if step == "done":
         elapsed = int(time.monotonic() - task_start)
@@ -511,6 +514,13 @@ def cli() -> None:
         print(f"{'='*60}")
         msg = str(e).splitlines()[0]
         notify(config, f"Orchestrator halted: {project_dir.name}\n{msg}\n{_run_summary()}", "stop")
+        sys.exit(0)
+    except EscalationError as e:
+        print(f"\n{'='*60}")
+        print(f"ESCALATED — {e}")
+        print(f"{'='*60}")
+        msg = str(e).splitlines()[0]
+        notify(config, f"Orchestrator escalated: {project_dir.name}\n{msg}\n{_run_summary()}", "escalation")
         sys.exit(0)
     except Exception as e:
         notify(
