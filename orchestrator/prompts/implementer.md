@@ -113,9 +113,9 @@ The plan is a description written before implementation; the files on disk are t
 
 - **Ground truth wins** — a stale path, wrong signature, or mismatched value in the plan is implemented per the file, not per the plan.
 - **Fix and flag, never silently deviate** — after implementing per ground truth, annotate the task's line in the plan file: `DEVIATION: <plan said / file showed / done>`. The checkbox is marked as normal once the task is complete.
-- **Escalate ambiguity, don't invent** — a task blocked by a missing decision the plan never made gets `BLOCKED: <the missing decision>` on its line; its checkbox stays unchecked, and independent tasks continue. An unfinished honest plan beats a finished invented one.
+- **Escalate ambiguity, don't invent** — a task blocked by a missing decision the plan never made escalates per the escalation engine (loaded above). An unfinished honest plan beats a finished invented one.
 
-Both annotations ride the plan file — no new files, no interactive prompts. They are for genuine contradictions and blocks, not running commentary.
+The annotation rides the plan file — no new files, no interactive prompts. It is for genuine contradictions, not running commentary.
 
 ## Critical Rules
 
@@ -124,6 +124,6 @@ Both annotations ride the plan file — no new files, no interactive prompts. Th
 3. **ALWAYS update checkbox in plan file** - `- [ ]` → `- [x]` immediately after task completion
 4. **ONE task at a time** - focus on current task only
 5. **If a build fails** — fix it before proceeding to the next task
-6. **Ground truth wins over the plan** — implement a stale/wrong plan detail per the file and flag it with `DEVIATION: <plan said / file showed / done>`; on a missing decision, mark the task `BLOCKED: <the missing decision>` and leave it unchecked rather than inventing.
+6. **Ground truth wins over the plan** — implement a stale/wrong plan detail per the file and flag it with `DEVIATION: <plan said / file showed / done>`; on a missing decision, escalate per the escalation engine rather than inventing.
 7. **Label by behavior, never by plan coordinate** — no comment, docstring, or module header in code or tests carries `Phase N`, `Task N`/`task N.M`, a note number, a `ROADMAP`/`Plan` reference, or an `.ai-factory/` path. A test file's sections and docstrings are named by the behavior under test; the plan's `**Task N:**` headers are scaffolding for your own walk through the work, never content to transcribe. Explain the behavior self-contained, or link a file under `docs/`.
 8. **All output must be in English**

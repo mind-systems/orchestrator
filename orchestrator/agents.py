@@ -324,7 +324,8 @@ class PlannerReviewer:
         self.project_dir = project_dir
         self.planner_prompt = _load_prompt(planner_prompt_name)
         self.reviewer_prompt = _load_prompt("reviewer")
-        self.system_prompt = self.planner_prompt + "\n\n---\n\n" + self.reviewer_prompt
+        self.escalation_prompt = _load_prompt("escalation")
+        self.system_prompt = self.planner_prompt + "\n\n---\n\n" + self.reviewer_prompt + "\n\n---\n\n" + self.escalation_prompt
         self.session_id: str | None = None
         self.tools = ["Read", "Write", "Glob", "Grep", "Bash"]
         self.model = model
@@ -415,7 +416,7 @@ class PlanReviewer:
         effort: str = "high",
     ):
         self.project_dir = project_dir
-        self.system_prompt = _load_prompt("reviewer")
+        self.system_prompt = _load_prompt("reviewer") + "\n\n---\n\n" + _load_prompt("escalation")
         self.tools = ["Read", "Write", "Glob", "Grep", "Bash"]
         self.model = model
         self.effort = effort
@@ -455,7 +456,7 @@ class Implementer:
         effort: str = "high",
     ):
         self.project_dir = project_dir
-        self.system_prompt = _load_prompt("implementer")
+        self.system_prompt = _load_prompt("implementer") + "\n\n---\n\n" + _load_prompt("escalation")
         self.session_id: str | None = None
         self.tools = ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
         self.model = model
