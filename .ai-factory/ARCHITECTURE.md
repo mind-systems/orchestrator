@@ -31,6 +31,7 @@ orchestrator/
 │       ├── planner.md
 │       ├── reviewer.md
 │       ├── implementer.md
+│       ├── escalation.md
 │       └── test-planner.md
 ├── .ai-factory/         # AI context (not source code)
 ├── docs/
@@ -43,7 +44,7 @@ orchestrator/
 Direction: `main.py` → agents / support modules → `roadmap.py`, `state.py`
 
 - ✅ `main.py` imports from `agents.py`, `roadmap.py`, and the support modules (`config`, `usage`, `resume`, `runtime`, `notify`)
-- ✅ `agents.py` imports from `roadmap.py` (`_read_sessions`, `_write_session` only)
+- ✅ `agents.py` does not import from `roadmap.py` — the sidecar helpers (`_read_sessions`, `_write_session`) are defined natively in `agents.py`, not imported from anywhere
 - ✅ support modules import downward only — `usage`→`config`; `resume`→`agents` (`_read_sessions`); `runtime`→`state`, `notify`, `agents` (`kill_active_child`); none import `main.py`
 - ❌ `roadmap.py` must NOT import from `agents.py` or `main.py`
 - ❌ `agents.py` must NOT import from `main.py`
@@ -63,7 +64,7 @@ Direction: `main.py` → agents / support modules → `roadmap.py`, `state.py`
 
 1. **Agents communicate through files only** — no in-memory data passing between agents
 2. **Sidecar is isolated** — `_read_sessions`/`_write_session` live in `agents.py` only
-3. **Signals via last line of file** — `PLAN_REVIEW_PASS`, `REVIEW_PASS` — not via agent return values
+3. **Signals via last line of file** — `PLAN_REVIEW_PASS`, `REVIEW_PASS`, `ESCALATION` — not via agent return values
 4. **One class per agent type** — `PlannerReviewer`, `PlanReviewer`, `Implementer`, `TestRunner` are never mixed
 
 ## Code Examples
@@ -76,7 +77,8 @@ from .agents import PlannerReviewer, Implementer  # ✅ import down
 from .roadmap import parse_roadmap, mark_done      # ✅ import down
 
 # agents.py — agents (middle layer)
-from .roadmap import _read_sessions, _write_session  # ✅ import down
+from . import state  # ✅ import down (state.py may be imported from any layer)
+# _read_sessions/_write_session are defined here natively — no import from roadmap.py
 
 # roadmap.py — infrastructure (bottom layer)
 # no imports from agents or main ✅

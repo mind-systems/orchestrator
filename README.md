@@ -16,7 +16,7 @@ uv run orchestrator implement /path/to/project
 
 An installed and authorized [Claude Code](https://claude.ai/code) CLI is required.
 
-**Fill in `orchestrator.json`** with the user (the file holds secrets and is not committed): `roadmap_path` — which roadmap to run (empty = the default `ROADMAP.md`); optionally `telegram_bot_token`, `telegram_chat_id`, `telegram_alerts` for Telegram alerts. Any key can be overridden per project in `<project>/.ai-factory/orchestrator.json` (see [docs/configuration.md](docs/configuration.md)).
+**Fill in `orchestrator.json`** with the user (the file holds secrets and is not committed): `roadmap_path` — which roadmap to run (empty = the default `ROADMAP.md`); optionally `telegram_bot_token`, `telegram_chat_id`, `telegram_alerts` for Telegram alerts. Any key can be overridden per project in `<project>/.ai-factory/orchestrator.json` (see [docs/configuration.md](docs/reference/configuration.md)).
 
 ### Claude Code permissions
 

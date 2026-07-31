@@ -1,71 +1,71 @@
-# Рабочий процесс
+# Workflow
 
-Оркестратор — это исполнитель, а не планировщик. Прежде чем запустить его, роадмап должен быть готов: задачи атомарны, описаны точно, и сгруппированы в правильном порядке. Этот документ описывает устоявшийся паттерн работы от пустого роадмапа до почищенного ARCHITECTURE.md.
+The orchestrator is an executor, not a planner. Before running it, the roadmap must be ready: tasks are atomic, described precisely, and grouped in the right order. This document describes the established working pattern from an empty roadmap to a pruned `ARCHITECTURE.md`.
 
-## Фазы
+## Phases
 
-### 1. Наполнение роадмапа
+### 1. Filling the roadmap
 
-Работа начинается с диалога в Claude Code: `/roadmap-outline` исследует кодовую базу и обсуждает что нужно сделать. Из обсуждения появляются задачи-кандидаты.
+Work starts with a dialogue in Claude Code: `/roadmap-outline` explores the codebase and discusses what needs to be done. Candidate tasks emerge from the discussion.
 
-`/roadmap-decompose` берёт эти задачи и декомпозирует их до атомарного уровня — каждый task должен делать одну вещь и описывать её достаточно точно, чтобы Planner не угадывал намерения. Цикл `/roadmap-outline` → `/roadmap-decompose` повторяется несколько раз, пока задачи не становятся атомарными и самодостаточными.
+`/roadmap-decompose` takes these tasks and decomposes them to an atomic level — each task should do one thing and describe it precisely enough that the planner does not have to guess intent. The `/roadmap-outline` → `/roadmap-decompose` cycle repeats a few times, until the tasks are atomic and self-contained.
 
-Хороший task выглядит так:
+A good task looks like this:
 
 ```
-- [ ] **Название** — конкретное описание с именами файлов, типов, поведения.
-  Чем больше деталей — тем точнее план.
+- [ ] **Name** — a specific description with file names, types, behavior.
+  More detail means a more precise plan.
 ```
 
-### 2. Implement-флоу
+### 2. The implement flow
 
-Когда роадмап готов:
+Once the roadmap is ready:
 
 ```bash
 uv run orchestrator implement /path/to/project
 ```
 
-Оркестратор обрабатывает task-и по одному: план → ревью плана → имплементация → код-ревью → коммит. После каждого task задача помечается `[x]`.
+The orchestrator processes tasks one at a time: plan → plan review → implementation → code review → commit. Each task is marked `[x]` after it completes.
 
-Если подпись ревьюера не появилась за лимит итераций, оркестратор останавливается с артефактами на диске — что это значит и как разбирать, описано в [Когда цикл не сходится](non-convergence.md).
+If the reviewer's signature does not appear within the iteration limit, the orchestrator stops with artifacts left on disk — what that means and how to work through it is described in [non-convergence.md](concepts/non-convergence.md).
 
-### 3. Тест-покрытие
+### 3. Test coverage
 
-После накопления достаточного числа выполненных task-ов стоит разобраться с тестами. `/roadmap-test-coverage` исследует кодовую базу и выявляет что стоит покрыть — какие файлы, классы, поведения.
+Once enough tasks have accumulated, it is worth addressing test coverage. `/roadmap-test-coverage` explores the codebase and identifies what is worth covering — which files, classes, behaviors.
 
-`/roadmap-decompose` в режиме тестов записывает тест-задачи в `ROADMAP_TESTS.md` — отдельный файл, который не засоряет основной роадмап.
+`/roadmap-decompose` in test mode writes test tasks into `ROADMAP_TESTS.md` — a separate file that does not clutter the main roadmap.
 
-Дальше:
+Then:
 
 ```bash
 uv run orchestrator test /path/to/project
 ```
 
-В отличие от implement-флоу, финальная проверка — реальный запуск тестов, а не LLM-ревью. Тесты либо проходят, либо нет.
+See [test-mode.md](features/test-mode.md) for what makes this final check different from the implement flow.
 
-### 4. Прунинг роадмапа
+### 4. Pruning the roadmap
 
-Когда в роадмапе накапливается много выполненных `[x]` задач, `/roadmap-prune` группирует их в именованные фичи, записывает саммари в ARCHITECTURE.md с привязкой к коммит-хешам, и удаляет выполненные задачи из роадмапа.
+Once the roadmap accumulates many completed `[x]` tasks, `/roadmap-prune` groups them into named features, records a summary in `ARCHITECTURE.md` anchored to commit hashes, and deletes the completed tasks from the roadmap.
 
-После прунинга роадмап снова короткий — только pending-задачи.
+After pruning, the roadmap is short again — only pending tasks.
 
-## Схема
+## Diagram
 
 ```
-/roadmap-outline      ← исследование + обсуждение
-/roadmap-decompose    ← атомизация задач в ROADMAP.md
-   (повторить несколько раз)
+/roadmap-outline      ← exploration + discussion
+/roadmap-decompose    ← breaking tasks down into ROADMAP.md
+   (repeat a few times)
         │
         ▼
 uv run orchestrator implement
         │
         ▼
-/roadmap-test-coverage  ← что стоит покрыть тестами
-/roadmap-decompose      ← тест-задачи в ROADMAP_TESTS.md
+/roadmap-test-coverage  ← what's worth covering with tests
+/roadmap-decompose      ← test tasks into ROADMAP_TESTS.md
         │
         ▼
 uv run orchestrator test
         │
         ▼
-/roadmap-prune          ← саммари в ARCHITECTURE.md, чистка роадмапа
+/roadmap-prune          ← summary into ARCHITECTURE.md, roadmap cleanup
 ```
