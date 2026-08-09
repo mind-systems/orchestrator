@@ -74,16 +74,16 @@ Optional fields for sending Telegram notifications when the orchestrator halts, 
 
 `telegram_bot_token` and `telegram_chat_id` are the bot's credentials. If either is empty or absent, notifications are not sent (a silent no-op, not an error).
 
-`telegram_alerts` is the list of event types to notify on. The message colour encodes the run's outcome (concept: [outcomes.md](../concepts/outcomes.md)):
+`telegram_alerts` is the list of event types to notify on. What each colour says lives in [fault-handling.md](../concepts/fault-handling.md)'s own table:
 
-| Type | Colour | Sent when |
-|---|---|---|
-| `task-fail` | 🔴 | [Failure](../concepts/outcomes.md) — a task did not converge within the iteration limit |
-| `stop` | 🟡 | [Halt](../concepts/outcomes.md) — a limit or external resource is exhausted, an infrastructure fault, or a manual stop |
-| `escalation` | 🔵 | [Escalation](../features/escalation.md) — an agent stopped the run; a human decision is needed |
-| `task` | 🟢 | A task completes and is committed |
-| `done` | 🟢 | Every task in the roadmap is done |
+| Type | Colour |
+|---|---|
+| `task-fail` | 🔴 |
+| `stop` | 🟡 |
+| `escalation` | 🔵 |
+| `task` | 🟢 |
+| `done` | 🟢 |
 
 The `stop` token denotes an operational halt, so an alert list carried over from an older configuration is worth re-checking against the current table.
 
-An empty list, `[]`, disables all notifications even with credentials filled in. A network error on send does not stop the run.
+An empty list, `[]`, disables all notifications even with credentials filled in. A network error on send does not stop the run — see [fault-handling.md](../concepts/fault-handling.md) for what happens to the alert itself.

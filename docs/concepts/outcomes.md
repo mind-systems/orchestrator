@@ -16,17 +16,12 @@ The same stoppage falls into one of these two categories by a single criterion: 
 2. **Failure, halt, and escalation are signalled differently.** The outcome is visible from the notification colour, not merely from the fact that the run ended. The colour-to-event binding, and how to enable notifications, live in [configuration.md](../reference/configuration.md).
 3. **Transient faults are absorbed.** Recoverable failures — an API overload, a brief network error — are not surfaced immediately: the call is retried a bounded number of times. Only a persistent fault surfaces outward as a halt.
 4. **Any halt is resumable.** An interrupted run — for any reason — leaves state on disk sufficient for the next run to continue from the last completed phase, not from the start of the task. Resume mechanics are described in [resume.md](../features/resume.md).
-5. **Side effects are fail-safe.** A failed notification send, or any other external call, never changes the run's outcome — it is best-effort on top of the actual result.
+5. **Side effects are fail-safe.** A failed notification send, or any other external call, never changes the run's outcome. What delivery itself guarantees is described in [fault-handling.md](fault-handling.md).
 6. **On failure, nothing is lost.** An unconverged task is not marked done, and every round's artifacts stay on disk for review. How to read that record is described in [non-convergence.md](non-convergence.md).
 
 ## Causes of a halt
 
-A halt makes no judgment about the work, so its causes lie outside the review cycle:
-
-- **The usage budget is exhausted** — the session or weekly threshold is exceeded. The mechanism and the thresholds live in [usage-limits.md](../features/usage-limits.md).
-- **An external resource is unavailable** — an API limit is exhausted and does not recover with retries.
-- **A persistent infrastructure fault** — an error that retries could not absorb.
-- **A manual halt by the operator** — the run is stopped from outside. A soft stop lets the current task finish; a forced one ends it immediately.
+A halt makes no judgment about the work, so its causes lie outside the review cycle. Every cause is enumerated in [fault-handling.md](fault-handling.md)'s catalogue.
 
 In every halt case, the outcome is yellow: the work is recognized as neither successful nor failed.
 

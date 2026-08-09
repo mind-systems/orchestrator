@@ -41,10 +41,13 @@ Documentation follows one placement rule: behaviour lives on its feature's page 
 | **Concepts — what things mean.** | |
 | [Context model](docs/concepts/context-model.md) | The agent's perception tree: what's passed literally vs. raised by links |
 | [Outcomes](docs/concepts/outcomes.md) | The outcome axis: success, failure, halt, escalation, and their invariants |
+| [Fault handling](docs/concepts/fault-handling.md) | Telling a verdict from a fault, which kind it is, and the catalogue of known faults |
 | [Non-convergence](docs/concepts/non-convergence.md) | Reading a stalled review loop: three patterns, and how to diagnose them |
 | **Reference — values, defaults, and tokens.** | |
 | [Target project](docs/reference/target-project.md) | What a target project must provide: roadmap format, phases, breakpoint, ARCHITECTURE/RULES, git |
 | [Configuration](docs/reference/configuration.md) | Settings reference: file location, overlay precedence, Telegram credentials and alert colours |
+| **Future — settled behaviour, not yet built.** | |
+| [Operator surface](docs/future/operator-surface.md) | A full-screen application: reporting and outcomes rendered, not printed or exited |
 
 ## Architecture
 
