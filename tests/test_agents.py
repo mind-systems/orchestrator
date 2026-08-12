@@ -541,9 +541,7 @@ def test_kill_active_child_falls_back_to_kill_on_killpg_failure(monkeypatch, cle
 # --- _classify_result ---
 # ---------------------------------------------------------------------------
 #
-# Red against the NotImplementedError stub — these pin the decision-table
-# contract that a follow-up task fills in; they turn green once the body is
-# implemented.
+# The decision table: which terminal action a finished CLI invocation maps to.
 # ---------------------------------------------------------------------------
 
 
@@ -575,6 +573,31 @@ def test_classify_result_rate_limit_via_returncode():
 def test_classify_result_clean_success():
     """Row 8: zero returncode, no error -> ok."""
     assert _classify_result({"result": "done", "is_error": False}, "done", 0, False, 1, 3) == "ok"
+
+
+def test_classify_result_transport_fault_retry_left():
+    """A result-bearing transport error retries while attempts remain."""
+    assert _classify_result({"result": "API Error: Connection closed mid-response."}, "API Error: Connection closed mid-response.", 1, False, 1, 3) == "retry"
+
+
+def test_classify_result_transport_fault_exhausted():
+    """A result-bearing transport error halts once attempts are spent."""
+    assert _classify_result({"result": "API Error: Connection closed mid-response."}, "API Error: Connection closed mid-response.", 1, False, 3, 3) == "network_halt"
+
+
+def test_classify_result_markerless_nonzero_still_errors():
+    """A nonzero exit with no transport marker keeps classifying as a task-level error."""
+    assert _classify_result({"result": "boom"}, "boom", 1, False, 1, 3) == "error"
+
+
+def test_classify_result_ratelimit_text_still_ratelimit():
+    """Rate-limit text is unaffected by the new transport branches."""
+    assert _classify_result({"result": "You hit your limit"}, "You hit your limit", 1, False, 1, 3) == "ratelimit"
+
+
+def test_classify_result_transport_marker_in_successful_result_is_inert():
+    """A transport marker inside a successful result text is not a transport fault."""
+    assert _classify_result({"result": "handles connection reset", "is_error": False}, "handles connection reset", 0, False, 1, 3) == "ok"
 
 
 # ---------------------------------------------------------------------------

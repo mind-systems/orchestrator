@@ -89,6 +89,27 @@ def _write_session(plan_path: Path, key: str, value: str) -> None:
     os.replace(tmp, p)
 
 
+def _is_overloaded(result_text: str) -> bool:
+    """True if result_text names an API overload."""
+    return "overloaded" in result_text.lower() or "529" in result_text
+
+
+_TRANSPORT_MARKERS = (
+    "connection closed mid-response",
+    "connection error",
+    "connection reset",
+    "econnreset",
+    "fetch failed",
+    "socket hang up",
+)
+
+
+def _is_transport_fault(result_text: str) -> bool:
+    """True if result_text names a transport failure, case-insensitively, as a substring."""
+    lowered = result_text.lower()
+    return any(marker in lowered for marker in _TRANSPORT_MARKERS)
+
+
 def _classify_result(parsed_final: dict, result_text: str, returncode: int,
                      is_error: bool, attempt: int, max_retries: int) -> str:
     """Classify a finished Claude CLI invocation into the terminal action
@@ -97,14 +118,20 @@ def _classify_result(parsed_final: dict, result_text: str, returncode: int,
     Returns one of the literals `"retry" | "ratelimit" | "network_halt" |
     "error" | "ok"`. `no_result = not parsed_final` means the CLI exited
     before emitting any `result` event — an infra/network death, not a task
-    outcome — as opposed to a result-bearing nonzero exit or an `is_error`
-    result, which are task-level outcomes.
+    outcome — as opposed to a result-bearing nonzero exit, which is a
+    task-level outcome only when its text names no transport fault, or an
+    `is_error` result on a zero exit, which is a task-level outcome
+    whatever its text names.
 
     """
     no_result = not parsed_final
 
-    if ("overloaded" in result_text.lower() or "529" in result_text) and attempt < max_retries:
+    if _is_overloaded(result_text) and attempt < max_retries:
         return "retry"
+    if _is_transport_fault(result_text) and returncode != 0 and attempt < max_retries:
+        return "retry"
+    if _is_transport_fault(result_text) and returncode != 0:
+        return "network_halt"
     if no_result and returncode != 0 and attempt < max_retries:
         return "retry"
     if no_result and returncode != 0:
@@ -129,8 +156,9 @@ class RateLimitError(HaltError):
 
 
 class NetworkError(HaltError):
-    """Raised when the Claude CLI dies before emitting any `result` event
-    (transient network/infra death) and retries are exhausted."""
+    """Raised when the Claude CLI dies before emitting any `result` event,
+    or emits a `result` event whose text names a transport failure
+    (transient network/infra death either way), and retries are exhausted."""
 
 
 class PipelineStopError(Exception):
@@ -300,15 +328,22 @@ def _run_claude(
         if verdict == "retry":
             if not parsed_final:
                 print(f">>> Network error / no result event, retrying in {RETRY_DELAY}s (attempt {attempt}/{MAX_RETRIES})...")
-            else:
+            elif _is_overloaded(result_text):
                 print(f">>> API overloaded, retrying in {RETRY_DELAY}s (attempt {attempt}/{MAX_RETRIES})...")
+            else:
+                print(f">>> Transport error, retrying in {RETRY_DELAY}s (attempt {attempt}/{MAX_RETRIES})...")
             time.sleep(RETRY_DELAY)
             continue
 
         if verdict == "network_halt":
+            if not parsed_final:
+                raise NetworkError(
+                    f"Claude CLI died with no result event, exit code {proc.returncode}\n"
+                    f"stdout: {stdout if stdout else '(empty)'}"
+                )
             raise NetworkError(
-                f"Claude CLI died with no result event, exit code {proc.returncode}\n"
-                f"stdout: {stdout if stdout else '(empty)'}"
+                f"Claude CLI reported a transport failure, exit code {proc.returncode}\n"
+                f"result: {result_text[:500]}"
             )
 
         if verdict == "ratelimit":
