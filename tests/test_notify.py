@@ -1,10 +1,12 @@
-"""Unit tests for notify() — emoji-prefix mapping and telegram gating."""
+"""Unit tests for notify() — emoji-prefix mapping and telegram gating — and for the
+composer (Outcome, compose(), report()) that builds every notification's text and
+selects its alert type."""
 
 import pytest
 
 from orchestrator import notify as notify_module
 from orchestrator.config import OrchestratorConfig
-from orchestrator.notify import notify
+from orchestrator.notify import Outcome, compose, notify, report, _WORDS, _ALERT_TYPES
 
 
 def _config(telegram_alerts, bot_token="t", chat_id="c") -> OrchestratorConfig:
@@ -105,3 +107,80 @@ def test_missing_chat_id_sends_nothing(sent):
     config = _config(["stop"], chat_id=None)
     notify(config, "some message", "stop")
     assert sent == []
+
+
+# ---------------------------------------------------------------------------
+# compose() — envelope order: word, project, detail (if any), run summary
+# ---------------------------------------------------------------------------
+
+
+def test_compose_with_detail_orders_word_project_detail_summary():
+    """Should join word-and-project, then detail, then run summary, in that order, when
+    detail is truthy."""
+    text = compose(Outcome.HALTED, "myproject", "some detail", "Ran for 1m 0s · 2 tasks done")
+    assert text == "Halted: myproject\nsome detail\nRan for 1m 0s · 2 tasks done"
+
+
+def test_compose_without_detail_is_exactly_two_lines():
+    """Should produce exactly two lines — word-and-project, then run summary — when
+    detail is None, with no blank line or placeholder standing in for the missing detail."""
+    text = compose(Outcome.ESCALATED, "myproject", None, "Ran for 1m 0s · 2 tasks done")
+    assert text == "Escalated: myproject\nRan for 1m 0s · 2 tasks done"
+    assert len(text.splitlines()) == 2
+
+
+def test_compose_task_done_carries_run_summary():
+    """Should include the run summary in TASK_DONE's composed text, which it did not
+    before composition moved into one place."""
+    text = compose(Outcome.TASK_DONE, "myproject", "Some task", "Ran for 1m 0s · 2 tasks done")
+    assert "Ran for 1m 0s · 2 tasks done" in text
+
+
+# ---------------------------------------------------------------------------
+# _WORDS — one distinct word per Outcome
+# ---------------------------------------------------------------------------
+
+
+def test_words_covers_every_outcome_with_distinct_values():
+    """Should map every Outcome member to a word, no two outcomes sharing one."""
+    assert set(_WORDS) == set(Outcome)
+    assert len(set(_WORDS.values())) == len(Outcome)
+
+
+# ---------------------------------------------------------------------------
+# _ALERT_TYPES — every Outcome maps to the token its site passes today
+# ---------------------------------------------------------------------------
+
+
+def test_alert_types_covers_every_outcome_with_the_pinned_token():
+    """Should map every Outcome member to exactly the alert token that outcome's call
+    site passed before composition moved into notify.py, so a telegram_alerts list
+    written before this change keeps selecting the same alerts."""
+    assert _ALERT_TYPES == {
+        Outcome.TASK_DONE: "task",
+        Outcome.RUN_DONE: "done",
+        Outcome.MANUAL_STOP: "stop",
+        Outcome.UNCONVERGED: "task-fail",
+        Outcome.HALTED: "stop",
+        Outcome.ESCALATED: "escalation",
+        Outcome.ERRORED: "stop",
+        Outcome.FORCE_QUIT: "stop",
+    }
+
+
+# ---------------------------------------------------------------------------
+# report() — passes _ALERT_TYPES[outcome] through to notify()
+# ---------------------------------------------------------------------------
+
+
+def test_report_passes_the_pinned_alert_type_to_notify_for_every_outcome(monkeypatch):
+    """Should call notify() with _ALERT_TYPES[outcome] for every Outcome member, so the
+    word and the colour cannot come apart."""
+    recorded = []
+    monkeypatch.setattr(notify_module, "notify", lambda config, text, alert_type: recorded.append(alert_type))
+    config = _config(["task", "done", "stop", "task-fail", "escalation"])
+
+    for outcome in Outcome:
+        report(config, outcome, "myproject", None, "Ran for 1m 0s · 2 tasks done")
+
+    assert recorded == [_ALERT_TYPES[outcome] for outcome in Outcome]

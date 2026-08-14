@@ -9,6 +9,7 @@ from unittest.mock import Mock
 import pytest
 
 from orchestrator import state
+from orchestrator.notify import Outcome
 from orchestrator.runtime import _fmt_elapsed, _handle_sigint, _run_summary, _with_caffeinate
 import orchestrator.runtime as runtime
 
@@ -170,19 +171,19 @@ def test_handle_sigint_first_press_sets_stop_requested(capsys):
 
 
 # ---------------------------------------------------------------------------
-# Task 5: _handle_sigint — second Ctrl+C force-quits, with and without the
-# notify guard
+# _handle_sigint — second Ctrl+C force-quits, with and without the
+# report guard
 # ---------------------------------------------------------------------------
 
 
-def test_handle_sigint_second_press_notifies_when_config_and_project_dir_set(monkeypatch):
-    """Should call kill_active_child, send a force-quit notify, and sys.exit(1) on
+def test_handle_sigint_second_press_reports_when_config_and_project_dir_set(monkeypatch):
+    """Should call kill_active_child, send a force-quit report, and sys.exit(1) on
     second Ctrl+C when state.config and state.project_dir are both set."""
     saved_stop, saved_config, saved_dir = state.stop_requested, state.config, state.project_dir
     kill_mock = Mock()
-    notify_mock = Mock()
+    report_mock = Mock()
     monkeypatch.setattr(runtime, "kill_active_child", kill_mock)
-    monkeypatch.setattr(runtime, "notify", notify_mock)
+    monkeypatch.setattr(runtime, "report", report_mock)
     try:
         state.stop_requested = True
         state.config = Mock()
@@ -194,24 +195,23 @@ def test_handle_sigint_second_press_notifies_when_config_and_project_dir_set(mon
 
         assert exc_info.value.code == 1
         kill_mock.assert_called_once()
-        notify_mock.assert_called_once()
-        call_args = notify_mock.call_args
+        report_mock.assert_called_once()
+        call_args = report_mock.call_args
         assert call_args[0][0] is state.config
-        assert "force-quit" in call_args[0][1]
-        assert "myproject" in call_args[0][1]
-        assert call_args[0][2] == "stop"
+        assert call_args[0][1] is Outcome.FORCE_QUIT
+        assert call_args[0][2] == "myproject"
     finally:
         state.stop_requested, state.config, state.project_dir = saved_stop, saved_config, saved_dir
 
 
-def test_handle_sigint_second_press_no_notify_when_config_none(monkeypatch):
-    """Should call kill_active_child and sys.exit(1) WITHOUT notifying when
+def test_handle_sigint_second_press_no_report_when_config_none(monkeypatch):
+    """Should call kill_active_child and sys.exit(1) WITHOUT reporting when
     state.config is None."""
     saved_stop, saved_config, saved_dir = state.stop_requested, state.config, state.project_dir
     kill_mock = Mock()
-    notify_mock = Mock()
+    report_mock = Mock()
     monkeypatch.setattr(runtime, "kill_active_child", kill_mock)
-    monkeypatch.setattr(runtime, "notify", notify_mock)
+    monkeypatch.setattr(runtime, "report", report_mock)
     try:
         state.stop_requested = True
         state.config = None
@@ -222,19 +222,19 @@ def test_handle_sigint_second_press_no_notify_when_config_none(monkeypatch):
 
         assert exc_info.value.code == 1
         kill_mock.assert_called_once()
-        notify_mock.assert_not_called()
+        report_mock.assert_not_called()
     finally:
         state.stop_requested, state.config, state.project_dir = saved_stop, saved_config, saved_dir
 
 
-def test_handle_sigint_second_press_no_notify_when_project_dir_none(monkeypatch):
-    """Should call kill_active_child and sys.exit(1) WITHOUT notifying when
+def test_handle_sigint_second_press_no_report_when_project_dir_none(monkeypatch):
+    """Should call kill_active_child and sys.exit(1) WITHOUT reporting when
     state.project_dir is None."""
     saved_stop, saved_config, saved_dir = state.stop_requested, state.config, state.project_dir
     kill_mock = Mock()
-    notify_mock = Mock()
+    report_mock = Mock()
     monkeypatch.setattr(runtime, "kill_active_child", kill_mock)
-    monkeypatch.setattr(runtime, "notify", notify_mock)
+    monkeypatch.setattr(runtime, "report", report_mock)
     try:
         state.stop_requested = True
         state.config = Mock()
@@ -245,6 +245,6 @@ def test_handle_sigint_second_press_no_notify_when_project_dir_none(monkeypatch)
 
         assert exc_info.value.code == 1
         kill_mock.assert_called_once()
-        notify_mock.assert_not_called()
+        report_mock.assert_not_called()
     finally:
         state.stop_requested, state.config, state.project_dir = saved_stop, saved_config, saved_dir

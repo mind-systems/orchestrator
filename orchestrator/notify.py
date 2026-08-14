@@ -5,6 +5,7 @@ from __future__ import annotations
 import urllib.error
 import urllib.parse
 import urllib.request
+from enum import Enum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -19,6 +20,55 @@ _HALT_ALERTS = {"stop"}
 
 # Alert types that report an escalation — a judgment the run cannot make on its own.
 _ESCALATION_ALERTS = {"escalation"}
+
+
+class Outcome(Enum):
+    """Every terminal state a run or a task can report through notify()."""
+    TASK_DONE = "task_done"  # process_task: single task completed
+    RUN_DONE = "run_done"  # _run_dynamic_loop: all tasks done
+    MANUAL_STOP = "manual_stop"  # _run_dynamic_loop: state.stop_requested
+    UNCONVERGED = "unconverged"  # cli(): PipelineStopError
+    HALTED = "halted"  # cli(): HaltError
+    ESCALATED = "escalated"  # cli(): EscalationError
+    ERRORED = "errored"  # cli(): unrecognized Exception
+    FORCE_QUIT = "force_quit"  # _handle_sigint: second Ctrl+C
+
+
+_WORDS: dict[Outcome, str] = {
+    Outcome.TASK_DONE: "Completed",
+    Outcome.RUN_DONE: "Finished",
+    Outcome.MANUAL_STOP: "Stopped",
+    Outcome.UNCONVERGED: "Unconverged",
+    Outcome.HALTED: "Halted",
+    Outcome.ESCALATED: "Escalated",
+    Outcome.ERRORED: "Errored",
+    Outcome.FORCE_QUIT: "Force-quit",
+}
+
+_ALERT_TYPES: dict[Outcome, str] = {
+    Outcome.TASK_DONE: "task",
+    Outcome.RUN_DONE: "done",
+    Outcome.MANUAL_STOP: "stop",
+    Outcome.UNCONVERGED: "task-fail",
+    Outcome.HALTED: "stop",
+    Outcome.ESCALATED: "escalation",
+    Outcome.ERRORED: "stop",
+    Outcome.FORCE_QUIT: "stop",
+}
+
+
+def compose(outcome: Outcome, project: str, detail: str | None, run_summary: str) -> str:
+    """Build the notification text: word, then project, then detail (if any), then run summary."""
+    lines = [f"{_WORDS[outcome]}: {project}"]
+    if detail:
+        lines.append(detail)
+    lines.append(run_summary)
+    return "\n".join(lines)
+
+
+def report(config: "OrchestratorConfig", outcome: Outcome, project: str, detail: str | None, run_summary: str) -> None:
+    """Compose and send a notification for a run/task outcome."""
+    notify(config, compose(outcome, project, detail, run_summary), _ALERT_TYPES[outcome])
 
 
 def notify(config: "OrchestratorConfig", text: str, alert_type: str) -> None:

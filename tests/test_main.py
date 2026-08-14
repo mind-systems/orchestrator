@@ -12,6 +12,7 @@ from orchestrator import main as main_module
 from orchestrator import usage as usage_module
 from orchestrator.agents import EscalationError, HaltError, PipelineStopError, RateLimitError
 from orchestrator.config import OrchestratorConfig
+from orchestrator.notify import Outcome
 from orchestrator.main import (
     _artifact_subdir,
     _derive_identity_slug,
@@ -891,7 +892,7 @@ def _cli_config() -> OrchestratorConfig:
 
 
 def _run_cli_with(monkeypatch, exc):
-    """Patch load_config/run_implement/notify/argv; return the list notify() calls get recorded into."""
+    """Patch load_config/run_implement/report/argv; return the list report() calls get recorded into."""
     recorded = []
 
     monkeypatch.setattr(main_module, "load_config", lambda project_dir=None: _cli_config())
@@ -901,36 +902,45 @@ def _run_cli_with(monkeypatch, exc):
 
     monkeypatch.setattr(main_module, "run_implement", _raise_run_implement)
 
-    def _fake_notify(config, text, alert_type):
-        recorded.append((text, alert_type))
+    def _fake_report(config, outcome, project, detail, run_summary):
+        recorded.append((outcome, detail))
 
-    monkeypatch.setattr(main_module, "notify", _fake_notify)
+    monkeypatch.setattr(main_module, "report", _fake_report)
     monkeypatch.setattr(sys, "argv", ["orchestrator", "implement", "."])
     return recorded
 
 
-def test_cli_pipeline_stop_error_routes_to_task_fail(monkeypatch):
-    """Should record alert_type 'task-fail' and exit via SystemExit when run_implement raises PipelineStopError."""
+def test_cli_pipeline_stop_error_routes_to_unconverged(monkeypatch):
+    """Should record Outcome.UNCONVERGED and exit via SystemExit when run_implement raises PipelineStopError."""
     recorded = _run_cli_with(monkeypatch, PipelineStopError("boom"))
     with pytest.raises(SystemExit):
         main_module.cli()
-    assert recorded[-1][1] == "task-fail"
+    assert recorded[-1][0] is Outcome.UNCONVERGED
 
 
-def test_cli_rate_limit_error_routes_to_stop(monkeypatch):
-    """Should record alert_type 'stop' when run_implement raises RateLimitError."""
+def test_cli_rate_limit_error_routes_to_halted(monkeypatch):
+    """Should record Outcome.HALTED when run_implement raises RateLimitError."""
     recorded = _run_cli_with(monkeypatch, RateLimitError("boom"))
     with pytest.raises(SystemExit):
         main_module.cli()
-    assert recorded[-1][1] == "stop"
+    assert recorded[-1][0] is Outcome.HALTED
 
 
-def test_cli_generic_exception_routes_to_stop_and_reraises(monkeypatch):
-    """Should record alert_type 'stop' and re-raise a generic Exception."""
+def test_cli_generic_exception_routes_to_errored_and_reraises(monkeypatch):
+    """Should record Outcome.ERRORED and re-raise a generic Exception."""
     recorded = _run_cli_with(monkeypatch, ValueError("boom"))
     with pytest.raises(ValueError):
         main_module.cli()
-    assert recorded and recorded[-1][1] == "stop"
+    assert recorded and recorded[-1][0] is Outcome.ERRORED
+
+
+def test_cli_escalation_error_routes_to_escalated_with_no_detail(monkeypatch):
+    """Should record Outcome.ESCALATED with detail=None when run_implement raises EscalationError —
+    the path and model-prose excerpt the exception carries must not reach the alert."""
+    recorded = _run_cli_with(monkeypatch, EscalationError("some/plan.md: a paragraph of model prose"))
+    with pytest.raises(SystemExit):
+        main_module.cli()
+    assert recorded[-1] == (Outcome.ESCALATED, None)
 
 
 # ---------------------------------------------------------------------------

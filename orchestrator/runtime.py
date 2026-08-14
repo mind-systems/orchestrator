@@ -8,7 +8,7 @@ import sys
 import time
 
 from . import state
-from .notify import notify
+from .notify import Outcome, report
 from .agents import kill_active_child
 
 
@@ -17,7 +17,7 @@ def _handle_sigint(sig, frame):
         print("\n>>> Force quit.")
         kill_active_child()
         if state.config is not None and state.project_dir is not None:
-            notify(state.config, f"Orchestrator force-quit: {state.project_dir.name}\n{_run_summary()}", "stop")
+            report(state.config, Outcome.FORCE_QUIT, state.project_dir.name, None, _run_summary())
         sys.exit(1)
     state.stop_requested = True
     print("\n>>> Will stop after the current task finishes. Press Ctrl+C again to force quit.")

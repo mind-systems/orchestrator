@@ -69,7 +69,7 @@ Every fault the orchestrator can meet, and the handling it requires.
 
 An outcome reaches a human through the notification, and it may not be ambiguous. Delivery is attempted, not guaranteed: a send is tried once, and one that fails is logged and nothing more — the fault that stops a run is routinely the fault that stops the report of it. Nothing is lost by that, because the notification was never the account. The account is in the run's own output and in the artifacts the run wrote, which is where a person goes when the alert never came. Invariant 5 of [outcomes.md](outcomes.md) holds throughout — a failed send never changes the outcome.
 
-**A notification is a signal, not the account.** It says that something happened, to which project, and where the account can be read — never the account itself. The full account lives in the artifact the run wrote and in the run's own output. A notification that carries the account instead of pointing at it stops being readable at a glance, which is the only thing a notification is for. Its detail is therefore bounded, whatever produced it — a bound on length, since a bound on lines is no bound at all when what arrives is a paragraph.
+**A notification is a signal, not the account.** It says that something happened and to which project — never the account itself, and never where to find it. The full account lives in the artifact the run wrote and in the run's own output, which is where a person goes once the signal has reached them. A notification that carries the account instead stops being readable at a glance, which is the only thing a notification is for. Its detail is therefore a short fixed label or nothing at all: never a filesystem path, never a line an agent wrote.
 
 **Its colour says what happened to the work.** A notification about the work says whether it advanced, failed to converge, or reached a decision that needs a person; a notification about the machine says none of that, because nothing happened to the work at all. The colour answers this before the text is read, separating what asks for a change in a roadmap or a spec from what asks for nothing of the kind.
 
@@ -90,5 +90,5 @@ Three of the four speak about the work — red, blue, and green — and one, yel
 2. **An unrecognized fault surfaces rather than being absorbed.** The orchestrator does not wait out a condition it cannot name.
 3. **Recognition is explicit, never inferred from how far a call got.** How much output arrived before a failure describes the failure; it does not classify it.
 4. **Delivery is attempted, never guaranteed, and never consequential.** A send that fails is logged and changes nothing, and the report itself is not lost — it is where the run wrote it.
-5. **A notification is a signal, not the account.** It names where the account is and its detail is bounded regardless of what produced it.
+5. **A notification is a signal, not the account.** Its detail is a short fixed label or nothing, whatever produced the outcome.
 6. **A notification's colour says whether it is about the work or the machine, and if the work, what happened to it.** Nothing else decides it.

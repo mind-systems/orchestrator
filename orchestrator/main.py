@@ -13,7 +13,7 @@ from typing import NamedTuple
 
 from .agents import EscalationError, HaltError, Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, TestRunner, _read_sessions, _write_session
 from .config import OrchestratorConfig, load_config
-from .notify import notify
+from .notify import Outcome, report
 from .resume import _detect_step
 from .roadmap import ParseResult, mark_done, mark_skipped, parse_roadmap
 from .runtime import _handle_sigint, _run_summary, _with_caffeinate
@@ -241,7 +241,7 @@ def process_task(project_dir: Path, task, task_index: int, config: OrchestratorC
         mark_done(roadmap_path, task, elapsed)
         state.tasks_done += 1
         _git_commit(project_dir, task.title)
-        notify(config, f"{project_dir.name}: Task done: {task.title}", "task")
+        report(config, Outcome.TASK_DONE, project_dir.name, task.title, _run_summary())
         mins, secs = divmod(elapsed, 60)
         print(f">>> Task done [{mins}m {secs}s]")
         return phase_session_id
@@ -360,7 +360,7 @@ def process_task(project_dir: Path, task, task_index: int, config: OrchestratorC
     mark_done(roadmap_path, task, elapsed)
     state.tasks_done += 1
     _git_commit(project_dir, task.title)
-    notify(config, f"{project_dir.name}: Task done: {task.title}", "task")
+    report(config, Outcome.TASK_DONE, project_dir.name, task.title, _run_summary())
 
     mins, secs = divmod(elapsed, 60)
     print(f">>> Task done [{mins}m {secs}s]")
@@ -395,7 +395,7 @@ def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: Orchestrato
         result = parse_roadmap(roadmap_path)
         pending = [m for m in result.tasks if not m.done]
         if not pending:
-            notify(config, f"All tasks done: {project_dir.name}\n{_run_summary()}", "done")
+            report(config, Outcome.RUN_DONE, project_dir.name, None, _run_summary())
             break
 
         task = pending[0]
@@ -420,7 +420,7 @@ def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: Orchestrato
 
     if state.stop_requested:
         print("\n>>> Stop requested — halting.")
-        notify(config, f"Orchestrator stopped (manual): {project_dir.name}\n{_run_summary()}", "stop")
+        report(config, Outcome.MANUAL_STOP, project_dir.name, None, _run_summary())
 
 
 def _test_loop(project_dir: Path, config: OrchestratorConfig) -> None:
@@ -506,27 +506,28 @@ def cli() -> None:
         print(f"STOPPED — {e}")
         print(f"{'='*60}")
         msg = str(e).splitlines()[0]
-        notify(config, f"Orchestrator stopped: {project_dir.name}\n{msg}\n{_run_summary()}", "task-fail")
+        report(config, Outcome.UNCONVERGED, project_dir.name, msg, _run_summary())
         sys.exit(0)
     except HaltError as e:
         print(f"\n{'='*60}")
         print(f"HALTED — {e}")
         print(f"{'='*60}")
         msg = str(e).splitlines()[0]
-        notify(config, f"Orchestrator halted: {project_dir.name}\n{msg}\n{_run_summary()}", "stop")
+        report(config, Outcome.HALTED, project_dir.name, msg, _run_summary())
         sys.exit(0)
     except EscalationError as e:
         print(f"\n{'='*60}")
         print(f"ESCALATED — {e}")
         print(f"{'='*60}")
-        msg = str(e).splitlines()[0]
-        notify(config, f"Orchestrator escalated: {project_dir.name}\n{msg}\n{_run_summary()}", "escalation")
+        report(config, Outcome.ESCALATED, project_dir.name, None, _run_summary())
         sys.exit(0)
     except Exception as e:
-        notify(
+        report(
             config,
-            f"Orchestrator error: {project_dir.name}\n{type(e).__name__}: {str(e).splitlines()[0] if str(e) else ''}\n{_run_summary()}",
-            "stop",
+            Outcome.ERRORED,
+            project_dir.name,
+            f"{type(e).__name__}: {str(e).splitlines()[0] if str(e) else ''}",
+            _run_summary(),
         )
         raise
 
