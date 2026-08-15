@@ -54,10 +54,10 @@ For each unchecked task (`- [ ]`) in the plan, in order:
 
 ```markdown
 # Before
-- [ ] Task 1: Create user model
+- [ ] Create user model
 
 # After
-- [x] Task 1: Create user model
+- [x] Create user model
 ```
 
 **This is MANDATORY** — checkboxes must reflect actual progress:
@@ -105,7 +105,7 @@ After all tasks are done:
 - Add tasks not in the plan
 - Mark incomplete tasks as done
 - Violate `.ai-factory/ARCHITECTURE.md` conventions for file placement and module boundaries
-- Cite the plan layer in durable code/test comments, docstrings, or module headers — no `Phase N`, no `Task N`/`task N.M`, no note number, no `ROADMAP`/`Plan` reference, no `.ai-factory/` path; explain the behavior self-contained, or link a file under `docs/` (the only reference target allowed in code)
+- Cite the plan layer in any durable text this repository carries outside `.ai-factory/` — a code or test comment, a docstring, a module header, or whatever other construct holds it. A plan is instruction — the same status as this prompt — and it stops existing once the task closes; what is built from an instruction does not cite it. That rules out `Phase N`, `Task N`/`task N.M`, a note number, a `ROADMAP`/`Plan` reference, and an `.ai-factory/` path, among any other form the same citation takes — explain the behavior self-contained, or link a file under `docs/` (the only reference target allowed in code).
 
 ### Ground truth over the plan
 
@@ -125,5 +125,5 @@ The annotation rides the plan file — no new files, no interactive prompts. It 
 4. **ONE task at a time** - focus on current task only
 5. **If a build fails** — fix it before proceeding to the next task
 6. **Ground truth wins over the plan** — implement a stale/wrong plan detail per the file and flag it with `DEVIATION: <plan said / file showed / done>`; on a missing decision, escalate per the escalation engine rather than inventing.
-7. **Label by behavior, never by plan coordinate** — no comment, docstring, or module header in code or tests carries `Phase N`, `Task N`/`task N.M`, a note number, a `ROADMAP`/`Plan` reference, or an `.ai-factory/` path. A test file's sections and docstrings are named by the behavior under test; the plan's `**Task N:**` headers are scaffolding for your own walk through the work, never content to transcribe. Explain the behavior self-contained, or link a file under `docs/`.
+7. **A plan is instruction, not a source — nothing built from it cites it.** A plan is the same status as this prompt: read to guide the work, gone once the task closes. No durable text this repository carries outside `.ai-factory/` — a comment, a docstring, a module header, or whatever other construct holds it — carries a plan coordinate: `Phase N`, `Task N`/`task N.M`, a note number, a `ROADMAP`/`Plan` reference, an `.ai-factory/` path, or any other shape the same citation takes. A test file's sections and docstrings are named by the behavior under test; a plan's task headers are scaffolding for your own walk through the work, never content to transcribe. Explain the behavior self-contained, or link a file under `docs/`.
 8. **All output must be in English**

@@ -91,19 +91,19 @@ mkdir -p <parent-directory-of-plan-path>
 
 ## Tasks
 
-### Phase 1: <name>
+### <phase name>
 
-- [ ] **Task 1: <subject>**
+- [ ] **<subject A>**
   Files: `path/to/file.ext`, `path/to/other.ext`
   <What to do, specifically. Reference existing patterns found in codebase.>
 
-- [ ] **Task 2: <subject>** (depends on Task 1)
+- [ ] **<subject B>** (depends on <subject A>)
   Files: `path/to/file.ext`
   <What to do.>
 
-### Phase 2: <name>
+### <another phase name>
 
-- [ ] **Task 3: <subject>** (depends on Task 2)
+- [ ] **<subject C>** (depends on <subject B>)
   Files: `path/to/file.ext`
   <What to do.>
 ```

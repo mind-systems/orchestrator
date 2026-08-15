@@ -91,16 +91,16 @@ mkdir -p <parent-directory-of-plan-path>
 
 ## Tasks
 
-### Phase 1: <group name — e.g. "TradeAggregator — core behavior">
+### <group name — e.g. "TradeAggregator — core behavior">
 
-- [ ] **Task 1: <describe block subject>**
+- [ ] **<describe block subject>**
   Files: `<target spec file>`
   Test cases:
   - `should <expected behavior> when <condition>`
   - `should <expected behavior> when <condition>`
   - `should throw <error> when <condition>`
 
-- [ ] **Task 2: <describe block subject>**
+- [ ] **<describe block subject>**
   Files: `<target spec file>`
   Test cases:
   - `should <expected behavior> when <condition>`
