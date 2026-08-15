@@ -150,8 +150,8 @@ def _resolve_roadmap_relpath(config: OrchestratorConfig, project_dir: Path) -> s
         expected_owner = f"> Owner: {identity}"
         if first_line.strip() != expected_owner:
             raise HaltError(
-                f"Named roadmap {relpath} owner line ({first_line!r}) does not match "
-                f"the current git identity ({expected_owner!r})."
+                f"Named roadmap owner line does not match the current git identity\n"
+                f"{relpath}: {first_line!r} vs. expected {expected_owner!r}"
             )
         return relpath
 

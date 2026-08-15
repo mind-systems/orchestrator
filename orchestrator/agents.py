@@ -148,7 +148,14 @@ def _classify_result(parsed_final: dict, result_text: str, returncode: int,
 
 
 class HaltError(Exception):
-    """An operational halt that is not a task failure — 🟡."""
+    """An operational halt that is not a task failure — 🟡.
+
+    Every subclass and every raise site opens the message with a fixed
+    clause naming what happened; anything variable — a path, a quoted
+    line, an agent's own text, captured output — goes on a later line.
+    The first line becomes the HALTED notification's whole detail, while
+    the console keeps printing the message in full.
+    """
 
 
 class RateLimitError(HaltError):
@@ -347,7 +354,7 @@ def _run_claude(
             )
 
         if verdict == "ratelimit":
-            raise RateLimitError(result_text)
+            raise RateLimitError(f"Agent reported a rate limit\n{result_text}")
 
         if verdict == "error":
             if proc.returncode != 0:

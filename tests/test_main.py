@@ -1148,6 +1148,26 @@ def test_resolve_roadmap_relpath_my_owner_mismatch_raises_halt(tmp_path, monkeyp
         _resolve_roadmap_relpath(config, tmp_path)
 
 
+def test_resolve_roadmap_relpath_my_owner_mismatch_halt_has_fixed_first_line(tmp_path, monkeypatch):
+    """HaltError's message opens with the fixed clause alone; the path and both quoted
+    identities move to a later line rather than sharing the first."""
+    roadmaps_dir = tmp_path / ".ai-factory" / "roadmaps"
+    roadmaps_dir.mkdir(parents=True)
+    (roadmaps_dir / "john-doe.md").write_text("> Owner: someone.else@gmail.com\n\n- [ ] Task\n")
+    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="john.doe@example.com"))
+
+    config = _config_with_roadmap_path("my")
+    with pytest.raises(HaltError) as exc:
+        _resolve_roadmap_relpath(config, tmp_path)
+
+    lines = str(exc.value).splitlines()
+    assert lines[0] == "Named roadmap owner line does not match the current git identity"
+    remainder = str(exc.value).split("\n", 1)[1]
+    assert "roadmaps/john-doe.md" in remainder
+    assert "someone.else@gmail.com" in remainder
+    assert "john.doe@example.com" in remainder
+
+
 def test_resolve_roadmap_relpath_my_malformed_first_line_raises_halt(tmp_path, monkeypatch):
     """Should raise HaltError when the file's first line isn't a well-formed owner line."""
     roadmaps_dir = tmp_path / ".ai-factory" / "roadmaps"

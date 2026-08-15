@@ -16,6 +16,7 @@ from orchestrator.agents import (
     Implementer,
     PlanReviewer,
     PlannerReviewer,
+    RateLimitError,
     _classify_result,
     _escalation_excerpt,
     _has_escalation,
@@ -598,6 +599,37 @@ def test_classify_result_ratelimit_text_still_ratelimit():
 def test_classify_result_transport_marker_in_successful_result_is_inert():
     """A transport marker inside a successful result text is not a transport fault."""
     assert _classify_result({"result": "handles connection reset", "is_error": False}, "handles connection reset", 0, False, 1, 3) == "ok"
+
+
+# ---------------------------------------------------------------------------
+# --- _run_claude rate-limit halt ---
+# ---------------------------------------------------------------------------
+
+
+class _FakeRateLimitProc:
+    """Minimal stand-in for subprocess.Popen exposing only what _run_claude touches
+    for a single-attempt rate-limit halt: .stdout, .wait(), and .returncode."""
+
+    def __init__(self):
+        self.stdout = ['{"session_id": "s1", "result": "You hit your limit, resets at 5pm"}\n']
+        self.returncode = 1
+
+    def wait(self):
+        pass
+
+
+def test_run_claude_ratelimit_halt_has_fixed_first_line(monkeypatch, tmp_path, clean_active_proc):
+    """RateLimitError's message opens with the fixed clause; the agent's own result
+    text follows on a later line rather than being the whole message."""
+    monkeypatch.setattr(agents, "_CLAUDE_BIN", "/usr/local/bin/claude")
+    fake = _FakeRateLimitProc()
+    monkeypatch.setattr(agents.subprocess, "Popen", lambda *a, **kw: fake)
+
+    with pytest.raises(RateLimitError) as exc:
+        agents._run_claude("prompt", cwd=str(tmp_path))
+
+    assert str(exc.value).splitlines()[0] == "Agent reported a rate limit"
+    assert "You hit your limit, resets at 5pm" in str(exc.value).split("\n", 1)[1]
 
 
 # ---------------------------------------------------------------------------
