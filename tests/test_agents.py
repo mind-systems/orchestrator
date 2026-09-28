@@ -632,6 +632,40 @@ def test_run_claude_ratelimit_halt_has_fixed_first_line(monkeypatch, tmp_path, c
     assert "You hit your limit, resets at 5pm" in str(exc.value).split("\n", 1)[1]
 
 
+class _FakeOkProc:
+    """Minimal stand-in for subprocess.Popen exposing only what _run_claude touches
+    for a single successful attempt: .stdout, .wait(), and .returncode."""
+
+    def __init__(self):
+        self.stdout = ['{"session_id": "s1", "result": "ok"}\n']
+        self.returncode = 0
+
+    def wait(self):
+        pass
+
+
+def test_run_claude_launch_denies_work_outliving_the_turn(monkeypatch, tmp_path, clean_active_proc):
+    """Every launched command carries a deny list for backgroundable tools and an
+    environment variable disabling background tasks, so an agent can't leave work
+    running past the end of its own turn."""
+    monkeypatch.setattr(agents, "_CLAUDE_BIN", "/usr/local/bin/claude")
+    fake = _FakeOkProc()
+    recorded: dict = {}
+
+    def _fake_popen(*args, **kwargs):
+        recorded["cmd"] = args[0]
+        recorded["env"] = kwargs.get("env")
+        return fake
+
+    monkeypatch.setattr(agents.subprocess, "Popen", _fake_popen)
+
+    agents._run_claude("prompt", cwd=str(tmp_path))
+
+    assert recorded["env"]["CLAUDE_CODE_DISABLE_BACKGROUND_TASKS"] == "1"
+    cmd = recorded["cmd"]
+    assert cmd[cmd.index("--disallowedTools") + 1] == "Monitor,ScheduleWakeup,CronCreate"
+
+
 # ---------------------------------------------------------------------------
 # --- EscalationError / _has_escalation / _escalation_excerpt ---
 # ---------------------------------------------------------------------------

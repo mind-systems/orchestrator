@@ -258,6 +258,7 @@ def _run_claude(
         "--verbose",
         "--dangerously-skip-permissions",
         "--allowedTools", ",".join(allowed_tools),
+        "--disallowedTools", "Monitor,ScheduleWakeup,CronCreate",
     ]
 
     if model:
@@ -270,11 +271,14 @@ def _run_claude(
     elif system_prompt:
         cmd.extend(["--system-prompt", system_prompt])
 
+    env = {**os.environ, "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1"}
+
     for attempt in range(1, MAX_RETRIES + 1):
         print(f"\n--- Claude agent ({cwd}) ---")
         start = time.monotonic()
         proc = subprocess.Popen(
             cmd, cwd=cwd,
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             stdin=subprocess.DEVNULL,
