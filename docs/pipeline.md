@@ -23,6 +23,8 @@ Planner and reviewer are one agent (`PlannerReviewer`), running in a single Clau
 
 `PlanReviewer` is a separate agent with a clean session on every attempt. This is deliberate: it looks at the plan without the author's own bias, as an independent reviewer.
 
+An agent's turn is the whole of its life. Each agent runs as one non-interactive call whose process ends when the agent ends its turn, and nothing wakes it again. No agent is therefore offered work that outlives its turn: a command runs in the foreground until it finishes, and no tool that waits, watches, or schedules on the agent's behalf is available. An agent able to background a slow check would end its turn promising the result later, and there is no later to keep that promise.
+
 `PlannerReviewer`'s session also persists across a whole roadmap phase — see [phase-sessions.md](features/phase-sessions.md) for the phase boundary, the reset behaviour, and why the default disables carrying it forward.
 
 Every time an agent runs, its session ID is printed to the log — visible right after the `--- Claude agent (...) ---` line. That identifier locates the session's own file under `~/.claude/projects/` for diagnosis.
@@ -35,7 +37,7 @@ Artifact directory layout and per-roadmap routing live on [named-roadmaps.md](fe
 
 ## Completion signals
 
-Every agent uses the same protocol: it writes its result to a file, and puts a signal as the file's last line if all is well — or leaves the file without one if problems remain. `PlanReviewer` writes `PLAN_REVIEW_PASS`, the reviewer writes `REVIEW_PASS`. The orchestrator reads the file, counts iterations, and decides whether to continue or to stop and show the last review to the user.
+Every agent uses the same protocol: it writes its result to a file, and puts a signal as the file's last line if all is well — or leaves the file without one if problems remain. `PlanReviewer` writes `PLAN_REVIEW_PASS`, the reviewer writes `REVIEW_PASS`. The orchestrator reads the file, counts iterations, and decides whether to continue or to stop and show the last review to the user. A review file that was never written is not a result without a signal — it is no result at all, and the run halts rather than counting it (see [fault-handling.md](concepts/fault-handling.md)).
 
 Any of the four roles may instead write `ESCALATION` as that last line — see [escalation.md](features/escalation.md) for what it means and what it requires.
 
