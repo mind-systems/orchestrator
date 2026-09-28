@@ -168,6 +168,10 @@ class NetworkError(HaltError):
     (transient network/infra death either way), and retries are exhausted."""
 
 
+class MissingArtifactError(HaltError):
+    """Raised when an agent ends its turn without writing the artifact its step requires."""
+
+
 class PipelineStopError(Exception):
     """Raised to request a graceful halt of the pipeline."""
 
@@ -482,18 +486,20 @@ class PlannerReviewer:
         )
         _write_session(plan_path, "planner", self.session_id)
 
-        if review_path.exists():
-            review_text = review_path.read_text()
-            if _has_escalation(review_text):
-                excerpt = _escalation_excerpt(review_text)
-                _write_session(plan_path, "escalation", f"reviewer: {excerpt} ({review_path})")
-                _write_session(plan_path, "step", "escalated")
-                raise EscalationError(f"{review_path}: {excerpt}")
+        if not review_path.exists():
+            raise MissingArtifactError(
+                f"Agent ended without writing its review\n{review_path}"
+            )
 
         # Check the review file, not the chat output — look for REVIEW_PASS on its own line
-        if review_path.exists():
-            return _has_signal(review_path.read_text(), "REVIEW_PASS")
-        return False
+        review_text = review_path.read_text()
+        if _has_escalation(review_text):
+            excerpt = _escalation_excerpt(review_text)
+            _write_session(plan_path, "escalation", f"reviewer: {excerpt} ({review_path})")
+            _write_session(plan_path, "step", "escalated")
+            raise EscalationError(f"{review_path}: {excerpt}")
+
+        return _has_signal(review_text, "REVIEW_PASS")
 
 
 class PlanReviewer:
@@ -512,7 +518,11 @@ class PlanReviewer:
         self.effort = effort
 
     def review_plan(self, plan_path: Path, review_path: Path) -> bool:
-        """Review a plan file. Writes review to review_path. Returns True if passed."""
+        """Review a plan file. Writes review to review_path. Returns True if passed.
+
+        Raises MissingArtifactError if the agent ends its turn without writing
+        the review file — a halt, not a failed review.
+        """
         prompt = (
             f"Review the PLAN at: {plan_path}\n"
             f"Read the plan file and the codebase it targets.\n"
@@ -531,15 +541,18 @@ class PlanReviewer:
             model=self.model,
             effort=self.effort,
         )
-        if review_path.exists():
-            review_text = review_path.read_text()
-            if _has_escalation(review_text):
-                excerpt = _escalation_excerpt(review_text)
-                _write_session(plan_path, "escalation", f"plan-reviewer: {excerpt} ({review_path})")
-                _write_session(plan_path, "step", "escalated")
-                raise EscalationError(f"{review_path}: {excerpt}")
-            return _has_signal(review_text, "PLAN_REVIEW_PASS")
-        return False
+        if not review_path.exists():
+            raise MissingArtifactError(
+                f"Agent ended without writing its review\n{review_path}"
+            )
+
+        review_text = review_path.read_text()
+        if _has_escalation(review_text):
+            excerpt = _escalation_excerpt(review_text)
+            _write_session(plan_path, "escalation", f"plan-reviewer: {excerpt} ({review_path})")
+            _write_session(plan_path, "step", "escalated")
+            raise EscalationError(f"{review_path}: {excerpt}")
+        return _has_signal(review_text, "PLAN_REVIEW_PASS")
 
 
 class Implementer:

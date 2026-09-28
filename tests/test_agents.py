@@ -14,6 +14,7 @@ from orchestrator.agents import (
     EscalationError,
     HaltError,
     Implementer,
+    MissingArtifactError,
     PlanReviewer,
     PlannerReviewer,
     RateLimitError,
@@ -815,5 +816,51 @@ def test_review_plan_regression_no_escalation_returns_bool(tmp_path, monkeypatch
     reviewer = PlanReviewer(tmp_path)
 
     assert reviewer.review_plan(plan_path, review_path) is True
+
+    assert not plan_path.with_suffix(".json").exists()
+
+
+# ---------------------------------------------------------------------------
+# A review that was never written halts
+# ---------------------------------------------------------------------------
+
+
+def test_review_missing_file_raises_missing_artifact_error(tmp_path, monkeypatch):
+    """PlannerReviewer.review raises MissingArtifactError, not a False verdict, when the
+    agent ends its turn without writing the review file. The session write still happens;
+    no 'step' is written for this halt."""
+    plan_path = tmp_path / "01-slug.md"
+    plan_path.write_text("# Plan")
+    review_path = tmp_path / "01-slug-review-1.md"
+    monkeypatch.setattr(agents, "_run_claude", lambda *a, **kw: ("output text", "sid-1"))
+    pr = PlannerReviewer(tmp_path)
+
+    with pytest.raises(MissingArtifactError) as exc_info:
+        pr.review(plan_path, review_path)
+
+    lines = str(exc_info.value).splitlines()
+    assert lines[0] == "Agent ended without writing its review"
+    assert lines[1] == str(review_path)
+
+    sessions = json.loads(plan_path.with_suffix(".json").read_text())
+    assert sessions.get("planner") == "sid-1"
+    assert "step" not in sessions
+
+
+def test_review_plan_missing_file_raises_missing_artifact_error(tmp_path, monkeypatch):
+    """PlanReviewer.review_plan raises MissingArtifactError, not a False verdict, when the
+    agent ends its turn without writing the review file. No sidecar is written at all."""
+    plan_path = tmp_path / "01-slug.md"
+    plan_path.write_text("# Plan")
+    review_path = tmp_path / "01-slug-plan-review-1.md"
+    monkeypatch.setattr(agents, "_run_claude", lambda *a, **kw: ("output text", "sid-1"))
+    reviewer = PlanReviewer(tmp_path)
+
+    with pytest.raises(MissingArtifactError) as exc_info:
+        reviewer.review_plan(plan_path, review_path)
+
+    lines = str(exc_info.value).splitlines()
+    assert lines[0] == "Agent ended without writing its review"
+    assert lines[1] == str(review_path)
 
     assert not plan_path.with_suffix(".json").exists()
