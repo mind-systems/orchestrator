@@ -1,24 +1,44 @@
-# Architecture: Layered Architecture
+# Architecture: Ports and Adapters
 
 ## Overview
 
-The orchestrator is a small Python CLI tool with no framework, no database, and no complex domain logic. Layered Architecture fits the scale: one developer, ~10 small single-concern modules, a linear data flow from CLI to filesystem.
+One task pipeline runs unchanged for every mode. What differs between modes is an implementation chosen where the run is assembled, never a question the pipeline asks. Dependency inversion is the one structural rule: the flow depends on what a step does, and the implementation that does it is supplied from outside.
 
-Three layers separated by responsibility: orchestration, agents, infrastructure. Each layer knows only about the layers below it.
+Packaging comes second: modules are cut by concern, one small module per concern, and the folder structure below records that cut. What each stage of the pipeline does is described in [Pipeline](../docs/pipeline.md).
 
-## Decision Rationale
+## The one flow
 
-- **Team size:** 1 developer → Layered
-- **Domain complexity:** low (coordination of calls, no business rules) → Layered
-- **Scale:** single process, local machine → Layered
-- **Codebase size:** ~5 modules → Layered (Structured Modules fits at ~10+ modules)
+`process_task` in `main.py` is the single pipeline: plan, plan review, implement, verify, mark done and commit. It never asks which mode it runs in; everything that differs arrives as a value or an implementation handed to it.
+
+## What varies
+
+- **Mode**, implement vs test. The `Mode` record holds a mode's own static values — its roadmap file, planner prompt, header and skip wording — and one verify kind, and has two instances, `IMPLEMENT_MODE` and `TEST_MODE`. The choice is made at the composition root.
+- **Verify step**, a port named `VerifierProtocol`. Given the plan and the output path, an implementation writes the verify artifact and reports pass or fail by that artifact's completion signal. There are two implementations: code review by `PlannerReviewer`, in the planner's own session, and the test run by `TestRunner`, with no LLM. The kind of verification is one record, `VerifyKind`, beside its implementations in `agents.py`. It holds everything that depends on that choice: the step's name in the sidecar, its failure tag, the artifact directory and suffix, the pass signal, the wording the run prints, and the factory that builds the implementation for a task. Each implementation reads its own pass signal from its kind. There are two kinds, review and test run. The choice is made at the composition root and carried on the mode record.
+- **Layout**, the default flat roadmap pair vs a named roadmap. This is a value, not a port: the per-roadmap artifact subdirectory, derived once from the roadmap path at assembly, from which every artifact directory derives in one place. See [Named roadmaps](../docs/features/named-roadmaps.md).
+- **Agent roles**. Three LLM roles — `PlannerReviewer`, `PlanReviewer` and `Implementer` — run over one runner, `_run_claude`. They differ in prompt, tool list and session policy, and they are not interchangeable, so they share a runner, not a port. `TestRunner` is not a role; it is the second verify implementation.
+
+## Composition root
+
+`_implement_loop` and `_test_loop` in `main.py` assemble the mode record — roadmap path, artifact subdirectory, planner prompt, verify kind — and hand it to the one flow. They are the only place that knows which implementation runs.
+
+## The rule
+
+A new difference between modes or roles is a new implementation chosen at the composition root, never a branch inside the flow. A kind that gains a second member is named here as a port, judged by how many places must change to add a third. A choice is held once: what depends on it lives in the same record or derives from it, never beside it as a second value that must agree.
+
+## Invariants
+
+- Step values and resume: [Resume](../docs/features/resume.md)
+- The file protocol and completion signals: [Pipeline](../docs/pipeline.md)
+- Outcomes: [Outcomes](../docs/concepts/outcomes.md)
+- Escalation: [Escalation](../docs/features/escalation.md)
 
 ## Folder Structure
 
 ```
 orchestrator/
 ├── orchestrator/
-│   ├── main.py          # Orchestration: CLI, the unified task pipeline, roadmap loops, git commit
+│   ├── __init__.py      # Package marker
+│   ├── main.py          # The one flow (process_task) and the composition root (_implement_loop, _test_loop); CLI, roadmap loops, git commit
 │   ├── agents.py        # Agents: agent classes, _run_claude(), sidecar session helpers, claude-CLI resolution
 │   ├── roadmap.py       # Infrastructure: ROADMAP.md parsing, mark_done()/mark_skipped()
 │   ├── config.py        # Support: config load + validation (global base + per-project overlay)
@@ -48,62 +68,7 @@ Direction: `main.py` → agents / support modules → `roadmap.py`, `state.py`
 - ✅ support modules import downward only — `usage`→`config`; `resume`→`agents` (`_read_sessions`); `runtime`→`state`, `notify`, `agents` (`kill_active_child`); none import `main.py`
 - ❌ `roadmap.py` must NOT import from `agents.py` or `main.py`
 - ❌ `agents.py` must NOT import from `main.py`
-- ✅ `state.py` may be imported from any layer (shared run state)
-
-## Layer Responsibilities
-
-**Orchestration (`main.py`)** — reads the roadmap, runs agents in the correct order, manages iterations, makes git commits. Knows the step sequence, not agent internals.
-
-**Agents (`agents.py`)** — wrappers over the `claude` CLI. Each class encapsulates one agent type, manages `session_id`, reads/writes the JSON sidecar. Has no knowledge of roadmap structure or tasks.
-
-**Infrastructure (`roadmap.py`)** — pure file operations: parsing markdown checkboxes, writing `[x]`, elapsed time. No dependencies on agents.
-
-**Support modules** — single-concern helpers `main.py` composes, each depending only downward: `config.py` (load + validate settings, including the per-project overlay), `usage.py` (usage-threshold gating), `resume.py` (detect where a prior run stopped), `runtime.py` (run/signal/process lifecycle), `notify.py` (Telegram alerts), `state.py` (shared mutable state for one run).
-
-## Key Principles
-
-1. **Agents communicate through files only** — no in-memory data passing between agents
-2. **Sidecar is isolated** — `_read_sessions`/`_write_session` live in `agents.py` only
-3. **Signals via last line of file** — `PLAN_REVIEW_PASS`, `REVIEW_PASS`, `ESCALATION` — not via agent return values
-4. **One class per agent type** — `PlannerReviewer`, `PlanReviewer`, `Implementer`, `TestRunner` are never mixed
-
-## Code Examples
-
-### Correct dependency direction
-
-```python
-# main.py — orchestration (top layer)
-from .agents import PlannerReviewer, Implementer  # ✅ import down
-from .roadmap import parse_roadmap, mark_done      # ✅ import down
-
-# agents.py — agents (middle layer)
-from . import state  # ✅ import down (state.py may be imported from any layer)
-# _read_sessions/_write_session are defined here natively — no import from roadmap.py
-
-# roadmap.py — infrastructure (bottom layer)
-# no imports from agents or main ✅
-```
-
-### Adding a new agent
-
-```python
-# agents.py
-class NewAgent:
-    def __init__(self, project_dir: Path, model: str = "sonnet", effort: str = "high"):
-        self.project_dir = project_dir
-        self.system_prompt = _load_prompt("new-agent")
-        self.session_id: str | None = None
-
-    def run(self, plan_path: Path, output_path: Path) -> bool:
-        _, self.session_id = _run_claude(
-            prompt="...",
-            cwd=str(self.project_dir),
-            system_prompt=self.system_prompt if not self.session_id else None,
-            session_id=self.session_id,
-        )
-        _write_session(plan_path, "new-agent", self.session_id)
-        return output_path.read_text().strip().endswith("PASS")
-```
+- ✅ `state.py` may be imported from any module (shared run state)
 
 ## Anti-Patterns
 
@@ -112,13 +77,6 @@ class NewAgent:
 - ❌ Step-selection logic in `agents.py` — it belongs in `main.py`
 - ❌ Calling the `claude` CLI directly from `main.py` — only via agent classes in `agents.py`
 - ❌ Reading/writing `ROADMAP.md` from `agents.py` — only from `main.py` via `roadmap.py`
-
-## Evolution Triggers
-
-Move to **Structured Modules** when:
-- `agents.py` grows beyond 700+ lines with unrelated classes
-- 3+ independent domains emerge (e.g. orchestration, monitoring, reporting)
-- Different parts need isolated testing with independent dependencies
 
 ## Features (roadmap-prune v2)
 

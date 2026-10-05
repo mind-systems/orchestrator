@@ -36,4 +36,4 @@ The iteration limit is the price of not distinguishing the two patterns, not a c
 - **Repetition** — different findings in different places (pattern 1), or one blocker across every round (pattern 2).
 - **The review's language** — phrasing like "spec-owner decision," "by design," "carried over" in the early rounds.
 
-Diagnosis and repair are carried out by chat skills over the remaining artifacts: `/task-rescue` diagnoses how deep the root cause runs (spec / plan / code), repairs to that depth, and rolls the sidecar and artifacts back to the repaired state; `/task-rescue-audit` gives an outside assessment — whether the task converged through genuine understanding or through attrition around an unnamed structural gap.
+Diagnosis and repair are carried out by a chat skill over the remaining artifacts: `/task-rescue` diagnoses how deep the root cause runs (spec / plan / code), repairs to that depth, and rolls the sidecar and artifacts back to the repaired state.

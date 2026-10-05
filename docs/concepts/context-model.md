@@ -7,7 +7,7 @@ The pipeline passes the agent a minimum: the task's contract line and the path t
 - **The planner** — the task's title and description (the whole contract line) plus the line `Roadmap: <path> (line N)`.
 - **The plan reviewer** — the path to the plan file; a fresh session on every attempt.
 - **The code reviewer** — the path to the plan; runs in the planner's own session and inherits all of its exploration.
-- **The implementer** — the path to the plan; holds one session through the whole fix cycle.
+- **The implementer** — the path to the plan plus, on its first message, the line `Roadmap: <path> (line N)` — optional context for what is already done, what comes next, and where a neighbouring task's scope begins, which it is not forced to read; holds one session through the whole fix cycle.
 
 Neighboring tasks, spec notes, and architecture documents are not injected into the prompt.
 

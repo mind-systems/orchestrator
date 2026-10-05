@@ -64,7 +64,7 @@ All agents communicate through files, not shared memory. Output directories unde
 
 Consumer skills in the sibling `skills/` repository mirror this file protocol in their `orchestrator-artifacts` engine — any change to the protocol (directory layout, artifact naming, PASS signals, sidecar fields, review-section format) must be reflected there.
 
-`_run_claude()` in `agents.py` shells out to the `claude` CLI with `--output-format stream-json` and parses `result`/`session_id`. Pass/fail is detected by `PLAN_REVIEW_PASS` (plan review) or `REVIEW_PASS` (code review) as the last line of the respective file.
+`_run_claude()` in `agents.py` shells out to the `claude` CLI with `--output-format stream-json` and parses `result`/`session_id`. Pass/fail is detected by `PLAN_REVIEW_PASS` (plan review) or `REVIEW_PASS` (code review) in the respective file; how a signal is recognized is stated in [docs/pipeline.md](docs/pipeline.md) § "Completion signals".
 
 ## Target project requirements
 

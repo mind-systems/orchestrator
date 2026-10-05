@@ -12,7 +12,7 @@ Test tasks live in their own `ROADMAP_TESTS.md` file, so they do not clutter the
 PlannerReviewer.plan()      ← uses the test-planner prompt
   └─► PlanReviewer.review_plan()  ×N
         └─► Implementer.implement()
-              └─► TestRunner.run()  ×N   ← a real test run, not an LLM
+              └─► TestRunner.verify()  ×N   ← a real test run, not an LLM
                     └─► mark_done() + git commit
 ```
 

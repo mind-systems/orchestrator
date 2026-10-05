@@ -59,7 +59,7 @@ Every fault the orchestrator can meet, and the handling it requires.
 | No usable identity for a named roadmap | A halt |
 | An owner line that does not match | A halt |
 | A resume that would start past the attempt budget | A halt |
-| An operator stopping the run | A halt — a soft stop lets the current task finish, a forced one ends it immediately |
+| An operator stopping the run | A halt — a soft stop lets the current task finish, with the machine kept awake until it has, a forced one ends it immediately |
 
 **Not faults at all**
 
