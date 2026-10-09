@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 from typing import NamedTuple
 
-from .agents import EscalationError, HaltError, Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, TestRunner, _read_sessions, _write_session
+from .agents import REVIEW_VERIFY, TEST_RUN_VERIFY, EscalationError, HaltError, Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, TestRunner, VerifyKind, _read_sessions, _write_session
 from .config import OrchestratorConfig, load_config
 from .notify import Outcome, report
 from .resume import _detect_step
@@ -26,16 +26,8 @@ class Mode(NamedTuple):
     roadmap_relpath: str  # path relative to `.ai-factory/`
     header_label: str
     planner_prompt_name: str
-    output_dirname: str
-    output_suffix: str  # artifact tail with an {n} placeholder, e.g. "-review-{n}.md"
-    verify_step: str
-    verify_fail_tag: str
-    pass_signal: str
     skip_message: str
-    verify_running_header: str
-    pass_line_label: str
-    fail_line_label: str
-    max_iterations_message: str  # template with {n}, {path}, {content} placeholders
+    verify: VerifyKind
     artifact_subdir: str | None = None  # per-roadmap artifact dir segment; None = flat (default pair)
 
 
@@ -43,32 +35,16 @@ IMPLEMENT_MODE = Mode(
     roadmap_relpath="ROADMAP.md",
     header_label="TASK",
     planner_prompt_name="planner",
-    output_dirname="reviews",
-    output_suffix="-review-{n}.md",
-    verify_step="review",
-    verify_fail_tag="review_failed:",
-    pass_signal="REVIEW_PASS",
     skip_message="Planner did not create a plan (task may already be done). Skipping.",
-    verify_running_header="REVIEWING",
-    pass_line_label="REVIEW PASSED",
-    fail_line_label="Review found issues",
-    max_iterations_message="Implement failed\n\nLast review: {path}\n\n{content}",
+    verify=REVIEW_VERIFY,
 )
 
 TEST_MODE = Mode(
     roadmap_relpath="ROADMAP_TESTS.md",
     header_label="TEST TASK",
     planner_prompt_name="test-planner",
-    output_dirname="test-runs",
-    output_suffix="-test-{n}.txt",
-    verify_step="test_run",
-    verify_fail_tag="test_run_failed:",
-    pass_signal="TEST_PASS",
     skip_message="Planner did not create a plan. Skipping.",
-    verify_running_header="RUNNING TESTS",
-    pass_line_label="TESTS PASSED",
-    fail_line_label="Tests failed",
-    max_iterations_message="Test failed\n\nLast run: {path}\n\n{content}",
+    verify=TEST_RUN_VERIFY,
 )
 
 
@@ -200,7 +176,7 @@ def process_task(project_dir: Path, task, task_index: int, config: OrchestratorC
     max_iterations = config.max_iterations
     ai_factory = project_dir / ".ai-factory"
     plans_dir = ai_factory / "plans"
-    output_dir = ai_factory / mode.output_dirname
+    output_dir = ai_factory / mode.verify.output_dirname
     plan_reviews_dir = ai_factory / "plan-reviews"
     if mode.artifact_subdir:
         plans_dir = plans_dir / mode.artifact_subdir
@@ -219,7 +195,7 @@ def process_task(project_dir: Path, task, task_index: int, config: OrchestratorC
 
     step, counter, plan_path = _detect_step(
         project_dir, seq, task.slug, plan_path, plan_reviews_dir, output_dir,
-        mode.verify_step, mode.verify_fail_tag, mode.output_suffix, mode.pass_signal,
+        mode.verify,
     )
     seq = plan_path.stem.split("-", 1)[0]
 
@@ -249,7 +225,7 @@ def process_task(project_dir: Path, task, task_index: int, config: OrchestratorC
     # Create agents
     planner_reviewer = PlannerReviewer(project_dir, planner_prompt_name=mode.planner_prompt_name)
     implementer = Implementer(project_dir)
-    test_runner = TestRunner() if mode.verify_step == "test_run" else None
+    test_runner = TestRunner() if mode.verify.step == "test_run" else None
 
     def _verify(out_path: Path, prev_out_path: Path | None) -> bool:
         if test_runner is not None:
@@ -316,43 +292,43 @@ def process_task(project_dir: Path, task, task_index: int, config: OrchestratorC
         )
 
     # Step 2-3: Implement → Verify loop
-    impl_start = counter if step in ("implement", mode.verify_step) else 1
+    impl_start = counter if step in ("implement", mode.verify.step) else 1
     if impl_start > max_iterations:
         raise HaltError(
             f"Resume at iteration {impl_start} exceeds max_iterations "
             f"({max_iterations}). Raise max_iterations in orchestrator.json to continue."
         )
     for iteration in range(impl_start, max_iterations + 1):
-        if step == mode.verify_step and iteration == counter:
+        if step == mode.verify.step and iteration == counter:
             # Resuming mid-verify: implementation already done, go straight to verify
             pass
         else:
             print(f"\n>>> IMPLEMENTING (iteration {iteration})...")
-            feedback_path = output_dir / f"{seq}-{task.slug}{mode.output_suffix.format(n=iteration - 1)}" if iteration > 1 else None
+            feedback_path = output_dir / f"{seq}-{task.slug}{mode.verify.output_suffix.format(n=iteration - 1)}" if iteration > 1 else None
             implementer.implement(plan_path, feedback_path=feedback_path, roadmap_path=roadmap_path, line_number=task.line_number)
             _write_session(plan_path, "step", f"implemented:{iteration}")
             _write_session(plan_path, "elapsed", str(int(time.monotonic() - task_start)))
 
-        print(f"\n>>> {mode.verify_running_header} (iteration {iteration})...")
+        print(f"\n>>> {mode.verify.running_header} (iteration {iteration})...")
         subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
-        out_path = output_dir / f"{seq}-{task.slug}{mode.output_suffix.format(n=iteration)}"
+        out_path = output_dir / f"{seq}-{task.slug}{mode.verify.output_suffix.format(n=iteration)}"
         prev_out_path = None
-        if mode.verify_step == "review" and iteration > 1:
-            prev = output_dir / f"{seq}-{task.slug}{mode.output_suffix.format(n=iteration - 1)}"
+        if mode.verify.step == "review" and iteration > 1:
+            prev = output_dir / f"{seq}-{task.slug}{mode.verify.output_suffix.format(n=iteration - 1)}"
             if prev.exists():
                 prev_out_path = prev
         passed = _verify(out_path, prev_out_path)
         _write_session(plan_path, "elapsed", str(int(time.monotonic() - task_start)))
 
         if passed:
-            print(f">>> {mode.pass_line_label} — see {out_path}")
+            print(f">>> {mode.verify.pass_line_label} — see {out_path}")
             break
         else:
-            print(f">>> {mode.fail_line_label} — see {out_path}")
-            _write_session(plan_path, "step", f"{mode.verify_fail_tag}{iteration}")
+            print(f">>> {mode.verify.fail_line_label} — see {out_path}")
+            _write_session(plan_path, "step", f"{mode.verify.fail_tag}{iteration}")
             if iteration == max_iterations:
                 raise PipelineStopError(
-                    mode.max_iterations_message.format(n=max_iterations, path=out_path, content=out_path.read_text())
+                    mode.verify.max_iterations_message.format(n=max_iterations, path=out_path, content=out_path.read_text())
                 )
 
     # Step 4: Mark done + commit

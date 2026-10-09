@@ -5,7 +5,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from .agents import _read_sessions
+from .agents import REVIEW_VERIFY, TEST_RUN_VERIFY, VerifyKind, _read_sessions
 
 
 def _validate_sidecar_step(
@@ -87,11 +87,11 @@ def _plan_is_stale(project_dir: Path, plan_file: Path) -> bool:
 def _detect_step(
     project_dir: Path, seq: str, slug: str,
     plan_path: Path, plan_reviews_dir: Path, output_dir: Path,
-    verify_step: str, verify_fail_tag: str, output_suffix: str, pass_signal: str,
+    verify: VerifyKind,
 ) -> tuple[str, int, Path]:
     """Detect where a previous run stopped and return (step, counter, plan_path) to resume from.
 
-    Steps: "plan", "plan_review", "implement", <verify_step>, "done", "escalated".
+    Steps: "plan", "plan_review", "implement", <verify.step>, "done", "escalated".
     Counter is the attempt/iteration number to use next.
     The returned plan_path is the canonical path discovered from the lowest-seq file matching
     the slug (handles the case where a previous run was interrupted and the current run computes
@@ -124,7 +124,7 @@ def _detect_step(
     sessions = _read_sessions(plan_path)
     step_value = _validate_sidecar_step(
         sessions.get("step", ""), seq, slug, plan_reviews_dir, output_dir,
-        verify_fail_tag, output_suffix,
+        verify.fail_tag, verify.output_suffix,
     )
     if step_value:
         if step_value.startswith("planned:"):
@@ -137,8 +137,8 @@ def _detect_step(
             return ("implement", 1, plan_path)
         elif step_value.startswith("implemented:"):
             n = int(step_value.split(":")[1])
-            return (verify_step, n, plan_path)
-        elif step_value.startswith(verify_fail_tag):
+            return (verify.step, n, plan_path)
+        elif step_value.startswith(verify.fail_tag):
             n = int(step_value.split(":")[1])
             return ("implement", n + 1, plan_path)
         elif step_value == "escalated":
@@ -167,12 +167,12 @@ def _detect_step(
         return ("implement", 1, plan_path)
 
     # 6. No verify-output files → need to do first verify pass
-    output_files = sorted(output_dir.glob(f"{seq}-{slug}{output_suffix.format(n='*')}"))
+    output_files = sorted(output_dir.glob(f"{seq}-{slug}{verify.output_suffix.format(n='*')}"))
     if not output_files:
-        return (verify_step, 1, plan_path)
+        return (verify.step, 1, plan_path)
 
     # 7. Latest verify-output passed → all steps complete; else need to re-implement
-    if output_files[-1].read_text().strip().endswith(pass_signal):
+    if output_files[-1].read_text().strip().endswith(verify.pass_signal):
         return ("done", 0, plan_path)
 
     return ("implement", len(output_files) + 1, plan_path)
@@ -184,12 +184,11 @@ def _detect_task_step(
 ) -> tuple[str, int, Path]:
     """Detect where a previous implement run stopped. Thin wrapper over `_detect_step`.
 
-    Literals below mirror `main.IMPLEMENT_MODE`'s verify_step/verify_fail_tag/output_suffix/pass_signal.
+    Passes `REVIEW_VERIFY`, the review kind.
     """
     return _detect_step(
         project_dir, seq, slug, plan_path, plan_reviews_dir, reviews_dir,
-        verify_step="review", verify_fail_tag="review_failed:",
-        output_suffix="-review-{n}.md", pass_signal="REVIEW_PASS",
+        REVIEW_VERIFY,
     )
 
 
@@ -199,10 +198,9 @@ def _detect_test_task_step(
 ) -> tuple[str, int, Path]:
     """Detect where a previous test run stopped. Thin wrapper over `_detect_step`.
 
-    Literals below mirror `main.TEST_MODE`'s verify_step/verify_fail_tag/output_suffix/pass_signal.
+    Passes `TEST_RUN_VERIFY`, the test-run kind.
     """
     return _detect_step(
         project_dir, seq, slug, plan_path, plan_reviews_dir, test_runs_dir,
-        verify_step="test_run", verify_fail_tag="test_run_failed:",
-        output_suffix="-test-{n}.txt", pass_signal="TEST_PASS",
+        TEST_RUN_VERIFY,
     )

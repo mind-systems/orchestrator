@@ -11,13 +11,12 @@
 
 ## Where things stand
 
-- **`.ai-factory/ARCHITECTURE.md` is rewritten as Ports and Adapters (2026-10-05, uncommitted).** Raised by skills 07, ordered by the user ("правим архитектурумд сами сейчас"). It names the one flow (`process_task`), the axes — mode, the verify step as `VerifierProtocol`, layout as a value, three LLM roles over one runner — the composition root (`_implement_loop`, `_test_loop`) and the rule; invariants are links into `docs/`. Verified on the file.
-- **Phase 25 is reworked and ready (2026-10-05, uncommitted).** `ARCHITECTURE.md` now holds the verify kind as one record and the rule "a choice is held once"; `docs/features/test-mode.md` names `TestRunner.verify()`. Tasks: `25.1.1` the `VerifyKind` record (spec `0062`), `25.1.2` the port built by its kind (spec `0060`, rewritten), `25.2` artifact directories (spec `0061`, adjusted). Note `0059` rewritten in place. No test in 25.1.x, per the user's ruling.
-- **Phase 26 is outlined (2026-10-05, uncommitted): "A completion signal is recognized one way".** `docs/pipeline.md` § "Completion signals" is now the reading rule's one home (an exact line among the file's last five, per commit `a236d77`); `CLAUDE.md` and `ARCHITECTURE.md` point there instead of restating it. The phase moves `process_task`'s plan-review guard and `resume.py`'s readers onto `_has_signal`, and holds `PLAN_REVIEW_PASS` once beside the plan reviewer. Not deepened, not decomposed.
-- **Phase 27 "A soft stop keeps the machine awake" is planned (2026-10-09, uncommitted)** under `## Interruption resilience`, ahead of Phases 25 and 26 in file order: task `27.1`, spec `0063`; `docs/concepts/fault-handling.md`'s soft-stop row now states the machine stays awake. Reported by tradeoxy_core via skills 07.
+- **Committed in `2113eca` (Roadmap update):** `ARCHITECTURE.md` as Ports and Adapters with `VerifyKind` and "a choice is held once"; Phases 25, 26, 27 and specs `0059`–`0063`; the doc edits in `pipeline.md`, `CLAUDE.md`, `test-mode.md`, `non-convergence.md`, `context-model.md`, `fault-handling.md`.
+- **A run is live (started 2026-10-09):** `27.1` landed as `fd0f326`; `25.1.1` was at plan review when last checked. `25.1.2` and `25.2` follow in the same run, and their specs state "what is true now" against the tree `25.1.1` leaves.
+- **Phase 26** is outlined only: not deepened, not decomposed. The run stops at the first `---STOP---` after it.
+- Latest snapshot: `11-the-pipeline-executes-it-does-not-validate.md` in this folder.
 
 ## Rulings in force
-
 
 - **The global CLAUDE.md is part of the system, not one operator's config.** In the user's words: «глобальный клодмд - часть всей нашей системы, и как может она работать без него - не понятно. Но и других пользователей пока что у системы нет, так что наблюдаем дальше». Never argue that a rule must be duplicated into the orchestrator because the global file might be absent.
 
@@ -101,19 +100,15 @@ lands inside a task's commit.
 
 ## Ledger
 
-
 - **A task spec's paths must resolve from the run's own working directory.** *What:* every agent the orchestrator launches gets `cwd=str(self.project_dir)` in `agents.py`, so a cross-repo path written root-relative from the family root resolves to nothing in a run, against `docs/concepts/context-model.md`'s commitment that "the contract line is the only guaranteed entry point". *Why deferred:* the one task that broke it was deleted, nothing is wrong today, and the rule's home is the skills-side decomposition discipline rather than this repository. *Trigger:* the next task here whose spec names a path outside this repository, or any session working on decomposition rules on the skills side.
 
 ## Candidates — not tasks
 
-
-
 - **The commission gate (skills repository).** Make a task's commission an answered question at decomposition instead of `note`'s constant: either in `note`'s template, which also shapes handoffs and research notes, or as a per-entry gate in `roadmap-decompose` beside the Atomicity Gate, or both. Handed off in full as skills `.ai-factory/handoffs/14-the-task-nobody-ordered.md`; not built as of 2026-10-01. *Promotes on:* the user's go and their choice of landing.
-- **The escalation pair (this repository).** Extend `escalation.md`'s "the ratified spec above the current task" from a fork the spec leaves open to a spec that contradicts the task's target behaviour or does not cover it; and give `implementer.md`'s "Ground truth wins over the plan" its counterpart — for a governing spec, the spec wins and the run stops. Lower yield than the gate by the user's own symptom: it catches a run editing its spec, not a planner writing an unordered task. *Promotes on:* the user's go.
 - **The pipeline asks an architect (observation from skills 07, kept watched, not queued).** Design in `skills/docs/future/the-pipeline-asks-an-architect.md`: at `ESCALATION` the agent sends its task's contact architect one line pointing at where the question sits, and does not wait. No tool change is needed: tested on 2026-10-03, a headless agent launched with the pipeline's exact flags has `ListAgents` directly and `SendMessage` through `ToolSearch`, and its message reached this session. The agent can send but cannot wait for a reply, since the tools that would let it wait are disallowed. It also meets `docs/concepts/fault-handling.md`'s rule that a notification never says where to find the account — the clause a run wrote unordered in task 21.3. The doorbell is a peer message, not an operator notification, but the docs would have to say so before it lands. *Promotes on:* the user deciding to touch the prompts.
 - **The pipeline generates its own repair (observation from skills 07, kept watched, not queued).** `reviewer.md`'s "Deferred observations criterion" makes anything fixable inside the task a finding "down to cosmetics", `REVIEW_PASS` needs zero findings, and everything outside the task becomes a deferred observation that the skills-side prune routes into a phase. Fix-phases grow with the work done. The commission gate would not stop this: every such task carries a real source, a reviewer's observation. *Promotes on:* the user deciding to touch the prompts.
 - *Considered and dropped:* forbidding a plan to list any `docs/` path its spec does not name — too blunt; it would have blocked task 8.1, whose spec names `docs/*.md` by glob.
 
 ## Current thread
 
-The user's stated position on documentation, in their words: «Иногда оркестратору надо дать доступ менять доки и абсолютный запрет даже не понятно как сформулировать. Но и логика в том, что дай ему писать документацию - и мы получаем поведение, которое ни кто не заказывал». My read: the cut is authorship, not the directory — a run changes a document only where its spec pins the change, and an unpinned doc edit is an escalation. But the user's actual symptom — a week of deleting unordered tasks — enters a level higher, at decomposition, which is why the commission gate outranks the escalation pair. The open fork on the gate is its tier: `note` is a general distiller with several callers, so a requirement placed there lands on handoffs too.
+Watching the live run land Phase 25. If `25.1.1`'s code names things differently from spec `0062`, `25.1.2`'s planner meets a mismatch; escalation is the right outcome then, not a pre-emptive edit.

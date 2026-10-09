@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import NamedTuple
 
 from . import state
 
@@ -391,6 +392,44 @@ def _run_claude(
     raise RuntimeError("All retry attempts exhausted")
 
 
+class VerifyKind(NamedTuple):
+    """Everything that depends on the verify choice (review vs. test run)."""
+    step: str
+    fail_tag: str
+    output_dirname: str
+    output_suffix: str  # artifact tail with an {n} placeholder, e.g. "-review-{n}.md"
+    pass_signal: str
+    running_header: str
+    pass_line_label: str
+    fail_line_label: str
+    max_iterations_message: str  # template with {n}, {path}, {content} placeholders
+
+
+REVIEW_VERIFY = VerifyKind(
+    step="review",
+    fail_tag="review_failed:",
+    output_dirname="reviews",
+    output_suffix="-review-{n}.md",
+    pass_signal="REVIEW_PASS",
+    running_header="REVIEWING",
+    pass_line_label="REVIEW PASSED",
+    fail_line_label="Review found issues",
+    max_iterations_message="Implement failed\n\nLast review: {path}\n\n{content}",
+)
+
+TEST_RUN_VERIFY = VerifyKind(
+    step="test_run",
+    fail_tag="test_run_failed:",
+    output_dirname="test-runs",
+    output_suffix="-test-{n}.txt",
+    pass_signal="TEST_PASS",
+    running_header="RUNNING TESTS",
+    pass_line_label="TESTS PASSED",
+    fail_line_label="Tests failed",
+    max_iterations_message="Test failed\n\nLast run: {path}\n\n{content}",
+)
+
+
 class PlannerReviewer:
     """Plans and reviews tasks. Same session — reviewer has planner's context."""
 
@@ -462,7 +501,7 @@ class PlannerReviewer:
                 f"Read each changed/new file IN FULL — understand the surrounding code, not just the diff.\n"
                 f"Think about what will break at runtime: missing migrations, type mismatches, race conditions, etc.\n"
                 f"Write your full review (per-finding verdicts plus any new issues) to: {review_path}\n"
-                f"If you have no findings at all, end the review file with REVIEW_PASS on its own line.\n"
+                f"If you have no findings at all, end the review file with {REVIEW_VERIFY.pass_signal} on its own line.\n"
             )
         else:
             prompt = (
@@ -472,7 +511,7 @@ class PlannerReviewer:
                 f"Read each changed/new file IN FULL — understand the surrounding code, not just the diff.\n"
                 f"Think about what will break at runtime: missing migrations, type mismatches, race conditions, etc.\n"
                 f"Write your full review to: {review_path}\n"
-                f"If you have no findings at all, end the review file with REVIEW_PASS on its own line.\n"
+                f"If you have no findings at all, end the review file with {REVIEW_VERIFY.pass_signal} on its own line.\n"
             )
 
         output, self.session_id = _run_claude(
@@ -491,7 +530,7 @@ class PlannerReviewer:
                 f"Agent ended without writing its review\n{review_path}"
             )
 
-        # Check the review file, not the chat output — look for REVIEW_PASS on its own line
+        # Check the review file, not the chat output — look for the review kind's pass signal on its own line
         review_text = review_path.read_text()
         if _has_escalation(review_text):
             excerpt = _escalation_excerpt(review_text)
@@ -499,7 +538,7 @@ class PlannerReviewer:
             _write_session(plan_path, "step", "escalated")
             raise EscalationError(f"{review_path}: {excerpt}")
 
-        return _has_signal(review_text, "REVIEW_PASS")
+        return _has_signal(review_text, REVIEW_VERIFY.pass_signal)
 
 
 class PlanReviewer:
@@ -632,7 +671,7 @@ class TestRunner:
         )
         passed = result.returncode == 0
         if passed:
-            output += "\nTEST_PASS"
+            output += f"\n{TEST_RUN_VERIFY.pass_signal}"
         output_path.write_text(output)
         status = "PASSED" if passed else "FAILED"
         print(f"--- TestRunner: {status} (exit {result.returncode}, {elapsed:.1f}s) ---")
