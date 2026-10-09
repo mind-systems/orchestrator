@@ -14,6 +14,9 @@ from orchestrator.agents import EscalationError, HaltError, PipelineStopError, R
 from orchestrator.config import OrchestratorConfig
 from orchestrator.notify import Outcome
 from orchestrator.main import (
+    IMPLEMENT_MODE,
+    TEST_MODE,
+    _artifact_dir,
     _artifact_subdir,
     _derive_identity_slug,
     _next_number,
@@ -1243,6 +1246,30 @@ def test_artifact_subdir_explicit_path_tests_sibling_uses_stem():
 def test_artifact_subdir_track_file_uses_stem():
     """Should key any other roadmap file (e.g. a track file) by its stem."""
     assert _artifact_subdir("ROADMAP.watch.md") == "ROADMAP.watch"
+
+
+# ---------------------------------------------------------------------------
+# _artifact_dir: one derivation for every artifact directory; pure, creates nothing
+# ---------------------------------------------------------------------------
+
+
+def test_artifact_dir_flat_mode_has_no_subdir(tmp_path):
+    """Should place the directory directly under .ai-factory when the mode has no subdirectory."""
+    result = _artifact_dir(tmp_path, IMPLEMENT_MODE, "plans")
+    assert result == tmp_path / ".ai-factory" / "plans"
+    assert not result.exists()
+
+
+def test_artifact_dir_named_mode_appends_subdir(tmp_path):
+    """Should append the mode's artifact subdirectory when it has one."""
+    mode = IMPLEMENT_MODE._replace(artifact_subdir="john-doe")
+    assert _artifact_dir(tmp_path, mode, "plans") == tmp_path / ".ai-factory" / "plans" / "john-doe"
+
+
+def test_artifact_dir_test_mode_verify_dirname(tmp_path):
+    """Should derive the test-run output directory from the verify kind's dirname."""
+    result = _artifact_dir(tmp_path, TEST_MODE, TEST_MODE.verify.output_dirname)
+    assert result == tmp_path / ".ai-factory" / "test-runs"
 
 
 # ---------------------------------------------------------------------------

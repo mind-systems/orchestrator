@@ -150,6 +150,12 @@ def _artifact_subdir(relpath: str) -> str | None:
     return stem or Path(relpath).stem
 
 
+def _artifact_dir(project_dir: Path, mode: Mode, dirname: str) -> Path:
+    """The artifact directory `dirname`, under the mode's per-roadmap subdirectory when it has one; creates nothing."""
+    base = project_dir / ".ai-factory" / dirname
+    return base / mode.artifact_subdir if mode.artifact_subdir else base
+
+
 def _git_commit(project_dir: Path, task_title: str) -> None:
     """Stage all changes and commit after a completed task."""
     subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
@@ -174,14 +180,9 @@ def _git_commit(project_dir: Path, task_title: str) -> None:
 def process_task(project_dir: Path, task, task_index: int, config: OrchestratorConfig, mode: Mode = IMPLEMENT_MODE, phase_session_id: str | None = None) -> str | None:
     """Plan → implement → verify loop for a single task (verify = review, or a real test run in test mode)."""
     max_iterations = config.max_iterations
-    ai_factory = project_dir / ".ai-factory"
-    plans_dir = ai_factory / "plans"
-    output_dir = ai_factory / mode.verify.output_dirname
-    plan_reviews_dir = ai_factory / "plan-reviews"
-    if mode.artifact_subdir:
-        plans_dir = plans_dir / mode.artifact_subdir
-        output_dir = output_dir / mode.artifact_subdir
-        plan_reviews_dir = plan_reviews_dir / mode.artifact_subdir
+    plans_dir = _artifact_dir(project_dir, mode, "plans")
+    output_dir = _artifact_dir(project_dir, mode, mode.verify.output_dirname)
+    plan_reviews_dir = _artifact_dir(project_dir, mode, "plan-reviews")
     plans_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
     plan_reviews_dir.mkdir(parents=True, exist_ok=True)
@@ -338,11 +339,9 @@ def process_task(project_dir: Path, task, task_index: int, config: OrchestratorC
     return planner_reviewer.session_id
 
 
-def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: OrchestratorConfig, process_fn, artifact_subdir: str | None = None) -> None:
+def _run_dynamic_loop(project_dir: Path, roadmap_path: Path, config: OrchestratorConfig, process_fn, mode: Mode) -> None:
     """Dynamically re-scan the roadmap before each task, always running the first unchecked one."""
-    plans_dir = project_dir / ".ai-factory" / "plans"
-    if artifact_subdir:
-        plans_dir = plans_dir / artifact_subdir
+    plans_dir = _artifact_dir(project_dir, mode, "plans")
     plans_dir.mkdir(parents=True, exist_ok=True)
     phase_sessions_enabled = config.enable_phase_sessions
 
@@ -406,7 +405,7 @@ def _test_loop(project_dir: Path, config: OrchestratorConfig) -> None:
     _run_dynamic_loop(
         project_dir, roadmap_path, config,
         lambda m, i, sid: process_task(project_dir, m, i, config, mode, phase_session_id=sid),
-        artifact_subdir=mode.artifact_subdir,
+        mode=mode,
     )
 
 
@@ -421,7 +420,7 @@ def _implement_loop(project_dir: Path, config: OrchestratorConfig, planner_promp
     _run_dynamic_loop(
         project_dir, roadmap_path, config,
         lambda m, i, sid: process_task(project_dir, m, i, config, mode, phase_session_id=sid),
-        artifact_subdir=mode.artifact_subdir,
+        mode=mode,
     )
 
 
