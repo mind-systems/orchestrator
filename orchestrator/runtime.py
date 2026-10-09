@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import signal
 import subprocess
 import sys
@@ -40,10 +41,18 @@ def _run_summary() -> str:
 
 
 def _with_caffeinate(func, *args, **kwargs):
-    """Run a function with macOS sleep prevention (degrades gracefully on non-macOS)."""
+    """Run a function with macOS sleep prevention (degrades gracefully on non-macOS).
+
+    caffeinate runs in its own session, so a terminal Ctrl+C aimed at the run's
+    process group does not reach it, and `-w` ties its life to this process so it
+    exits on its own however the orchestrator ends.
+    """
     start = time.monotonic()
     try:
-        caffeinate = subprocess.Popen(["caffeinate", "-ims"])
+        caffeinate = subprocess.Popen(
+            ["caffeinate", "-ims", "-w", str(os.getpid())],
+            start_new_session=True,
+        )
     except FileNotFoundError:
         # caffeinate not available (non-macOS); run without sleep prevention
         try:

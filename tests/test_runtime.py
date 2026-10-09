@@ -3,7 +3,11 @@ and _handle_sigint."""
 
 import re
 import signal
+import subprocess
+import sys
+import textwrap
 import time
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
@@ -149,6 +153,65 @@ def test_with_caffeinate_available_cleans_up_on_exception(monkeypatch, capsys):
 
     fake_proc.send_signal.assert_called_once_with(signal.SIGTERM)
     fake_proc.wait.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# _with_caffeinate — sleep prevention survives a soft stop
+# ---------------------------------------------------------------------------
+
+_SIGINT_SCRIPT = textwrap.dedent(
+    """
+    import os, signal, subprocess, sys, time
+    from orchestrator import runtime
+
+    signal.signal(signal.SIGINT, runtime._handle_sigint)
+
+    real_popen = subprocess.Popen
+    spawned = []
+
+    def fake_popen(args, **kwargs):
+        stand_in = [sys.executable, "-c", "import time; time.sleep(60)", *args[1:]]
+        proc = real_popen(stand_in, **kwargs)
+        spawned.append(proc)
+        return proc
+
+    runtime.subprocess.Popen = fake_popen
+    outcome = []
+
+    def func():
+        time.sleep(0.5)
+        os.killpg(os.getpgrp(), signal.SIGINT)
+        try:
+            spawned[0].wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            outcome.append("alive")
+        else:
+            outcome.append("died")
+
+    runtime._with_caffeinate(func)
+
+    if outcome != ["alive"]:
+        print("sleep prevention died on SIGINT to the run's group", file=sys.stderr)
+        sys.exit(1)
+    """
+)
+
+
+def test_with_caffeinate_survives_sigint_to_run_group():
+    """A SIGINT delivered to the run's own process group while the wrapped function
+    runs leaves the sleep-prevention process alive."""
+    repo_root = Path(__file__).resolve().parent.parent
+
+    result = subprocess.run(
+        [sys.executable, "-c", _SIGINT_SCRIPT],
+        cwd=repo_root,
+        start_new_session=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
 
 
 # ---------------------------------------------------------------------------
