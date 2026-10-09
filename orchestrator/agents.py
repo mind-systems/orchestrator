@@ -10,7 +10,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import NamedTuple
+from typing import Callable, NamedTuple, Protocol
 
 from . import state
 
@@ -392,6 +392,12 @@ def _run_claude(
     raise RuntimeError("All retry attempts exhausted")
 
 
+class VerifierProtocol(Protocol):
+    """Given the plan and output path, write the verify artifact and report pass or fail by its completion signal."""
+
+    def verify(self, plan_path: Path, out_path: Path, prev_out_path: Path | None) -> bool: ...
+
+
 class VerifyKind(NamedTuple):
     """Everything that depends on the verify choice (review vs. test run)."""
     step: str
@@ -403,6 +409,15 @@ class VerifyKind(NamedTuple):
     pass_line_label: str
     fail_line_label: str
     max_iterations_message: str  # template with {n}, {path}, {content} placeholders
+    make_verifier: Callable[[PlannerReviewer, Path], VerifierProtocol]  # (planner_reviewer, project_dir) -> verifier
+
+
+def _review_verifier(planner_reviewer: PlannerReviewer, project_dir: Path) -> VerifierProtocol:
+    return planner_reviewer
+
+
+def _test_run_verifier(planner_reviewer: PlannerReviewer, project_dir: Path) -> VerifierProtocol:
+    return TestRunner(project_dir)
 
 
 REVIEW_VERIFY = VerifyKind(
@@ -415,6 +430,7 @@ REVIEW_VERIFY = VerifyKind(
     pass_line_label="REVIEW PASSED",
     fail_line_label="Review found issues",
     max_iterations_message="Implement failed\n\nLast review: {path}\n\n{content}",
+    make_verifier=_review_verifier,
 )
 
 TEST_RUN_VERIFY = VerifyKind(
@@ -427,6 +443,7 @@ TEST_RUN_VERIFY = VerifyKind(
     pass_line_label="TESTS PASSED",
     fail_line_label="Tests failed",
     max_iterations_message="Test failed\n\nLast run: {path}\n\n{content}",
+    make_verifier=_test_run_verifier,
 )
 
 
@@ -540,6 +557,9 @@ class PlannerReviewer:
 
         return _has_signal(review_text, REVIEW_VERIFY.pass_signal)
 
+    def verify(self, plan_path: Path, out_path: Path, prev_out_path: Path | None) -> bool:
+        return self.review(plan_path, out_path, prev_review_path=prev_out_path)
+
 
 class PlanReviewer:
     """Reviews a plan before implementation. Fresh session — no planner bias."""
@@ -648,18 +668,23 @@ class Implementer:
 class TestRunner:
     """Runs the test command from the plan file and captures output. No LLM."""
 
-    def run(self, plan_path: Path, output_path: Path, project_dir: Path) -> bool:
+    __test__ = False  # not a pytest test class; stops pytest collecting it by name
+
+    def __init__(self, project_dir: Path) -> None:
+        self.project_dir = project_dir
+
+    def verify(self, plan_path: Path, out_path: Path, prev_out_path: Path | None) -> bool:
         """Extract test command from plan, run it, write output. Returns True if exit code 0."""
         cmd = self._extract_test_command(plan_path)
         if not cmd:
-            output_path.write_text("ERROR: No '## Test Command' section found in plan.\n")
+            out_path.write_text("ERROR: No '## Test Command' section found in plan.\n")
             return False
 
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
         print(f"\n--- TestRunner: {cmd} ---")
         start = time.monotonic()
         result = subprocess.run(
-            cmd, shell=True, cwd=str(project_dir),
+            cmd, shell=True, cwd=str(self.project_dir),
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
         )
         elapsed = time.monotonic() - start
@@ -672,7 +697,7 @@ class TestRunner:
         passed = result.returncode == 0
         if passed:
             output += f"\n{TEST_RUN_VERIFY.pass_signal}"
-        output_path.write_text(output)
+        out_path.write_text(output)
         status = "PASSED" if passed else "FAILED"
         print(f"--- TestRunner: {status} (exit {result.returncode}, {elapsed:.1f}s) ---")
         return passed

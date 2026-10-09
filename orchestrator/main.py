@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 from typing import NamedTuple
 
-from .agents import REVIEW_VERIFY, TEST_RUN_VERIFY, EscalationError, HaltError, Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, TestRunner, VerifyKind, _read_sessions, _write_session
+from .agents import REVIEW_VERIFY, TEST_RUN_VERIFY, EscalationError, HaltError, Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, VerifyKind, _read_sessions, _write_session
 from .config import OrchestratorConfig, load_config
 from .notify import Outcome, report
 from .resume import _detect_step
@@ -225,12 +225,7 @@ def process_task(project_dir: Path, task, task_index: int, config: OrchestratorC
     # Create agents
     planner_reviewer = PlannerReviewer(project_dir, planner_prompt_name=mode.planner_prompt_name)
     implementer = Implementer(project_dir)
-    test_runner = TestRunner() if mode.verify.step == "test_run" else None
-
-    def _verify(out_path: Path, prev_out_path: Path | None) -> bool:
-        if test_runner is not None:
-            return test_runner.run(plan_path, out_path, project_dir)
-        return planner_reviewer.review(plan_path, out_path, prev_review_path=prev_out_path)
+    verifier = mode.verify.make_verifier(planner_reviewer, project_dir)
 
     if sessions and sessions.get("planner"):
         planner_reviewer.session_id = sessions.get("planner")
@@ -313,11 +308,11 @@ def process_task(project_dir: Path, task, task_index: int, config: OrchestratorC
         subprocess.run(["git", "add", "-A"], cwd=project_dir, check=True)
         out_path = output_dir / f"{seq}-{task.slug}{mode.verify.output_suffix.format(n=iteration)}"
         prev_out_path = None
-        if mode.verify.step == "review" and iteration > 1:
+        if iteration > 1:
             prev = output_dir / f"{seq}-{task.slug}{mode.verify.output_suffix.format(n=iteration - 1)}"
             if prev.exists():
                 prev_out_path = prev
-        passed = _verify(out_path, prev_out_path)
+        passed = verifier.verify(plan_path, out_path, prev_out_path)
         _write_session(plan_path, "elapsed", str(int(time.monotonic() - task_start)))
 
         if passed:
