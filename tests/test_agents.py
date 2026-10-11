@@ -15,15 +15,17 @@ from orchestrator.agents import (
     PlanReviewer,
     PlannerReviewer,
     _classify_result,
+    kill_active_child,
+    TestRunner,
+)
+from orchestrator.errors import EscalationError, HaltError, MissingArtifactError, RateLimitError
+from orchestrator.protocol import (
     _escalation_excerpt,
     _has_escalation,
     _has_signal,
     _read_sessions,
     _write_session,
-    kill_active_child,
-    TestRunner,
 )
-from orchestrator.errors import EscalationError, HaltError, MissingArtifactError, RateLimitError
 
 
 # ---------------------------------------------------------------------------

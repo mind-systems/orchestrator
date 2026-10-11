@@ -5,7 +5,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from .agents import REVIEW_VERIFY, TEST_RUN_VERIFY, VerifyKind, _read_sessions
+from .agents import REVIEW_VERIFY, TEST_RUN_VERIFY, VerifyKind
+from .protocol import _read_sessions
 
 
 def _validate_sidecar_step(
