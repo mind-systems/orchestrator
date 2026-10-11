@@ -35,17 +35,19 @@ test is a crutch.
 **Standing entry — the counts rule.** It governs what is read later by
 someone who cannot ask back — a spec, a plan, a roadmap line, this buffer
 after a compact; in conversation a number or a position is fine, since a
-wrong one costs one reply. A number someone decided is written: it stays
-true however the tree grows. A measurement of the current tree is not
-written, dated or not — write what produces it, the rule or the search that
-gives it fresh each time. A spec least of all carries a number measuring the
-tree: tasks run one after another, and each one changes the tree the next
-was written against, so such a number in a queued spec is false before the
-orchestrator reaches it, and the orchestrator cannot execute a spec whose
-facts no longer hold. A number met in a spec, a plan or a report is read as
-an order of magnitude; one that has gone stale is not a defect to correct,
-count again or stop on. Two counts that disagree are not reconciled against
-each other; ask which member is missing.
+wrong one costs one reply. A count in a work-order is held to the same rule:
+the spec is composed from the order, and a count in it becomes a count in
+the spec. A number someone decided is written: it stays true however the
+tree grows. A measurement of the current tree is not written, dated or not —
+write what produces it, the rule or the search that gives it fresh each
+time. A spec least of all carries a number measuring the tree: tasks run one
+after another, and each one changes the tree the next was written against,
+so such a number in a queued spec is false before the orchestrator reaches
+it, and the orchestrator cannot execute a spec whose facts no longer hold. A
+number met in a spec, a plan or a report is read as an order of magnitude;
+one that has gone stale is not a defect to correct, count again or stop on.
+Two counts that disagree are not reconciled against each other; ask which
+member is missing.
 
 **Standing entry — what a spec holds.** A spec states what is true now,
 what must be true after and what breaks on contact, and nothing else. It
@@ -55,7 +57,11 @@ back as plan steps and review rounds. It names no position in a file, only
 what the artifact must hold. It puts no fence around a neighbour; scope is
 what the task changes.
 
-**Standing entry — a task's now.** The roadmap runs top to bottom, one task at a time, so a task's "what is true now" is the code as every open task above it leaves it, not the tree on the day of writing. It is built from their "after", under their names, and what one of them rewrites is never quoted into it.
+**Standing entry — a task's now.** The roadmap runs top to bottom, one task
+at a time, so a task's "what is true now" is the code as every open task
+above it leaves it, not the tree on the day of writing. It is built from
+their "after", under their names, and what one of them rewrites is never
+quoted into it.
 
 **Standing entry — state the behaviour and stop.** A rule says what happens
 and ends there: no sentence for each case it excludes, no guard against its
