@@ -256,7 +256,7 @@ def process_task(project_dir: Path, task, task_index: int, config: OrchestratorC
             print(f"\n>>> REVIEWING PLAN (attempt {attempt})...")
             plan_reviewer = PlanReviewer(project_dir)
             plan_review_path = plan_reviews_dir / f"{seq}-{task.slug}-plan-review-{attempt}.md"
-            plan_passed = plan_reviewer.review_plan(plan_path, plan_review_path)
+            plan_passed = plan_reviewer.review_plan(plan_path, plan_review_path, attempt)
             _write_session(plan_path, "elapsed", str(int(time.monotonic() - task_start)))
 
             if plan_passed:

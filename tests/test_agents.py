@@ -762,7 +762,7 @@ def test_review_plan_escalation_raises_and_writes_sidecar(tmp_path, monkeypatch)
     reviewer = PlanReviewer(tmp_path)
 
     with pytest.raises(EscalationError):
-        reviewer.review_plan(plan_path, review_path)
+        reviewer.review_plan(plan_path, review_path, 1)
 
     sessions = json.loads(plan_path.with_suffix(".json").read_text())
     assert sessions["step"] == "escalated"
@@ -807,17 +807,17 @@ def test_review_regression_no_escalation_returns_bool(tmp_path, monkeypatch):
 
 def test_review_plan_regression_no_escalation_returns_bool(tmp_path, monkeypatch):
     """An artifact ending with PLAN_REVIEW_PASS and no ESCALATION line returns True, with
-    no raise and no sidecar written at all (review_plan() writes no sidecar on the non-
-    escalation path, same as before this change)."""
+    no raise. The sidecar holds only the reviewer's session id, with no 'step' and no
+    'escalation'."""
     plan_path = tmp_path / "01-slug.md"
     plan_path.write_text("# Plan")
     review_path = tmp_path / "01-slug-plan-review-1.md"
     _stub_run_claude_writing(monkeypatch, review_path, "All good\n\nPLAN_REVIEW_PASS")
     reviewer = PlanReviewer(tmp_path)
 
-    assert reviewer.review_plan(plan_path, review_path) is True
+    assert reviewer.review_plan(plan_path, review_path, 1) is True
 
-    assert not plan_path.with_suffix(".json").exists()
+    assert json.loads(plan_path.with_suffix(".json").read_text()) == {"plan-reviewer-1": "sid-1"}
 
 
 # ---------------------------------------------------------------------------
@@ -849,7 +849,8 @@ def test_review_missing_file_raises_missing_artifact_error(tmp_path, monkeypatch
 
 def test_review_plan_missing_file_raises_missing_artifact_error(tmp_path, monkeypatch):
     """PlanReviewer.review_plan raises MissingArtifactError, not a False verdict, when the
-    agent ends its turn without writing the review file. No sidecar is written at all."""
+    agent ends its turn without writing the review file. The session id is written even
+    though no review exists, and no 'step' is written."""
     plan_path = tmp_path / "01-slug.md"
     plan_path.write_text("# Plan")
     review_path = tmp_path / "01-slug-plan-review-1.md"
@@ -857,10 +858,10 @@ def test_review_plan_missing_file_raises_missing_artifact_error(tmp_path, monkey
     reviewer = PlanReviewer(tmp_path)
 
     with pytest.raises(MissingArtifactError) as exc_info:
-        reviewer.review_plan(plan_path, review_path)
+        reviewer.review_plan(plan_path, review_path, 1)
 
     lines = str(exc_info.value).splitlines()
     assert lines[0] == "Agent ended without writing its review"
     assert lines[1] == str(review_path)
 
-    assert not plan_path.with_suffix(".json").exists()
+    assert json.loads(plan_path.with_suffix(".json").read_text()) == {"plan-reviewer-1": "sid-1"}

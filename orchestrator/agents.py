@@ -576,8 +576,13 @@ class PlanReviewer:
         self.model = model
         self.effort = effort
 
-    def review_plan(self, plan_path: Path, review_path: Path) -> bool:
+    def review_plan(self, plan_path: Path, review_path: Path, attempt: int) -> bool:
         """Review a plan file. Writes review to review_path. Returns True if passed.
+
+        The reviewer's session id is written to the plan's sidecar under
+        ``plan-reviewer-<attempt>`` as soon as the agent returns, before the
+        review file is checked, so a reviewer that wrote no review or escalated
+        still leaves its id.
 
         Raises MissingArtifactError if the agent ends its turn without writing
         the review file — a halt, not a failed review.
@@ -600,6 +605,7 @@ class PlanReviewer:
             model=self.model,
             effort=self.effort,
         )
+        _write_session(plan_path, f"plan-reviewer-{attempt}", sid)
         if not review_path.exists():
             raise MissingArtifactError(
                 f"Agent ended without writing its review\n{review_path}"
