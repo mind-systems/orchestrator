@@ -10,13 +10,14 @@ from pathlib import Path
 from orchestrator import errors as errors_module
 from orchestrator import layout as layout_module
 from orchestrator import main as main_module
+from orchestrator import pipeline as pipeline_module
 from orchestrator import usage as usage_module
 from orchestrator.agents import REVIEW_VERIFY, TEST_RUN_VERIFY
 from orchestrator.errors import EscalationError, HaltError, PipelineStopError, RateLimitError
 from orchestrator.config import OrchestratorConfig
 from orchestrator.layout import _artifact_subdir, _resolve_roadmap_relpath, _tests_sibling
 from orchestrator.notify import Outcome
-from orchestrator.main import (
+from orchestrator.pipeline import (
     IMPLEMENT_MODE,
     TEST_MODE,
     _artifact_dir,
@@ -166,7 +167,7 @@ def test_validate_escalated_always_valid(tmp_path):
     assert _call("escalated", prd, art) == "escalated"
 
 
-# Production patterns verbatim from main.py
+# Production patterns verbatim from usage.py
 SESSION_PATTERN = r"Current session:\s+(\d+(?:\.\d+)?)%"
 WEEKLY_PATTERN = r"Current week \(all models\):\s+(\d+(?:\.\d+)?)%"
 
@@ -1004,15 +1005,15 @@ def test_process_task_escalated_sidecar_raises_without_constructing_agents(tmp_p
     def _fail_if_constructed(*args, **kwargs):
         raise AssertionError("agent must not be constructed for an escalated task")
 
-    monkeypatch.setattr(main_module, "PlannerReviewer", _fail_if_constructed)
-    monkeypatch.setattr(main_module, "Implementer", _fail_if_constructed)
-    monkeypatch.setattr(main_module, "PlanReviewer", _fail_if_constructed)
+    monkeypatch.setattr(pipeline_module, "PlannerReviewer", _fail_if_constructed)
+    monkeypatch.setattr(pipeline_module, "Implementer", _fail_if_constructed)
+    monkeypatch.setattr(pipeline_module, "PlanReviewer", _fail_if_constructed)
 
     def _fail_if_called(*args, **kwargs):
         raise AssertionError("must not be called for an escalated task")
 
-    monkeypatch.setattr(main_module, "mark_done", _fail_if_called)
-    monkeypatch.setattr(main_module, "_git_commit", _fail_if_called)
+    monkeypatch.setattr(pipeline_module, "mark_done", _fail_if_called)
+    monkeypatch.setattr(pipeline_module, "_git_commit", _fail_if_called)
 
     config = OrchestratorConfig(
         max_iterations=3,
