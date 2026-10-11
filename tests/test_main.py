@@ -1131,12 +1131,17 @@ def test_resolve_roadmap_relpath_my_name_derived_owner_matches(tmp_path, monkeyp
     assert _resolve_roadmap_relpath(config, tmp_path) == "roadmaps/alice.md"
 
 
-def test_resolve_roadmap_relpath_my_missing_file_falls_back(tmp_path, monkeypatch):
-    """Should fall back to 'ROADMAP.md' with a loud message when the named roadmap is missing."""
+def test_resolve_roadmap_relpath_my_missing_file_raises_halt(tmp_path, monkeypatch):
+    """Should raise HaltError with a fixed first line and the expected path on a later line
+    when the personal roadmap file is missing."""
     monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="john.doe@example.com"))
 
     config = _config_with_roadmap_path("my")
-    assert _resolve_roadmap_relpath(config, tmp_path) == "ROADMAP.md"
+    with pytest.raises(HaltError) as exc:
+        _resolve_roadmap_relpath(config, tmp_path)
+
+    assert str(exc.value).splitlines()[0] == "Named roadmap not found"
+    assert "roadmaps/john-doe.md" in str(exc.value).split("\n", 1)[1]
 
 
 def test_resolve_roadmap_relpath_my_owner_mismatch_raises_halt(tmp_path, monkeypatch):

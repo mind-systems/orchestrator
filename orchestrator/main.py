@@ -117,8 +117,10 @@ def _resolve_roadmap_relpath(config: OrchestratorConfig, project_dir: Path) -> s
         relpath = f"roadmaps/{slug}.md"
         roadmap_file = project_dir / ".ai-factory" / relpath
         if not roadmap_file.exists():
-            print(f">>> Named roadmap {relpath} not found — falling back to ROADMAP.md")
-            return "ROADMAP.md"
+            raise HaltError(
+                f"Named roadmap not found\n"
+                f".ai-factory/{relpath}"
+            )
 
         lines = roadmap_file.read_text().splitlines()
         first_line = lines[0] if lines else ""
