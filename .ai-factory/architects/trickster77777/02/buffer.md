@@ -30,6 +30,14 @@ After a compact this is how the head knows its place.>
 
 ## Method
 
+**Ask who reads before calling a mirror stale.** A rule that exists because
+code compares literally (the orchestrator's five-line signal window) does not
+bind a reader that is an agent: the skills' consumers judge a file by sight,
+so the writer's rule ("signal on the last line") is the whole of what they
+need. A mirror that states only the writer's rule is right for them, not
+lagging. The user's words: «Там не скрипт, а агент, он видит ревью пасс —
+для него это знак».
+
 **A new field beside an old one is checked for agreement.** When a task adds
 a value to a record that already holds a value it must agree with (a tag and
 the implementation it names), ask whether the record can now hold an illegal

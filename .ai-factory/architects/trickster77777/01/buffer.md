@@ -21,10 +21,10 @@ I cut first and agree last. When my reading agrees with 02's, I look again. Give
 
 ## Where things stand
 
-- **Landed and verified against their specs:** `27.1` `fd0f326`; `25.1.1` `2eb4990`; `25.1.2` `6c186cb`; `25.2` `e47b881`; `28.1` `6f51bfb`; `28.2` `587f6f1`; `30.1` `ea263fe`. pytest is green. Unordered additions: `__test__ = False` on `TestRunner`; 28.2's halt on an `OSError` at the script's launch, which falls under the doc's "fails in any other way". 07 has been told about `plan-reviewer-<N>`.
-- **Open phases before the first `---STOP---`, in file order: 29 (decomposed: `29.1`–`29.7`, specs `0068`–`0074`, note `0067`; `29.7` deletes the uncalled `_run_loop`, and its reviewer messages 07 before `REVIEW_PASS`), then 26 (outline only).** 26 comes after 29, so that `resume` reads the signal from `protocol.py`.
+- **Landed and verified against their specs:** Phases 25, 27, 28 and 30.1, and Phase 29 (`6799339`…`0c91362`). After Phase 29 the import graph matches `ARCHITECTURE.md` § Dependency Rules. 227 tests pass. 29.7's reviewer messaged 07. Deferred observations from 29 that are left alone: `docs/future/run-context-refactor.md`, which the user calls «фантазии», and stale remarks in `tests/test_main.py`, too small for a task.
+- **Open before the first `---STOP---`:** Phase 26, being decomposed. 26.1 holds `PLAN_REVIEW_PASS` once in `protocol.py`, not beside the plan reviewer, so `resume` would not import `agents`. 26.2 sends every `endswith` reader through `_has_signal`, with resume tests for the silent misread.
 - **The user's placement rule:** a new phase goes where it runs, next to the seam, never filed by theme above done work.
-- **Uncommitted:** Phase 29's deep pass and decomposition, the `0246` markers in 30.1's reviews, the hand's snapshot in `editor/`, and this buffer.
+- **Uncommitted:** Phase 26's decomposition (in progress) and this buffer.
 - **Latest snapshot:** `11-the-pipeline-executes-it-does-not-validate.md` in this folder.
 
 ## Rulings in force
@@ -44,6 +44,8 @@ I cut first and agree last. When my reading agrees with 02's, I look again. Give
 - **A roadmap the operator asked for and the run cannot reach is a halt, never a fallback.** In the user's words (2026-10-10): «если стоит май=тру в настройке, а мой роадмап почему то не достижим, мы не можем начать пытаться выполнять дефолтный роадмап. Это странное проглатывание ошибки». With `roadmap_path` set to `"my"`, a missing identity and a missing roadmap file both stop the run. This holds for the orchestrator even though the skills side falls back to the default layout when the slug is missing.
 
 - **Module design is the architect's call; the user sets the direction.** In the user's words (2026-10-10): «понятия не имею что куда должно импортиться. Ты здесь - гениальный разрабочик… Не должно быть циклических зависимостей, срп и прочее… Архитектура - гексагональный солид, вот и двигай в красивую сторону». Bring a decided design for a go, never a question about which module imports what.
+
+- **The five-line signal reading is the orchestrator code's concern, not the family's.** In the user's words (2026-10-11): «у нас это обрабатывает скрипт и ему важно было что б на последней строке стоял ревью пасс. И мы это с 5 строками только из за оркестратора придумали… Там не скрипт, а агент, он видит ревью пасс - для него это знак». A skills mirror stating the writer's last-line rule is not a divergence, so never route the reader's rule to the skills.
 
 ## Method
 
@@ -134,13 +136,4 @@ lands inside a task's commit.
 
 ## Current thread
 
-Deep pass on Phase 29 is in progress, then its decomposition. Decided for the decomposition (my call, the user's "module design is the architect's"):
-- `make_verifier`'s reviewer parameter is typed by the port.
-- `_detect_task_step` and `_detect_test_task_step` move into the tests as helpers.
-- Every outcome exception goes to `errors.py`.
-- Test files stay as they are. A patch target moves with its code in the same task, or a test silently runs the real `claude` or `git`.
-- `CLAUDE.md` § Architecture is updated by the task that moves what it names.
-- The last task's reviewer, on the passing round and before `REVIEW_PASS`, reads 07's `address.md` at send time (`../skills/.ai-factory/architects/trickster77777/07/address.md`) and sends one `SendMessage`. The message names the skills-side references now stale: `orchestrator-artifacts` "protocol in `main.py`" and `the-pipeline-speaks-to-an-architect.md` "flags in `agents.py`". It records the tool's result above `REVIEW_PASS`, and a failed send does not block. Precedent: `tradeoxy_core` spec `0284`; the user: «про это можно попросить ревьювера, перед тем, как поставить ревью пасс - отправить сообщение связному».
-- `docs/future/run-context-refactor.md` is left untouched. In the user's words, «будущее, это наши фантазии»: it is re-grounded from the code if it is ever queued, and is not indexed.
-
-Phase 28 is closed. 30.1 is decomposed and ready. Once 29 builds `layout.py`, the slug call moves there.
+Decomposing Phase 26 through the new hand. After it, the roadmap has no open task before the first `---STOP---`.
