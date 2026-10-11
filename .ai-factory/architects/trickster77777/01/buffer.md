@@ -7,7 +7,7 @@
 ## Team
 
 - **Peer:** this repository, owner `trickster77777`, folder 02. Reach it through its `address.md` and never read its buffer.
-- **Above:** `skills`, owner `trickster77777`, folder 07. Its folder still sits at the old layout, `skills/.ai-factory/architects/07/`, until that head moves it. Per that head, the user made this head its liaison into the orchestrator: the skills side hands behaviour over before it lands in the skills, and it is tried in the field here. Confirmed by the user in this chat on 2026-10-01: «да всё ништяк».
+- **Above:** `skills`, owner `trickster77777`, folder 07. Per that head, the user made this head its liaison into the orchestrator: the skills side hands behaviour over before it lands in the skills, and it is tried in the field here. Confirmed by the user in this chat on 2026-10-01: «да всё ништяк».
 - **Below:** none.
 
 ## Where things stand
@@ -98,6 +98,8 @@ lands inside a task's commit.
 **A flag is read for what it does under the run's mode, not for its name.** `agents.py` passes `--allowedTools` beside `--dangerously-skip-permissions`; under that mode the allowed list grants nothing extra and restricts nothing, and only `--disallowedTools` removes a tool. Reading the list as a whitelist produced a false confirmation sent to a peer. A claim about what an agent can do is settled by launching one with the same flags and asking it.
 
 **A count slips in where the present is described.** "What is true now" and "the problem today" read like a report, and a report counts: "in two functions", "its two callers", "in two places". Each is a measurement of the tree and goes false with the next task. Name the members instead of counting them. It slipped twice in one day in an order that forbade it explicitly; scan a written spec or preamble for a number word before calling it done.
+
+**A hand's report that says a text is "printed above" has not printed it.** The text lives in the hand's own tool output, which never reaches the head. It has happened three times. Read the file yourself before judging it, and every order that wants a text back asks for it inside the report.
 
 ## Orientation
 

@@ -47,4 +47,4 @@
 
 ## Deferred observations
 
-- Affects: skills repo, `src/skills/roadmap-engine/scripts/user-slug.sh`. The script's header comment says it "Derives the slug the way the pipeline does". Once this task lands, the pipeline no longer derives the slug itself. It runs this script, so the comment points at itself and suggests a second derivation that no longer exists. The comment should describe the derivation on its own terms, as the one source both sides use. This sits outside the orchestrator's file boundary.
+- Affects: skills repo, `src/skills/roadmap-engine/scripts/user-slug.sh`. The script's header comment says it "Derives the slug the way the pipeline does". Once this task lands, the pipeline no longer derives the slug itself. It runs this script, so the comment points at itself and suggests a second derivation that no longer exists. The comment should describe the derivation on its own terms, as the one source both sides use. This sits outside the orchestrator's file boundary. [routed → skills/.ai-factory/specs/trickster77777/0245-the-slug-scripts-header-names-no-caller.md]
