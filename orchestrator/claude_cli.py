@@ -299,3 +299,9 @@ def _run_claude(
         return result_text, sid
 
     raise RuntimeError("All retry attempts exhausted")
+
+
+def _run_usage_probe() -> str:
+    """Run the resolved claude CLI's /usage command and return its stdout."""
+    result = subprocess.run([_resolve_claude(), "/usage"], capture_output=True, text=True, timeout=30)
+    return result.stdout

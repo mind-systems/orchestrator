@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import re
-import subprocess
 
+from .claude_cli import _run_usage_probe
 from .config import OrchestratorConfig
 from .errors import HaltError
 
@@ -21,8 +21,7 @@ def _parse_pct(text: str, pattern: str) -> float | None:
 def _check_usage_limits(config: OrchestratorConfig) -> None:
     """Run `claude /usage`, log current usage, and stop if either threshold is breached."""
     try:
-        result = subprocess.run(["claude", "/usage"], capture_output=True, text=True, timeout=30)
-        output = result.stdout
+        output = _run_usage_probe()
     except Exception:
         print("  [usage check: could not parse output, continuing]")
         return

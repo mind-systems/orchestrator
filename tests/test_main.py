@@ -982,10 +982,7 @@ def test_check_usage_limits_raises_halt_error_over_threshold(monkeypatch):
         enable_phase_sessions=False,
     )
 
-    class _Result:
-        stdout = "Current session: 99%"
-
-    monkeypatch.setattr(usage_module.subprocess, "run", lambda *a, **kw: _Result())
+    monkeypatch.setattr(usage_module, "_run_usage_probe", lambda: "Current session: 99%")
 
     with pytest.raises(Exception) as exc:
         _check_usage_limits(config)

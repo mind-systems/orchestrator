@@ -314,6 +314,26 @@ def test_sorted_nvm_node_dirs_empty_list_never_raises():
     assert claude_cli._sorted_nvm_node_dirs([]) == []
 
 
+def test_run_usage_probe_launches_resolved_cli(monkeypatch):
+    """The probe must launch the same resolved binary as the agents, because a probe that launches the wrong binary fails silently."""
+    monkeypatch.setattr(claude_cli, "_resolve_claude", lambda: "/marker/bin/claude")
+    seen = {}
+
+    class _Result:
+        stdout = "Current session: 12%"
+
+    def fake(*args, **kwargs):
+        seen["args"] = args
+        seen["kwargs"] = kwargs
+        return _Result()
+
+    monkeypatch.setattr(claude_cli.subprocess, "run", fake)
+
+    assert claude_cli._run_usage_probe() == "Current session: 12%"
+    assert seen["args"][0] == ["/marker/bin/claude", "/usage"]
+    assert seen["kwargs"]["timeout"] == 30
+
+
 # ---------------------------------------------------------------------------
 # --- _read_sessions ---
 # ---------------------------------------------------------------------------
