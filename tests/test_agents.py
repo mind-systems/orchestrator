@@ -9,15 +9,14 @@ from pathlib import Path
 
 import pytest
 
-from orchestrator import agents, state
+from orchestrator import agents, claude_cli, state
 from orchestrator.agents import (
     Implementer,
     PlanReviewer,
     PlannerReviewer,
-    _classify_result,
-    kill_active_child,
     TestRunner,
 )
+from orchestrator.claude_cli import _classify_result, kill_active_child
 from orchestrator.errors import EscalationError, HaltError, MissingArtifactError, RateLimitError
 from orchestrator.protocol import (
     _escalation_excerpt,
@@ -178,16 +177,16 @@ def _make_claude_bin(node_dir: Path) -> Path:
 
 def test_resolve_claude_path_hit(monkeypatch):
     """Returns the PATH-resolved path directly when shutil.which finds it."""
-    monkeypatch.setattr(agents.shutil, "which", lambda name: "/usr/local/bin/claude")
-    assert agents._resolve_claude() == "/usr/local/bin/claude"
+    monkeypatch.setattr(claude_cli.shutil, "which", lambda name: "/usr/local/bin/claude")
+    assert claude_cli._resolve_claude() == "/usr/local/bin/claude"
 
 
 def test_resolve_claude_path_hit_short_circuits_nvm(monkeypatch, tmp_path):
     """A PATH hit short-circuits the nvm fallback — no FileNotFoundError even
     though the patched home has no `.nvm` at all."""
-    monkeypatch.setattr(agents.shutil, "which", lambda name: "/usr/local/bin/claude")
-    monkeypatch.setattr(agents.Path, "home", lambda: tmp_path / "nonexistent_home")
-    assert agents._resolve_claude() == "/usr/local/bin/claude"
+    monkeypatch.setattr(claude_cli.shutil, "which", lambda name: "/usr/local/bin/claude")
+    monkeypatch.setattr(claude_cli.Path, "home", lambda: tmp_path / "nonexistent_home")
+    assert claude_cli._resolve_claude() == "/usr/local/bin/claude"
 
 
 # ---------------------------------------------------------------------------
@@ -199,20 +198,20 @@ def test_resolve_claude_no_nvm_dir_raises(monkeypatch, tmp_path):
     """Raises when the fake home exists but has no `.nvm` inside it at all."""
     fakehome = tmp_path / "fakehome"
     fakehome.mkdir()
-    monkeypatch.setattr(agents.shutil, "which", lambda name: None)
-    monkeypatch.setattr(agents.Path, "home", lambda: fakehome)
+    monkeypatch.setattr(claude_cli.shutil, "which", lambda name: None)
+    monkeypatch.setattr(claude_cli.Path, "home", lambda: fakehome)
     with pytest.raises(FileNotFoundError, match="npm install -g @anthropic-ai/claude-code"):
-        agents._resolve_claude()
+        claude_cli._resolve_claude()
 
 
 def test_resolve_claude_empty_node_versions_dir_raises(monkeypatch, tmp_path):
     """Raises when `.nvm/versions/node/` exists but is empty."""
     fakehome = tmp_path / "fakehome"
     (fakehome / ".nvm" / "versions" / "node").mkdir(parents=True)
-    monkeypatch.setattr(agents.shutil, "which", lambda name: None)
-    monkeypatch.setattr(agents.Path, "home", lambda: fakehome)
+    monkeypatch.setattr(claude_cli.shutil, "which", lambda name: None)
+    monkeypatch.setattr(claude_cli.Path, "home", lambda: fakehome)
     with pytest.raises(FileNotFoundError, match="npm install -g @anthropic-ai/claude-code"):
-        agents._resolve_claude()
+        claude_cli._resolve_claude()
 
 
 def test_resolve_claude_no_bin_claude_in_any_version_raises(monkeypatch, tmp_path):
@@ -221,10 +220,10 @@ def test_resolve_claude_no_bin_claude_in_any_version_raises(monkeypatch, tmp_pat
     node_dir = fakehome / ".nvm" / "versions" / "node"
     (node_dir / "v18.0.0").mkdir(parents=True)
     (node_dir / "v20.1.0").mkdir(parents=True)
-    monkeypatch.setattr(agents.shutil, "which", lambda name: None)
-    monkeypatch.setattr(agents.Path, "home", lambda: fakehome)
+    monkeypatch.setattr(claude_cli.shutil, "which", lambda name: None)
+    monkeypatch.setattr(claude_cli.Path, "home", lambda: fakehome)
     with pytest.raises(FileNotFoundError, match="npm install -g @anthropic-ai/claude-code"):
-        agents._resolve_claude()
+        claude_cli._resolve_claude()
 
 
 # ---------------------------------------------------------------------------
@@ -240,9 +239,9 @@ def test_resolve_claude_multi_candidate_returns_highest(monkeypatch, tmp_path):
     node_dir = fakehome / ".nvm" / "versions" / "node"
     _make_claude_bin(node_dir / "v18.0.0")
     v20 = _make_claude_bin(node_dir / "v20.1.0")
-    monkeypatch.setattr(agents.shutil, "which", lambda name: None)
-    monkeypatch.setattr(agents.Path, "home", lambda: fakehome)
-    assert agents._resolve_claude() == str(v20)
+    monkeypatch.setattr(claude_cli.shutil, "which", lambda name: None)
+    monkeypatch.setattr(claude_cli.Path, "home", lambda: fakehome)
+    assert claude_cli._resolve_claude() == str(v20)
 
 
 def test_resolve_claude_partial_install_skipped(monkeypatch, tmp_path):
@@ -252,9 +251,9 @@ def test_resolve_claude_partial_install_skipped(monkeypatch, tmp_path):
     node_dir = fakehome / ".nvm" / "versions" / "node"
     (node_dir / "v20.1.0").mkdir(parents=True)
     v18 = _make_claude_bin(node_dir / "v18.0.0")
-    monkeypatch.setattr(agents.shutil, "which", lambda name: None)
-    monkeypatch.setattr(agents.Path, "home", lambda: fakehome)
-    assert agents._resolve_claude() == str(v18)
+    monkeypatch.setattr(claude_cli.shutil, "which", lambda name: None)
+    monkeypatch.setattr(claude_cli.Path, "home", lambda: fakehome)
+    assert claude_cli._resolve_claude() == str(v18)
 
 
 def test_resolve_claude_non_dir_entry_tolerated(monkeypatch, tmp_path):
@@ -266,9 +265,9 @@ def test_resolve_claude_non_dir_entry_tolerated(monkeypatch, tmp_path):
     node_dir.mkdir(parents=True)
     (node_dir / "zzstray").write_text("")  # unparseable name, sorts last / is skipped
     v18 = _make_claude_bin(node_dir / "v18.0.0")
-    monkeypatch.setattr(agents.shutil, "which", lambda name: None)
-    monkeypatch.setattr(agents.Path, "home", lambda: fakehome)
-    assert agents._resolve_claude() == str(v18)
+    monkeypatch.setattr(claude_cli.shutil, "which", lambda name: None)
+    monkeypatch.setattr(claude_cli.Path, "home", lambda: fakehome)
+    assert claude_cli._resolve_claude() == str(v18)
 
 
 # ---------------------------------------------------------------------------
@@ -284,9 +283,9 @@ def test_resolve_claude_semver_ordering_picks_true_latest(monkeypatch, tmp_path)
     node_dir = fakehome / ".nvm" / "versions" / "node"
     _make_claude_bin(node_dir / "v9.0.0")
     v20 = _make_claude_bin(node_dir / "v20.11.0")
-    monkeypatch.setattr(agents.shutil, "which", lambda name: None)
-    monkeypatch.setattr(agents.Path, "home", lambda: fakehome)
-    assert agents._resolve_claude() == str(v20)
+    monkeypatch.setattr(claude_cli.shutil, "which", lambda name: None)
+    monkeypatch.setattr(claude_cli.Path, "home", lambda: fakehome)
+    assert claude_cli._resolve_claude() == str(v20)
 
 
 # ---------------------------------------------------------------------------
@@ -298,7 +297,7 @@ def test_sorted_nvm_node_dirs_orders_by_semver_not_lexicographic():
     """Single- vs double-digit majors order semantically: v20 and v10 both
     outrank v9, which a plain lexicographic sort would get wrong."""
     dirs = [Path("v9.0.0"), Path("v20.11.0"), Path("v10.0.0")]
-    result = agents._sorted_nvm_node_dirs(dirs)
+    result = claude_cli._sorted_nvm_node_dirs(dirs)
     assert [d.name for d in result] == ["v20.11.0", "v10.0.0", "v9.0.0"]
 
 
@@ -306,13 +305,13 @@ def test_sorted_nvm_node_dirs_unparseable_sorts_last():
     """Unparseable names (no leading decimal segment) sort after every
     parseable version, ordered among themselves by string name."""
     dirs = [Path("v18.20.4"), Path("system"), Path("v20.1.0")]
-    result = agents._sorted_nvm_node_dirs(dirs)
+    result = claude_cli._sorted_nvm_node_dirs(dirs)
     assert [d.name for d in result] == ["v20.1.0", "v18.20.4", "system"]
 
 
 def test_sorted_nvm_node_dirs_empty_list_never_raises():
     """An empty input list returns an empty list without raising."""
-    assert agents._sorted_nvm_node_dirs([]) == []
+    assert claude_cli._sorted_nvm_node_dirs([]) == []
 
 
 # ---------------------------------------------------------------------------
@@ -530,7 +529,7 @@ def test_kill_active_child_falls_back_to_kill_on_killpg_failure(monkeypatch, cle
     def raise_process_lookup_error(pgid, sig):
         raise ProcessLookupError()
 
-    monkeypatch.setattr(agents.os, "killpg", raise_process_lookup_error)
+    monkeypatch.setattr(claude_cli.os, "killpg", raise_process_lookup_error)
     fake = _FakeProc()
     state.active_proc = fake
     kill_active_child()
@@ -621,12 +620,12 @@ class _FakeRateLimitProc:
 def test_run_claude_ratelimit_halt_has_fixed_first_line(monkeypatch, tmp_path, clean_active_proc):
     """RateLimitError's message opens with the fixed clause; the agent's own result
     text follows on a later line rather than being the whole message."""
-    monkeypatch.setattr(agents, "_CLAUDE_BIN", "/usr/local/bin/claude")
+    monkeypatch.setattr(claude_cli, "_CLAUDE_BIN", "/usr/local/bin/claude")
     fake = _FakeRateLimitProc()
-    monkeypatch.setattr(agents.subprocess, "Popen", lambda *a, **kw: fake)
+    monkeypatch.setattr(claude_cli.subprocess, "Popen", lambda *a, **kw: fake)
 
     with pytest.raises(RateLimitError) as exc:
-        agents._run_claude("prompt", cwd=str(tmp_path))
+        claude_cli._run_claude("prompt", cwd=str(tmp_path))
 
     assert str(exc.value).splitlines()[0] == "Agent reported a rate limit"
     assert "You hit your limit, resets at 5pm" in str(exc.value).split("\n", 1)[1]
@@ -648,7 +647,7 @@ def test_run_claude_launch_denies_work_outliving_the_turn(monkeypatch, tmp_path,
     """Every launched command carries a deny list for backgroundable tools and an
     environment variable disabling background tasks, so an agent can't leave work
     running past the end of its own turn."""
-    monkeypatch.setattr(agents, "_CLAUDE_BIN", "/usr/local/bin/claude")
+    monkeypatch.setattr(claude_cli, "_CLAUDE_BIN", "/usr/local/bin/claude")
     fake = _FakeOkProc()
     recorded: dict = {}
 
@@ -657,9 +656,9 @@ def test_run_claude_launch_denies_work_outliving_the_turn(monkeypatch, tmp_path,
         recorded["env"] = kwargs.get("env")
         return fake
 
-    monkeypatch.setattr(agents.subprocess, "Popen", _fake_popen)
+    monkeypatch.setattr(claude_cli.subprocess, "Popen", _fake_popen)
 
-    agents._run_claude("prompt", cwd=str(tmp_path))
+    claude_cli._run_claude("prompt", cwd=str(tmp_path))
 
     assert recorded["env"]["CLAUDE_CODE_DISABLE_BACKGROUND_TASKS"] == "1"
     cmd = recorded["cmd"]

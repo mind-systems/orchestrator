@@ -10,7 +10,7 @@ import time
 
 from . import state
 from .notify import Outcome, report
-from .agents import kill_active_child
+from .claude_cli import kill_active_child
 
 
 def _handle_sigint(sig, frame):
