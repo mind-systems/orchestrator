@@ -18,7 +18,6 @@ from orchestrator.main import (
     TEST_MODE,
     _artifact_dir,
     _artifact_subdir,
-    _derive_identity_slug,
     _next_number,
     _resolve_roadmap_relpath,
     _tests_sibling,
@@ -1045,33 +1044,6 @@ def test_process_task_resume_past_max_iterations_raises_halt_error(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# _derive_identity_slug: pure slug derivation from git identity
-# ---------------------------------------------------------------------------
-
-
-def test_derive_identity_slug_canonical_example():
-    """Should slugify the email local-part per the spec's canonical example."""
-    assert _derive_identity_slug("john.doe@example.com", None) == "john-doe"
-
-
-def test_derive_identity_slug_punctuation_runs_collapse():
-    """Should collapse a run of non-alphanumeric characters to a single hyphen."""
-    assert _derive_identity_slug("a..b__c@example.com", None) == "a-b-c"
-
-
-def test_derive_identity_slug_empty_email_falls_back_to_name():
-    """Should slugify name when email is empty/None."""
-    assert _derive_identity_slug(None, "Alice Wonderland") == "alice-wonderland"
-    assert _derive_identity_slug("", "Alice Wonderland") == "alice-wonderland"
-
-
-def test_derive_identity_slug_both_empty_returns_none():
-    """Should return None when both email and name are empty/None (derivation failure)."""
-    assert _derive_identity_slug(None, None) is None
-    assert _derive_identity_slug("", "") is None
-
-
-# ---------------------------------------------------------------------------
 # _resolve_roadmap_relpath: three-state resolution + owner-line gate
 # ---------------------------------------------------------------------------
 
@@ -1086,14 +1058,25 @@ def _config_with_roadmap_path(roadmap_path):
     )
 
 
-def _fake_git_config(email=None, name=None):
-    """Build a subprocess.run stand-in answering `git config user.email`/`user.name`."""
+def _fake_git_config(email=None, name=None, slug=None, script_returncode=None, script_stderr=""):
+    """Build a subprocess.run stand-in answering `git config user.email`/`user.name`
+    and the user-slug script call (any command not starting with `git`).
+
+    The script call returns `script_returncode` when set, else the slug with exit 0
+    when `slug` is set, else exit 2 (no derivable slug)."""
     class _Result:
-        def __init__(self, returncode, stdout):
+        def __init__(self, returncode, stdout, stderr=""):
             self.returncode = returncode
             self.stdout = stdout
+            self.stderr = stderr
 
     def _run(cmd, cwd=None, capture_output=None, text=None):
+        if cmd[0] != "git":
+            if script_returncode is not None:
+                return _Result(script_returncode, "", script_stderr)
+            if slug is not None:
+                return _Result(0, f"{slug}\n")
+            return _Result(2, "", "user-slug.sh: neither user.email nor user.name yields a slug …")
         key = cmd[-1]
         value = email if key == "user.email" else name if key == "user.name" else None
         if value is None:
@@ -1101,6 +1084,15 @@ def _fake_git_config(email=None, name=None):
         return _Result(0, value)
 
     return _run
+
+
+def _install_slug_script(tmp_path, monkeypatch):
+    """Point the slug-script path at a placeholder file under tmp_path (subprocess.run is patched)."""
+    script = tmp_path / "slug-bin" / "user-slug.sh"
+    script.parent.mkdir(parents=True)
+    script.write_text("#!/bin/sh\n")
+    monkeypatch.setattr(main_module, "_USER_SLUG_SCRIPT", script)
+    return script
 
 
 def test_resolve_roadmap_relpath_absent_returns_default(tmp_path):
@@ -1114,7 +1106,8 @@ def test_resolve_roadmap_relpath_my_present_matching_owner(tmp_path, monkeypatch
     roadmaps_dir = tmp_path / ".ai-factory" / "roadmaps"
     roadmaps_dir.mkdir(parents=True)
     (roadmaps_dir / "john-doe.md").write_text("> Owner: john.doe@example.com\n\n- [ ] Task\n")
-    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="john.doe@example.com"))
+    _install_slug_script(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="john.doe@example.com", slug="john-doe"))
 
     config = _config_with_roadmap_path("my")
     assert _resolve_roadmap_relpath(config, tmp_path) == "roadmaps/john-doe.md"
@@ -1125,7 +1118,8 @@ def test_resolve_roadmap_relpath_my_name_derived_owner_matches(tmp_path, monkeyp
     roadmaps_dir = tmp_path / ".ai-factory" / "roadmaps"
     roadmaps_dir.mkdir(parents=True)
     (roadmaps_dir / "alice.md").write_text("> Owner: Alice\n\n- [ ] Task\n")
-    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email=None, name="Alice"))
+    _install_slug_script(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email=None, name="Alice", slug="alice"))
 
     config = _config_with_roadmap_path("my")
     assert _resolve_roadmap_relpath(config, tmp_path) == "roadmaps/alice.md"
@@ -1134,7 +1128,8 @@ def test_resolve_roadmap_relpath_my_name_derived_owner_matches(tmp_path, monkeyp
 def test_resolve_roadmap_relpath_my_missing_file_raises_halt(tmp_path, monkeypatch):
     """Should raise HaltError with a fixed first line and the expected path on a later line
     when the personal roadmap file is missing."""
-    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="john.doe@example.com"))
+    _install_slug_script(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="john.doe@example.com", slug="john-doe"))
 
     config = _config_with_roadmap_path("my")
     with pytest.raises(HaltError) as exc:
@@ -1149,7 +1144,8 @@ def test_resolve_roadmap_relpath_my_owner_mismatch_raises_halt(tmp_path, monkeyp
     roadmaps_dir = tmp_path / ".ai-factory" / "roadmaps"
     roadmaps_dir.mkdir(parents=True)
     (roadmaps_dir / "john-doe.md").write_text("> Owner: someone.else@gmail.com\n\n- [ ] Task\n")
-    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="john.doe@example.com"))
+    _install_slug_script(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="john.doe@example.com", slug="john-doe"))
 
     config = _config_with_roadmap_path("my")
     with pytest.raises(HaltError):
@@ -1162,7 +1158,8 @@ def test_resolve_roadmap_relpath_my_owner_mismatch_halt_has_fixed_first_line(tmp
     roadmaps_dir = tmp_path / ".ai-factory" / "roadmaps"
     roadmaps_dir.mkdir(parents=True)
     (roadmaps_dir / "john-doe.md").write_text("> Owner: someone.else@gmail.com\n\n- [ ] Task\n")
-    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="john.doe@example.com"))
+    _install_slug_script(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="john.doe@example.com", slug="john-doe"))
 
     config = _config_with_roadmap_path("my")
     with pytest.raises(HaltError) as exc:
@@ -1181,20 +1178,78 @@ def test_resolve_roadmap_relpath_my_malformed_first_line_raises_halt(tmp_path, m
     roadmaps_dir = tmp_path / ".ai-factory" / "roadmaps"
     roadmaps_dir.mkdir(parents=True)
     (roadmaps_dir / "john-doe.md").write_text("# Not an owner line\n\n- [ ] Task\n")
-    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="john.doe@example.com"))
+    _install_slug_script(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email="john.doe@example.com", slug="john-doe"))
 
     config = _config_with_roadmap_path("my")
     with pytest.raises(HaltError):
         _resolve_roadmap_relpath(config, tmp_path)
 
 
-def test_resolve_roadmap_relpath_my_derivation_failure_raises_halt(tmp_path, monkeypatch):
-    """Should raise HaltError when neither git email nor name is set (derivation failure)."""
+def test_resolve_roadmap_relpath_my_script_exit_2_raises_identity_halt(tmp_path, monkeypatch):
+    """Should raise the identity HaltError when the script reports no derivable slug (exit 2)."""
+    _install_slug_script(tmp_path, monkeypatch)
     monkeypatch.setattr(main_module.subprocess, "run", _fake_git_config(email=None, name=None))
 
     config = _config_with_roadmap_path("my")
-    with pytest.raises(HaltError):
+    with pytest.raises(HaltError) as exc:
         _resolve_roadmap_relpath(config, tmp_path)
+
+    assert str(exc.value).splitlines()[0].startswith("roadmap_path is 'my' but no git identity is set")
+
+
+def test_resolve_roadmap_relpath_my_missing_script_raises_halt(tmp_path, monkeypatch):
+    """Should halt with a fixed first line and the script path below when the script is not installed."""
+    missing = tmp_path / "nowhere" / "user-slug.sh"
+    monkeypatch.setattr(main_module, "_USER_SLUG_SCRIPT", missing)
+    monkeypatch.setattr(
+        main_module.subprocess, "run", _fake_git_config(email="john.doe@example.com", slug="john-doe"),
+    )
+
+    config = _config_with_roadmap_path("my")
+    with pytest.raises(HaltError) as exc:
+        _resolve_roadmap_relpath(config, tmp_path)
+
+    assert str(exc.value).splitlines()[0] == "User-slug script not found"
+    assert str(missing) in str(exc.value).split("\n", 1)[1]
+
+
+def test_resolve_roadmap_relpath_my_script_failure_raises_halt(tmp_path, monkeypatch):
+    """Should halt with a fixed first line and the script's stderr below on an exit other than 0 or 2."""
+    _install_slug_script(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        main_module.subprocess, "run",
+        _fake_git_config(
+            email="john.doe@example.com", script_returncode=1,
+            script_stderr="user-slug.sh: git is not installed\n",
+        ),
+    )
+
+    config = _config_with_roadmap_path("my")
+    with pytest.raises(HaltError) as exc:
+        _resolve_roadmap_relpath(config, tmp_path)
+
+    assert str(exc.value).splitlines()[0] == "User-slug script failed"
+    assert "user-slug.sh: git is not installed" in str(exc.value).split("\n", 1)[1]
+
+
+def test_resolve_roadmap_relpath_my_script_not_executable_raises_halt(tmp_path, monkeypatch):
+    """Should treat an installed script that cannot be executed as a script failure."""
+    _install_slug_script(tmp_path, monkeypatch)
+    git_only = _fake_git_config(email="john.doe@example.com")
+
+    def _run(cmd, cwd=None, capture_output=None, text=None):
+        if cmd[0] != "git":
+            raise PermissionError("Permission denied")
+        return git_only(cmd, cwd=cwd, capture_output=capture_output, text=text)
+
+    monkeypatch.setattr(main_module.subprocess, "run", _run)
+
+    config = _config_with_roadmap_path("my")
+    with pytest.raises(HaltError) as exc:
+        _resolve_roadmap_relpath(config, tmp_path)
+
+    assert str(exc.value).splitlines()[0] == "User-slug script failed"
 
 
 def test_resolve_roadmap_relpath_explicit_returned_verbatim(tmp_path):

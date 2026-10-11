@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import re
 import signal
 import subprocess
 import sys
@@ -72,21 +71,7 @@ def _next_number(directory: Path) -> int:
     return len(existing) + 1
 
 
-def _derive_identity_slug(email: str | None, name: str | None) -> str | None:
-    """Slug from the email local-part, falling back to name; None if both are empty."""
-    def _slugify(value: str) -> str | None:
-        slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
-        return slug or None
-
-    if email:
-        slug = _slugify(email.split("@", 1)[0])
-        if slug:
-            return slug
-    if name:
-        slug = _slugify(name)
-        if slug:
-            return slug
-    return None
+_USER_SLUG_SCRIPT = Path.home() / ".claude" / "skills" / "roadmap-engine" / "scripts" / "user-slug.sh"
 
 
 def _git_config_value(project_dir: Path, key: str) -> str | None:
@@ -108,12 +93,23 @@ def _resolve_roadmap_relpath(config: OrchestratorConfig, project_dir: Path) -> s
     if config.roadmap_path == "my":
         email = _git_config_value(project_dir, "user.email")
         name = _git_config_value(project_dir, "user.name")
-        slug = _derive_identity_slug(email, name)
-        if slug is None:
+        if not _USER_SLUG_SCRIPT.exists():
+            raise HaltError(f"User-slug script not found\n{_USER_SLUG_SCRIPT}")
+        try:
+            result = subprocess.run(
+                [str(_USER_SLUG_SCRIPT)], cwd=project_dir, capture_output=True, text=True,
+            )
+        except OSError as e:
+            raise HaltError(f"User-slug script failed\n{e}") from e
+        if result.returncode == 0:
+            slug = result.stdout.strip()
+        elif result.returncode == 2:
             raise HaltError(
                 "roadmap_path is 'my' but no git identity is set — "
                 "set git user.email or user.name, or use an explicit roadmap_path."
             )
+        else:
+            raise HaltError(f"User-slug script failed\n{result.stderr.strip()}")
         relpath = f"roadmaps/{slug}.md"
         roadmap_file = project_dir / ".ai-factory" / relpath
         if not roadmap_file.exists():
