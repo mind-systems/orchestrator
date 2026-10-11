@@ -2,7 +2,7 @@
 
 ## Editor handle
 
-- `a2e072d9ff36712d1` — agent type `editor`, spawned in this session (see `address.md`). Message it with `SendMessage`; the next channel-message is the liveness probe. It was given this buffer's path on 2026-10-05, inside the ARCHITECTURE.md rewrite order, and confirmed alive by that send.
+- `a8b0ee862b8a14796` — agent type `editor`, spawned on 2026-10-11 with this buffer's path and the `editor/01` snapshot in its spawn prompt. Message it with `SendMessage`; the next channel-message is the liveness probe.
 
 ## Personality
 
@@ -21,14 +21,10 @@ I cut first and agree last. When my reading agrees with 02's, I look again. Give
 
 ## Where things stand
 
-- **Landed and verified against their specs:** `27.1` `fd0f326`; `25.1.1` `2eb4990`; `25.1.2` `6c186cb`; `25.2` `e47b881`; `28.1` `6f51bfb`; `28.2` `587f6f1`. pytest is green. Unordered additions: `__test__ = False` on `TestRunner`, and 28.2's halt on an `OSError` at the script's launch. The latter falls under the doc's "fails in any other way".
-- **Committed in `1bb5629` (Roadmap update):** the layered `ARCHITECTURE.md`, Phases 28, 29 and 30, specs `0064` and `0065`, and the `named-roadmaps.md`, `fault-handling.md` and `resume.md` edits.
-- **Open phases before the first `---STOP---`, in file order: 30, 29, 26, all outline only.**
-  - 30: the sidecar keeps `plan-reviewer-<N>` session ids, read-only; its docs in `resume.md` are written. Tell 07 the format when it lands, for `orchestrator-artifacts`.
-  - 29: the layered module map in `ARCHITECTURE.md` § Dependency Rules. Its blast-radius points still wait for a go: test patch targets move with the code; `CLAUDE.md` and `docs/future/run-context-refactor.md`; tell 07 about three references on the skills side.
-  - 26: after 29, so that `resume` reads the signal from `protocol.py`.
+- **Landed and verified against their specs:** `27.1` `fd0f326`; `25.1.1` `2eb4990`; `25.1.2` `6c186cb`; `25.2` `e47b881`; `28.1` `6f51bfb`; `28.2` `587f6f1`; `30.1` `ea263fe`. pytest is green. Unordered additions: `__test__ = False` on `TestRunner`; 28.2's halt on an `OSError` at the script's launch, which falls under the doc's "fails in any other way". 07 has been told about `plan-reviewer-<N>`.
+- **Open phases before the first `---STOP---`, in file order: 29 (decomposed: `29.1`–`29.7`, specs `0068`–`0074`, note `0067`; `29.7` deletes the uncalled `_run_loop`, and its reviewer messages 07 before `REVIEW_PASS`), then 26 (outline only).** 26 comes after 29, so that `resume` reads the signal from `protocol.py`.
 - **The user's placement rule:** a new phase goes where it runs, next to the seam, never filed by theme above done work.
-- **Uncommitted:** the move of this folder to `architects/trickster77777/01/` («мигрируй», 2026-10-11).
+- **Uncommitted:** Phase 29's deep pass and decomposition, the `0246` markers in 30.1's reviews, the hand's snapshot in `editor/`, and this buffer.
 - **Latest snapshot:** `11-the-pipeline-executes-it-does-not-validate.md` in this folder.
 
 ## Rulings in force
@@ -138,4 +134,13 @@ lands inside a task's commit.
 
 ## Current thread
 
-Phase 28 is closed. Next: Phase 30 (one task, decompose on the user's go), then 29 (blast-radius points await a go), then 26. Once 29 builds `layout.py`, the slug call moves there. For Phase 29's decomposition: `VerifyKind.make_verifier` is typed today as `Callable[[PlannerReviewer, Path], …]`, and in `ports.py` naming a role would be an upward edge, so type the reviewer parameter by the port.
+Deep pass on Phase 29 is in progress, then its decomposition. Decided for the decomposition (my call, the user's "module design is the architect's"):
+- `make_verifier`'s reviewer parameter is typed by the port.
+- `_detect_task_step` and `_detect_test_task_step` move into the tests as helpers.
+- Every outcome exception goes to `errors.py`.
+- Test files stay as they are. A patch target moves with its code in the same task, or a test silently runs the real `claude` or `git`.
+- `CLAUDE.md` § Architecture is updated by the task that moves what it names.
+- The last task's reviewer, on the passing round and before `REVIEW_PASS`, reads 07's `address.md` at send time (`../skills/.ai-factory/architects/trickster77777/07/address.md`) and sends one `SendMessage`. The message names the skills-side references now stale: `orchestrator-artifacts` "protocol in `main.py`" and `the-pipeline-speaks-to-an-architect.md` "flags in `agents.py`". It records the tool's result above `REVIEW_PASS`, and a failed send does not block. Precedent: `tradeoxy_core` spec `0284`; the user: «про это можно попросить ревьювера, перед тем, как поставить ревью пасс - отправить сообщение связному».
+- `docs/future/run-context-refactor.md` is left untouched. In the user's words, «будущее, это наши фантазии»: it is re-grounded from the code if it is ever queued, and is not indexed.
+
+Phase 28 is closed. 30.1 is decomposed and ready. Once 29 builds `layout.py`, the slug call moves there.

@@ -34,6 +34,6 @@ None.
 
 ## Deferred observations
 
-- Affects: skills — `orchestrator-artifacts` engine (sidecar fields) — The sidecar gains a `plan-reviewer-<N>` key family. The skills' `orchestrator-artifacts` mirror of the sidecar fields should list it so consumer skills (and any rescue procedure) know where to find a plan reviewer's session. The task spec's "What breaks on contact" section assigns this to the skills side, outside this task's file boundary.
+- Affects: skills — `orchestrator-artifacts` engine (sidecar fields) — The sidecar gains a `plan-reviewer-<N>` key family. The skills' `orchestrator-artifacts` mirror of the sidecar fields should list it so consumer skills (and any rescue procedure) know where to find a plan reviewer's session. The task spec's "What breaks on contact" section assigns this to the skills side, outside this task's file boundary. [routed → skills/.ai-factory/specs/trickster77777/0246-the-engine-names-the-plan-reviewer-session-keys.md]
 
 PLAN_REVIEW_PASS

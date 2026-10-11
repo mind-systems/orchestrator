@@ -37,7 +37,7 @@ None.
 
 ## Deferred observations
 
-- Affects: skills — `orchestrator-artifacts` engine (sidecar fields). The sidecar now carries a `plan-reviewer-<N>` key family. The skills-side mirror of the sidecar fields should list it, so that rescue procedures know where a plan reviewer's session id lives. The task spec's "What breaks on contact" section assigns this to the skills side, outside this task's file boundary.
+- Affects: skills — `orchestrator-artifacts` engine (sidecar fields). The sidecar now carries a `plan-reviewer-<N>` key family. The skills-side mirror of the sidecar fields should list it, so that rescue procedures know where a plan reviewer's session id lives. The task spec's "What breaks on contact" section assigns this to the skills side, outside this task's file boundary. [routed → skills/.ai-factory/specs/trickster77777/0246-the-engine-names-the-plan-reviewer-session-keys.md]
 - Affects: unknown (the architect pair's working state). `.ai-factory/architects/trickster77777/01/buffer.md` is staged alongside this task's changes and adds a `## Personality` section. The file is unrelated to this task. It is the architect's buffer, not something the implementer produced, so the task commit will sweep it in. Whoever owns that buffer should confirm that it is meant to ride in this commit.
 
 REVIEW_PASS
