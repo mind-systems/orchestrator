@@ -6,6 +6,8 @@ import json
 import os
 from pathlib import Path
 
+PLAN_REVIEW_PASS = "PLAN_REVIEW_PASS"
+
 
 def _has_signal(text: str, signal: str) -> bool:
     """Return True if signal appears as an exact line within the last 5 lines."""

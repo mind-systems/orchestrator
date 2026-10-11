@@ -9,7 +9,7 @@ from pathlib import Path
 from .claude_cli import _run_claude
 from .errors import EscalationError, MissingArtifactError
 from .ports import VerifierProtocol, VerifyKind
-from .protocol import _escalation_excerpt, _has_escalation, _has_signal, _write_session
+from .protocol import PLAN_REVIEW_PASS, _escalation_excerpt, _has_escalation, _has_signal, _write_session
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
@@ -200,7 +200,7 @@ class PlanReviewer:
             f"architectural mistakes, missing migrations, security issues, "
             f"incorrect file paths or API usage.\n"
             f"Write your full review to: {review_path}\n"
-            f"If the plan is solid, end the review file with PLAN_REVIEW_PASS on its own line.\n"
+            f"If the plan is solid, end the review file with {PLAN_REVIEW_PASS} on its own line.\n"
         )
 
         _, sid = _run_claude(
@@ -223,7 +223,7 @@ class PlanReviewer:
             _write_session(plan_path, "escalation", f"plan-reviewer: {excerpt} ({review_path})")
             _write_session(plan_path, "step", "escalated")
             raise EscalationError(f"{review_path}: {excerpt}")
-        return _has_signal(review_text, "PLAN_REVIEW_PASS")
+        return _has_signal(review_text, PLAN_REVIEW_PASS)
 
 
 class Implementer:
