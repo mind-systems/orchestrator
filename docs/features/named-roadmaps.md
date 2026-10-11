@@ -7,7 +7,7 @@ An optional per-developer roadmap, in place of the shared `ROADMAP.md`, so each 
 The `roadmap_path` field selects which roadmap the orchestrator reads. It has three mutually exclusive states:
 
 - **Absent, or an empty string** — `ROADMAP.md` is used; behaviour is identical to a run without this setting at all (byte-stable by default).
-- **The literal `"my"`** — the orchestrator derives a personal roadmap from this workstation's git identity: the slug is built from the local part of `git config user.email` (falling back to `user.name` if the email is unset), lowercased, with every run of non-alphanumeric characters collapsed to a single hyphen (`john.doe@example.com` → `john-doe`). The target file is `.ai-factory/roadmaps/<slug>.md`. If the file exists, its first line must be `> Owner: <email>`, matching the current git identity — a mismatch or an unrecognized first line stops the run with an operational halt naming the owner. If the file does not yet exist, the orchestrator logs this loudly once and continues on `ROADMAP.md` — a lazy migration, so the same workstation config works both before and after the named roadmap appears. If neither an email nor a name is set in git, the run halts with a prompt to configure a git identity or pass an explicit path.
+- **The literal `"my"`** — the orchestrator takes a personal roadmap from this workstation's git identity. The user-slug is whatever the user-slug script prints, run in the target project: [skills/src/skills/roadmap-engine/scripts/user-slug.sh](../../../skills/src/skills/roadmap-engine/scripts/user-slug.sh), which a run executes from its installed path `~/.claude/skills/roadmap-engine/scripts/user-slug.sh` — present when the skills package is active. The target file is `.ai-factory/roadmaps/<user-slug>.md`. If the file exists, its first line must be `> Owner: <email>` (the git name when no email is set), matching the current git identity — a mismatch or an unrecognized first line stops the run with an operational halt naming the owner. If the file does not exist, the run halts and names the file it expected; it never runs another roadmap in its place. The run also halts when the script is not installed, when the script reports that no user-slug can be derived because neither an email nor a name is set in git (the prompt is to configure a git identity or pass an explicit path), and when the script fails in any other way.
 - **Any other value** — an explicit relative path under `.ai-factory/` (for example, `"roadmaps/alice.md"`), used as-is, with no owner check — an explicit value always wins.
 
 An absolute path, or a path containing a `..` segment, is a startup error naming the invalid value.
@@ -27,13 +27,13 @@ Artifact directories stay flat, byte-for-byte, for the default `ROADMAP.md`/`ROA
    It overrides the global config for this project only: the orchestrator derives your roadmap from your git identity. Leave the global `orchestrator.json` alone — it keeps pointing at the shared roadmap, so projects that have not migrated behave exactly as before. Each developer sets up their own override (and copies it into the next project they migrate).
 
 2. **Roadmaps** → `.ai-factory/roadmaps/`:
-   - `.ai-factory/ROADMAP.md` → `.ai-factory/roadmaps/<slug>.md`
-   - `.ai-factory/ROADMAP_TESTS.md` → `.ai-factory/roadmaps/<slug>-tests.md`
+   - `.ai-factory/ROADMAP.md` → `.ai-factory/roadmaps/<user-slug>.md`
+   - `.ai-factory/ROADMAP_TESTS.md` → `.ai-factory/roadmaps/<user-slug>-tests.md`
 
    The slug is derived automatically from your git identity, as described above. The first line of each file must be `> Owner: <your git email>`.
 
-3. **Specs** → `.ai-factory/specs/<slug>/`: move the roadmap's task specs there and rewrite the `Spec:` tags in the roadmap lines to `specs/<slug>/…`.
+3. **Specs** → `.ai-factory/specs/<user-slug>/`: move the roadmap's task specs there and rewrite the `Spec:` tags in the roadmap lines to `specs/<user-slug>/…`.
 
-4. **test-runs** (if any) → `.ai-factory/test-runs/<slug>/`.
+4. **test-runs** (if any) → `.ai-factory/test-runs/<user-slug>/`.
 
-5. **Verify.** Run the orchestrator against the project — it should resolve `roadmaps/<slug>.md` from your git identity. Artifact directories (`plans/`, `plan-reviews/`, `reviews/`, `test-runs/`) are created under `<slug>/` automatically; the main and test roadmaps share one numbering axis under the `<slug>` stem.
+5. **Verify.** Run the orchestrator against the project — it should resolve `roadmaps/<user-slug>.md` from your git identity. Artifact directories (`plans/`, `plan-reviews/`, `reviews/`, `test-runs/`) are created under `<user-slug>/` automatically; the main and test roadmaps share one numbering axis under the `<user-slug>` stem.

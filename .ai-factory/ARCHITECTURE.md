@@ -8,14 +8,14 @@ Packaging comes second: modules are cut by concern, one small module per concern
 
 ## The one flow
 
-`process_task` in `main.py` is the single pipeline: plan, plan review, implement, verify, mark done and commit. It never asks which mode it runs in; everything that differs arrives as a value or an implementation handed to it.
+`process_task` in `pipeline.py` is the single pipeline: plan, plan review, implement, verify, mark done and commit. It never asks which mode it runs in; everything that differs arrives as a value or an implementation handed to it.
 
 ## What varies
 
-- **Mode**, implement vs test. The `Mode` record holds a mode's own static values — its roadmap file, planner prompt, header and skip wording — and one verify kind, and has two instances, `IMPLEMENT_MODE` and `TEST_MODE`. The choice is made at the composition root.
-- **Verify step**, a port named `VerifierProtocol`. Given the plan and the output path, an implementation writes the verify artifact and reports pass or fail by that artifact's completion signal. There are two implementations: code review by `PlannerReviewer`, in the planner's own session, and the test run by `TestRunner`, with no LLM. The kind of verification is one record, `VerifyKind`, beside its implementations in `agents.py`. It holds everything that depends on that choice: the step's name in the sidecar, its failure tag, the artifact directory and suffix, the pass signal, the wording the run prints, and the factory that builds the implementation for a task. Each implementation reads its own pass signal from its kind. There are two kinds, review and test run. The choice is made at the composition root and carried on the mode record.
+- **Mode**, implement vs test. The `Mode` record, defined in `pipeline.py`, holds a mode's own static values — its roadmap file, planner prompt, header and skip wording — and one verify kind, and has two instances, `IMPLEMENT_MODE` and `TEST_MODE`. The choice is made at the composition root.
+- **Verify step**, a port named `VerifierProtocol`. Given the plan and the output path, an implementation writes the verify artifact and reports pass or fail by that artifact's completion signal. There are two implementations: code review by `PlannerReviewer`, in the planner's own session, and the test run by `TestRunner`, with no LLM. The port and the kind type live in `ports.py`; the kind is one record, `VerifyKind`, whose instances `REVIEW_VERIFY` and `TEST_RUN_VERIFY` sit beside their implementations in `agents.py`. The kind holds everything that depends on that choice: the step's name in the sidecar, its failure tag, the artifact directory and suffix, the pass signal, the wording the run prints, and the factory that builds the implementation for a task. Each implementation reads its own pass signal from its kind. There are two kinds, review and test run. The choice is made at the composition root and carried on the mode record.
 - **Layout**, the default flat roadmap pair vs a named roadmap. This is a value, not a port: the per-roadmap artifact subdirectory, derived once from the roadmap path at assembly, from which every artifact directory derives in one place. See [Named roadmaps](../docs/features/named-roadmaps.md).
-- **Agent roles**. Three LLM roles — `PlannerReviewer`, `PlanReviewer` and `Implementer` — run over one runner, `_run_claude`. They differ in prompt, tool list and session policy, and they are not interchangeable, so they share a runner, not a port. `TestRunner` is not a role; it is the second verify implementation.
+- **Agent roles**. Three LLM roles — `PlannerReviewer`, `PlanReviewer` and `Implementer` — run over one runner, `_run_claude` in `claude_cli.py`. They differ in prompt, tool list and session policy, and they are not interchangeable, so they share a runner, not a port. `TestRunner` is not a role; it is the second verify implementation.
 
 ## Composition root
 
@@ -38,15 +38,21 @@ A new difference between modes or roles is a new implementation chosen at the co
 orchestrator/
 ├── orchestrator/
 │   ├── __init__.py      # Package marker
-│   ├── main.py          # The one flow (process_task) and the composition root (_implement_loop, _test_loop); CLI, roadmap loops, git commit
-│   ├── agents.py        # Agents: agent classes, _run_claude(), sidecar session helpers, claude-CLI resolution
-│   ├── roadmap.py       # Infrastructure: ROADMAP.md parsing, mark_done()/mark_skipped()
-│   ├── config.py        # Support: config load + validation (global base + per-project overlay)
-│   ├── usage.py         # Support: usage-threshold gating (/usage parse, session/weekly limits)
-│   ├── resume.py        # Support: sidecar step detection / resume dispatch
-│   ├── runtime.py       # Support: run + signal + process lifecycle (Ctrl+C, caffeinate, elapsed)
-│   ├── notify.py        # Support: Telegram alerts
-│   ├── state.py         # Shared mutable process state for one run
+│   ├── main.py          # Composition root: CLI, _implement_loop, _test_loop
+│   ├── pipeline.py      # The flow: process_task, Mode and its instances, the roadmap loop, _artifact_dir, the commit step
+│   ├── resume.py        # The flow: step detection
+│   ├── agents.py        # Roles: the LLM roles, TestRunner, the verify kinds' instances
+│   ├── claude_cli.py    # Adapter: resolving and launching the claude CLI, killing the active child, result classification, retries
+│   ├── layout.py        # Adapter: named-roadmap resolution at assembly
+│   ├── usage.py         # Adapter: usage-threshold gating (/usage parse, session/weekly limits)
+│   ├── notify.py        # Adapter: Telegram alerts
+│   ├── runtime.py       # Adapter: signals, caffeinate
+│   ├── errors.py        # Vocabulary: the outcome exceptions
+│   ├── protocol.py      # Vocabulary: the file protocol — sidecar read/write, completion-signal and escalation recognition
+│   ├── ports.py         # Vocabulary: VerifierProtocol and the VerifyKind type
+│   ├── roadmap.py       # Vocabulary: ROADMAP.md parsing, mark_done()/mark_skipped()
+│   ├── config.py        # Vocabulary: config load + validation (global base + per-project overlay)
+│   ├── state.py         # Vocabulary: shared mutable process state for one run
 │   └── prompts/         # Static system prompts (data, not code)
 │       ├── planner.md
 │       ├── reviewer.md
@@ -61,22 +67,27 @@ orchestrator/
 
 ## Dependency Rules
 
-Direction: `main.py` → agents / support modules → `roadmap.py`, `state.py`
+Imports point downward only: no cycles, nothing imports `main`, and each module holds one concern. The layers, top to bottom:
 
-- ✅ `main.py` imports from `agents.py`, `roadmap.py`, and the support modules (`config`, `usage`, `resume`, `runtime`, `notify`)
-- ✅ `agents.py` does not import from `roadmap.py` — the sidecar helpers (`_read_sessions`, `_write_session`) are defined natively in `agents.py`, not imported from anywhere
-- ✅ support modules import downward only — `usage`→`config`; `resume`→`agents` (`_read_sessions`); `runtime`→`state`, `notify`, `agents` (`kill_active_child`); none import `main.py`
-- ❌ `roadmap.py` must NOT import from `agents.py` or `main.py`
-- ❌ `agents.py` must NOT import from `main.py`
-- ✅ `state.py` may be imported from any module (shared run state)
+| Layer | Modules |
+|---|---|
+| Composition root | `main.py` |
+| The flow | `pipeline.py`, `resume.py` |
+| Roles and adapters | `agents.py`, `claude_cli.py`, `layout.py`, `usage.py`, `notify.py`, `runtime.py` |
+| Vocabulary | `errors.py`, `protocol.py`, `ports.py`, `roadmap.py`, `config.py`, `state.py` |
+
+- ✅ A module imports from layers below its own, and within a layer only along these named edges:
+  - the flow: `pipeline` → `resume`
+  - roles and adapters: `agents` → `claude_cli`, `usage` → `claude_cli`, `runtime` → `claude_cli`, `runtime` → `notify`
+- ✅ The vocabulary imports nothing from the package at runtime; a type-only import under `TYPE_CHECKING` may reach another vocabulary module, never a layer above. A type annotation is still an edge
+- ✅ Edges are stated as directions, never as inventories of the symbols one module takes from another
 
 ## Anti-Patterns
 
 - ❌ Passing data between agents via Python variables — files only
-- ❌ Importing `main.py` from `agents.py` or `roadmap.py`
-- ❌ Step-selection logic in `agents.py` — it belongs in `main.py`
-- ❌ Calling the `claude` CLI directly from `main.py` — only via agent classes in `agents.py`
-- ❌ Reading/writing `ROADMAP.md` from `agents.py` — only from `main.py` via `roadmap.py`
+- ❌ Step-selection logic in the roles — it belongs in the flow
+- ❌ Launching the `claude` CLI anywhere but `claude_cli.py` — the flow reaches it only through the roles in `agents.py`
+- ❌ Reading/writing `ROADMAP.md` from the roles — only the flow, via `roadmap.py`
 
 ## Features (roadmap-prune v2)
 

@@ -8,6 +8,8 @@ If the orchestrator is interrupted mid-task (timeout, Ctrl+C, a network failure)
 
 Each time a phase completes, the orchestrator writes its name to a JSON sidecar next to the plan, sharing its stem: `.ai-factory/plans/{NN}-{slug}.json` (for a named roadmap: `.ai-factory/plans/{roadmap-slug}/{NN}-{slug}.json` — see [named-roadmaps.md](named-roadmaps.md) for the directory-routing rule). The sidecar holds `step` (the current phase), the planner's and implementer's session IDs (for resume via `--resume`), accumulated elapsed time, and — if the run has escalated — an escalation record: which role raised it and where its artifact lives (see [escalation.md](escalation.md)). On the next run, the orchestrator reads `step` and jumps straight to the right phase, without repeating what is already done.
 
+For each plan-review attempt, the sidecar also keeps that plan reviewer's session ID under `plan-reviewer-<N>`, `N` being the attempt its `-plan-review-<N>.md` artifact carries. It is recorded as soon as the reviewer returns, even when it wrote no review. It is kept so the session can be read after the fact, and resume never uses it. The code reviewer needs no key of its own: it runs in the planner's session, which the sidecar already keeps.
+
 ## `step` values
 
 The `:N` suffix is the iteration number. `plan_reviewed` and `escalated` are the only unindexed markers.

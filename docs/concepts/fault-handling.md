@@ -51,12 +51,14 @@ Every fault the orchestrator can meet, and the handling it requires.
 | A notification that cannot be sent | Logged; the run continues |
 | A push that fails | Logged; the run continues — see [target-project.md](../reference/target-project.md) |
 | Usage output that cannot be read | Logged; the run continues without gating on it — see [usage-limits.md](../features/usage-limits.md) |
+| A user-slug script that is missing or fails | A halt |
 
 **From configuration or the operator**
 
 | Fault | What the run does |
 |---|---|
 | No usable identity for a named roadmap | A halt |
+| A named roadmap that does not exist | A halt |
 | An owner line that does not match | A halt |
 | A resume that would start past the attempt budget | A halt |
 | An operator stopping the run | A halt — a soft stop lets the current task finish, with the machine kept awake until it has, a forced one ends it immediately |
