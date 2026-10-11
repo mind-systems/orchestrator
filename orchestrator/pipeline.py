@@ -12,7 +12,7 @@ from .config import OrchestratorConfig
 from .errors import EscalationError, HaltError, PipelineStopError
 from .notify import Outcome, report
 from .ports import VerifyKind
-from .protocol import PLAN_REVIEW_PASS, _read_sessions, _write_session
+from .protocol import PLAN_REVIEW_PASS, _has_signal, _read_sessions, _write_session
 from .resume import _detect_step
 from .roadmap import mark_done, mark_skipped, parse_roadmap
 from .runtime import _run_summary
@@ -194,7 +194,7 @@ def process_task(project_dir: Path, task, task_index: int, config: OrchestratorC
 
     # Safety guard: ensure a passing plan review exists before implementing
     _plan_review_files = sorted(plan_reviews_dir.glob(f"{seq}-{task.slug}-plan-review-*.md"))
-    if not _plan_review_files or not _plan_review_files[-1].read_text().strip().endswith(PLAN_REVIEW_PASS):
+    if not _plan_review_files or not _has_signal(_plan_review_files[-1].read_text(), PLAN_REVIEW_PASS):
         raise PipelineStopError(
             f"No passing plan review found for task {seq}-{task.slug}. Cannot proceed to implementation."
         )

@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 from .ports import VerifyKind
-from .protocol import PLAN_REVIEW_PASS, _read_sessions
+from .protocol import PLAN_REVIEW_PASS, _has_signal, _read_sessions
 
 
 def _validate_sidecar_step(
@@ -22,7 +22,7 @@ def _validate_sidecar_step(
 
     Clears step_value when:
     - plan_review_failed:N and the corresponding plan-review file is missing.
-    - plan_reviewed and no plan-review file ends with PLAN_REVIEW_PASS.
+    - plan_reviewed and no plan-review file carries PLAN_REVIEW_PASS as an exact line among its last five lines.
     - <fail_prefix>N and the corresponding artifact (artifact_dir / seq-slug<fail_suffix>) is missing.
     planned:N and implemented:N are structurally valid whenever N parses as an integer — they
     carry no artifact reference to check against disk.
@@ -47,7 +47,7 @@ def _validate_sidecar_step(
         return step_value
     if step_value == "plan_reviewed":
         if not any(
-            f.read_text().strip().endswith(PLAN_REVIEW_PASS)
+            _has_signal(f.read_text(), PLAN_REVIEW_PASS)
             for f in plan_reviews_dir.glob(f"{seq}-{slug}-plan-review-*.md")
         ):
             return ""
@@ -152,7 +152,7 @@ def _detect_step(
         return ("plan_review", 1, plan_path)
 
     # 4. Latest plan-review didn't pass → plan needs revision
-    if not plan_review_files[-1].read_text().strip().endswith(PLAN_REVIEW_PASS):
+    if not _has_signal(plan_review_files[-1].read_text(), PLAN_REVIEW_PASS):
         return ("plan", len(plan_review_files) + 1, plan_path)
 
     # 5. Working tree is clean (excluding .ai-factory/ artifacts) → need to implement
@@ -173,7 +173,7 @@ def _detect_step(
         return (verify.step, 1, plan_path)
 
     # 7. Latest verify-output passed → all steps complete; else need to re-implement
-    if output_files[-1].read_text().strip().endswith(verify.pass_signal):
+    if _has_signal(output_files[-1].read_text(), verify.pass_signal):
         return ("done", 0, plan_path)
 
     return ("implement", len(output_files) + 1, plan_path)

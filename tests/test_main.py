@@ -469,6 +469,30 @@ def test_detect_task_step_clean_tree_no_sidecar_passing_plan_review_returns_impl
     assert returned_path == plan_path
 
 
+def test_detect_task_step_plan_review_pass_with_stray_line_returns_implement(tmp_path):
+    """Should return ("implement", 1, plan_path) when the plan-review carries PLAN_REVIEW_PASS as an exact line followed by a stray line.
+    A resume that misreads a passing plan-review silently repeats finished work."""
+    prd, rv, plan_path = _dms_dirs(tmp_path)
+    plan_path.write_text("# Plan content")
+    (prd / f"{DMS_SEQ}-{DMS_SLUG}-plan-review-1.md").write_text(
+        "Review notes\n\nPLAN_REVIEW_PASS\nstray trailing line\n"
+    )
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        [
+            "git", "-c", "user.email=t@t.com", "-c", "user.name=T",
+            "commit", "--allow-empty", "-m", "init",
+        ],
+        cwd=tmp_path, check=True, capture_output=True,
+    )
+    step, counter, returned_path = _detect_task_step(
+        tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
+    )
+    assert step == "implement"
+    assert counter == 1
+    assert returned_path == plan_path
+
+
 # ---------------------------------------------------------------------------
 # Task 3: Canonical slug/seq resolution on mismatch
 # ---------------------------------------------------------------------------
@@ -536,6 +560,26 @@ def test_detect_task_step_dirty_tree_review_passing_returns_done(tmp_path):
         "Review notes\n\nPLAN_REVIEW_PASS"
     )
     (rv / f"{DMS_SEQ}-{DMS_SLUG}-review-1.md").write_text("Review notes\n\nREVIEW_PASS")
+    _init_dirty_git_repo(tmp_path)
+    step, counter, returned_path = _detect_task_step(
+        tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
+    )
+    assert step == "done"
+    assert counter == 0
+    assert returned_path == plan_path
+
+
+def test_detect_task_step_review_pass_with_stray_line_returns_done(tmp_path):
+    """Should return ("done", 0, plan_path) when the latest review carries REVIEW_PASS as an exact line followed by a stray line.
+    A resume that misreads a passing review silently repeats finished work."""
+    prd, rv, plan_path = _dms_dirs(tmp_path)
+    plan_path.write_text("# Plan content")
+    (prd / f"{DMS_SEQ}-{DMS_SLUG}-plan-review-1.md").write_text(
+        "Review notes\n\nPLAN_REVIEW_PASS"
+    )
+    (rv / f"{DMS_SEQ}-{DMS_SLUG}-review-1.md").write_text(
+        "Review notes\n\nREVIEW_PASS\nstray trailing line\n"
+    )
     _init_dirty_git_repo(tmp_path)
     step, counter, returned_path = _detect_task_step(
         tmp_path, DMS_SEQ, DMS_SLUG, plan_path, prd, rv
