@@ -7,10 +7,10 @@ import sys
 import pytest
 from pathlib import Path
 
-from orchestrator import agents as agents_module
+from orchestrator import errors as errors_module
 from orchestrator import main as main_module
 from orchestrator import usage as usage_module
-from orchestrator.agents import EscalationError, HaltError, PipelineStopError, RateLimitError
+from orchestrator.errors import EscalationError, HaltError, PipelineStopError, RateLimitError
 from orchestrator.config import OrchestratorConfig
 from orchestrator.notify import Outcome
 from orchestrator.main import (
@@ -968,7 +968,7 @@ def test_check_usage_limits_raises_halt_error_over_threshold(monkeypatch):
     with pytest.raises(Exception) as exc:
         _check_usage_limits(config)
 
-    HaltError = getattr(agents_module, "HaltError", None)
+    HaltError = getattr(errors_module, "HaltError", None)
     assert HaltError is not None and isinstance(exc.value, HaltError)
 
 
@@ -1039,7 +1039,7 @@ def test_process_task_resume_past_max_iterations_raises_halt_error(tmp_path):
     with pytest.raises(Exception) as exc:
         process_task(tmp_path, _TaskStub(), 1, config)
 
-    HaltError = getattr(agents_module, "HaltError", None)
+    HaltError = getattr(errors_module, "HaltError", None)
     assert HaltError is not None and isinstance(exc.value, HaltError)
 
 

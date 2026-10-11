@@ -11,13 +11,9 @@ import pytest
 
 from orchestrator import agents, state
 from orchestrator.agents import (
-    EscalationError,
-    HaltError,
     Implementer,
-    MissingArtifactError,
     PlanReviewer,
     PlannerReviewer,
-    RateLimitError,
     _classify_result,
     _escalation_excerpt,
     _has_escalation,
@@ -27,6 +23,7 @@ from orchestrator.agents import (
     kill_active_child,
     TestRunner,
 )
+from orchestrator.errors import EscalationError, HaltError, MissingArtifactError, RateLimitError
 
 
 # ---------------------------------------------------------------------------

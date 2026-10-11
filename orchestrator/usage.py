@@ -6,7 +6,7 @@ import re
 import subprocess
 
 from .config import OrchestratorConfig
-from .agents import HaltError
+from .errors import HaltError
 
 SESSION_PATTERN = r"Current session:\s+(\d+(?:\.\d+)?)%"
 WEEKLY_PATTERN = r"Current week \(all models\):\s+(\d+(?:\.\d+)?)%"

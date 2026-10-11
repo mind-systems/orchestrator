@@ -10,8 +10,9 @@ import time
 from pathlib import Path
 from typing import NamedTuple
 
-from .agents import REVIEW_VERIFY, TEST_RUN_VERIFY, EscalationError, HaltError, Implementer, PipelineStopError, PlannerReviewer, PlanReviewer, VerifyKind, _read_sessions, _write_session
+from .agents import REVIEW_VERIFY, TEST_RUN_VERIFY, Implementer, PlannerReviewer, PlanReviewer, VerifyKind, _read_sessions, _write_session
 from .config import OrchestratorConfig, load_config
+from .errors import EscalationError, HaltError, PipelineStopError
 from .notify import Outcome, report
 from .resume import _detect_step
 from .roadmap import ParseResult, mark_done, mark_skipped, parse_roadmap
