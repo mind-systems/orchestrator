@@ -5,7 +5,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from .agents import REVIEW_VERIFY, TEST_RUN_VERIFY, VerifyKind
+from .ports import VerifyKind
 from .protocol import _read_sessions
 
 
@@ -177,31 +177,3 @@ def _detect_step(
         return ("done", 0, plan_path)
 
     return ("implement", len(output_files) + 1, plan_path)
-
-
-def _detect_task_step(
-    project_dir: Path, seq: str, slug: str,
-    plan_path: Path, plan_reviews_dir: Path, reviews_dir: Path,
-) -> tuple[str, int, Path]:
-    """Detect where a previous implement run stopped. Thin wrapper over `_detect_step`.
-
-    Passes `REVIEW_VERIFY`, the review kind.
-    """
-    return _detect_step(
-        project_dir, seq, slug, plan_path, plan_reviews_dir, reviews_dir,
-        REVIEW_VERIFY,
-    )
-
-
-def _detect_test_task_step(
-    project_dir: Path, seq: str, slug: str,
-    plan_path: Path, plan_reviews_dir: Path, test_runs_dir: Path,
-) -> tuple[str, int, Path]:
-    """Detect where a previous test run stopped. Thin wrapper over `_detect_step`.
-
-    Passes `TEST_RUN_VERIFY`, the test-run kind.
-    """
-    return _detect_step(
-        project_dir, seq, slug, plan_path, plan_reviews_dir, test_runs_dir,
-        TEST_RUN_VERIFY,
-    )

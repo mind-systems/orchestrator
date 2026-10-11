@@ -10,6 +10,7 @@ from pathlib import Path
 from orchestrator import errors as errors_module
 from orchestrator import main as main_module
 from orchestrator import usage as usage_module
+from orchestrator.agents import REVIEW_VERIFY, TEST_RUN_VERIFY
 from orchestrator.errors import EscalationError, HaltError, PipelineStopError, RateLimitError
 from orchestrator.config import OrchestratorConfig
 from orchestrator.notify import Outcome
@@ -24,8 +25,7 @@ from orchestrator.main import (
     process_task,
 )
 from orchestrator.resume import (
-    _detect_task_step,
-    _detect_test_task_step,
+    _detect_step,
     _validate_sidecar_step,
 )
 from orchestrator.usage import _check_usage_limits, _parse_pct
@@ -241,6 +241,28 @@ def test_multiline_returns_first_match():
 
 DMS_SEQ = "01"
 DMS_SLUG = "slug"
+
+
+def _detect_task_step(
+    project_dir: Path, seq: str, slug: str,
+    plan_path: Path, plan_reviews_dir: Path, reviews_dir: Path,
+) -> tuple[str, int, Path]:
+    """Detect where a previous implement run stopped: `_detect_step` with `REVIEW_VERIFY`."""
+    return _detect_step(
+        project_dir, seq, slug, plan_path, plan_reviews_dir, reviews_dir,
+        REVIEW_VERIFY,
+    )
+
+
+def _detect_test_task_step(
+    project_dir: Path, seq: str, slug: str,
+    plan_path: Path, plan_reviews_dir: Path, test_runs_dir: Path,
+) -> tuple[str, int, Path]:
+    """Detect where a previous test run stopped: `_detect_step` with `TEST_RUN_VERIFY`."""
+    return _detect_step(
+        project_dir, seq, slug, plan_path, plan_reviews_dir, test_runs_dir,
+        TEST_RUN_VERIFY,
+    )
 
 
 def _dms_dirs(tmp_path: Path) -> tuple[Path, Path, Path]:

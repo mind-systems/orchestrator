@@ -10,10 +10,10 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Callable, NamedTuple, Protocol
 
 from . import state
 from .errors import EscalationError, MissingArtifactError, NetworkError, RateLimitError
+from .ports import VerifierProtocol, VerifyKind
 from .protocol import _escalation_excerpt, _has_escalation, _has_signal, _write_session
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
@@ -309,31 +309,11 @@ def _run_claude(
     raise RuntimeError("All retry attempts exhausted")
 
 
-class VerifierProtocol(Protocol):
-    """Given the plan and output path, write the verify artifact and report pass or fail by its completion signal."""
-
-    def verify(self, plan_path: Path, out_path: Path, prev_out_path: Path | None) -> bool: ...
-
-
-class VerifyKind(NamedTuple):
-    """Everything that depends on the verify choice (review vs. test run)."""
-    step: str
-    fail_tag: str
-    output_dirname: str
-    output_suffix: str  # artifact tail with an {n} placeholder, e.g. "-review-{n}.md"
-    pass_signal: str
-    running_header: str
-    pass_line_label: str
-    fail_line_label: str
-    max_iterations_message: str  # template with {n}, {path}, {content} placeholders
-    make_verifier: Callable[[PlannerReviewer, Path], VerifierProtocol]  # (planner_reviewer, project_dir) -> verifier
-
-
-def _review_verifier(planner_reviewer: PlannerReviewer, project_dir: Path) -> VerifierProtocol:
+def _review_verifier(planner_reviewer: VerifierProtocol, project_dir: Path) -> VerifierProtocol:
     return planner_reviewer
 
 
-def _test_run_verifier(planner_reviewer: PlannerReviewer, project_dir: Path) -> VerifierProtocol:
+def _test_run_verifier(planner_reviewer: VerifierProtocol, project_dir: Path) -> VerifierProtocol:
     return TestRunner(project_dir)
 
 
